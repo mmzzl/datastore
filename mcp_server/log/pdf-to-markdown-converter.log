@@ -1,0 +1,15 @@
+2025-10-30 00:19:53,206 - mcp-server - INFO - PDF转Markdown MCP服务启动中...
+2025-10-30 00:19:53,207 - mcp-server - INFO - 服务版本: 1.0.0
+2025-10-30 00:19:53,207 - mcp-server - INFO - 监听地址: http://127.0.0.1:8080
+2025-10-30 00:19:53,207 - mcp-server - INFO - 健康检查: http://127.0.0.1:8080/health
+2025-10-30 00:19:53,208 - mcp-server - INFO - 服务信息: http://127.0.0.1:8080/info
+2025-10-30 00:19:53,208 - mcp-server - INFO - API接口: http://127.0.0.1:8080/api/invoke
+2025-10-30 00:19:53,208 - mcp-server - WARNING - 警告: 认证未启用，服务可能存在安全风险
+2025-10-30 00:20:13,084 - mcp-server - INFO - 127.0.0.1 - "GET /health HTTP/1.1" 200 -
+2025-10-30 00:22:37,022 - mcp-server - INFO - PDF转Markdown MCP服务启动中...
+2025-10-30 00:22:37,022 - mcp-server - INFO - 服务版本: 1.0.0
+2025-10-30 00:22:37,023 - mcp-server - INFO - 监听地址: http://127.0.0.1:8080
+2025-10-30 00:22:37,023 - mcp-server - INFO - 健康检查: http://127.0.0.1:8080/health
+2025-10-30 00:22:37,023 - mcp-server - INFO - 服务信息: http://127.0.0.1:8080/info
+2025-10-30 00:22:37,023 - mcp-server - INFO - API接口: http://127.0.0.1:8080/api/invoke
+2025-10-30 00:22:37,023 - mcp-server - WARNING - 警告: 认证未启用，服务可能存在安全风险

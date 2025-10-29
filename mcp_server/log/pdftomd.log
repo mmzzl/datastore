@@ -1,0 +1,91 @@
+2025-10-30 00:34:55,658 - pdftomd - INFO - 输出目录: D:\work\datastore\mcp_server\output
+2025-10-30 00:34:55,662 - pdftomd - INFO - 临时目录: D:\work\datastore\mcp_server\temp
+2025-10-30 00:34:55,686 - pdftomd - INFO - Trae AI MCP服务器启动成功
+2025-10-30 00:34:55,687 - pdftomd - INFO - 监听地址: http://127.0.0.1:8081
+2025-10-30 00:34:55,687 - pdftomd - INFO - 健康检查: http://127.0.0.1:8081/health
+2025-10-30 00:34:55,687 - pdftomd - INFO - 工具定义: http://127.0.0.1:8081/tool-definition
+2025-10-30 00:34:55,687 - pdftomd - INFO - 执行接口: http://127.0.0.1:8081/execute (POST)
+2025-10-30 00:39:33,287 - pdftomd - INFO - 收到执行请求: {'file_path': 'd:\\work\\datastore\\????\\lm5176.pdf'}
+2025-10-30 00:39:33,287 - pdftomd - INFO - 开始执行PDF转Markdown: d:\work\datastore\????\lm5176.pdf
+2025-10-30 00:39:33,292 - pdftomd - INFO - 127.0.0.1 - "POST /execute HTTP/1.1" 400 -
+2025-10-30 00:39:46,874 - pdftomd - INFO - 127.0.0.1 - "GET /health HTTP/1.1" 200 -
+2025-10-30 00:40:02,129 - pdftomd - INFO - 127.0.0.1 - "GET /tool-definition HTTP/1.1" 200 -
+2025-10-30 00:41:07,117 - pdftomd - INFO - 收到执行请求: {'file_path': 'd:\\work\\datastore\\芯片手册\\lm5176.pdf'}
+2025-10-30 00:41:07,117 - pdftomd - INFO - 开始执行PDF转Markdown: d:\work\datastore\芯片手册\lm5176.pdf
+2025-10-30 00:41:07,118 - pdftomd - INFO - 开始处理PDF文件: d:\work\datastore\芯片手册\lm5176.pdf
+2025-10-30 00:41:07,119 - pdftomd - INFO - 输出目录: D:\work\datastore\mcp_server\output
+2025-10-30 00:41:07,119 - pdftomd - INFO - 临时目录: D:\work\datastore\mcp_server\temp
+2025-10-30 00:41:07,127 - pdftomd - INFO - PDF转换完成，输出文件: D:\work\datastore\mcp_server\output\lm5176.md
+2025-10-30 00:41:07,127 - pdftomd - INFO - PDF转Markdown完成: success
+2025-10-30 00:41:07,127 - pdftomd - INFO - 127.0.0.1 - "POST /execute HTTP/1.1" 200 -
+2025-10-30 00:46:31,305 - pdftomd - INFO - 收到执行请求: {'file_path': 'd:\\work\\datastore\\芯片手册\\lm5176.pdf'}
+2025-10-30 00:46:31,305 - pdftomd - INFO - 开始执行PDF转Markdown: d:\work\datastore\芯片手册\lm5176.pdf
+2025-10-30 00:46:31,306 - pdftomd - INFO - 开始处理PDF文件: d:\work\datastore\芯片手册\lm5176.pdf
+2025-10-30 00:46:31,306 - pdftomd - INFO - 输出目录: D:\work\datastore\mcp_server\output
+2025-10-30 00:46:31,306 - pdftomd - INFO - 临时目录: D:\work\datastore\mcp_server\temp
+2025-10-30 00:46:31,307 - pdftomd - INFO - PDF转换完成，输出文件: D:\work\datastore\mcp_server\output\lm5176.md
+2025-10-30 00:46:31,308 - pdftomd - INFO - PDF转Markdown完成: success
+2025-10-30 00:46:31,308 - pdftomd - INFO - 127.0.0.1 - "POST /execute HTTP/1.1" 200 -
+2025-10-30 00:47:26,924 - pdftomd - INFO - 收到执行请求: {'file_path': 'd:\\work\\datastore\\芯片手册\\lm5176.pdf'}
+2025-10-30 00:47:26,924 - pdftomd - INFO - 开始执行PDF转Markdown: d:\work\datastore\芯片手册\lm5176.pdf
+2025-10-30 00:47:26,926 - pdftomd - INFO - 开始处理PDF文件: d:\work\datastore\芯片手册\lm5176.pdf
+2025-10-30 00:47:26,926 - pdftomd - INFO - 输出目录: D:\work\datastore\mcp_server\output
+2025-10-30 00:47:26,926 - pdftomd - INFO - 临时目录: D:\work\datastore\mcp_server\temp
+2025-10-30 00:47:26,930 - pdftomd - INFO - PDF转换完成，输出文件: D:\work\datastore\mcp_server\output\lm5176.md
+2025-10-30 00:47:26,930 - pdftomd - INFO - PDF转Markdown完成: success
+2025-10-30 00:47:26,930 - pdftomd - INFO - 127.0.0.1 - "POST /execute HTTP/1.1" 200 -
+2025-10-30 00:48:53,087 - pdftomd - INFO - PDF转Markdown MCP服务启动中...
+2025-10-30 00:48:53,087 - pdftomd - INFO - 服务版本: 1.0.0
+2025-10-30 00:48:53,088 - pdftomd - INFO - 监听地址: http://127.0.0.1:8081
+2025-10-30 00:48:53,088 - pdftomd - INFO - 健康检查: http://127.0.0.1:8081/health
+2025-10-30 00:48:53,088 - pdftomd - INFO - 服务信息: http://127.0.0.1:8081/info
+2025-10-30 00:48:53,088 - pdftomd - INFO - API接口: http://127.0.0.1:8081/api/invoke
+2025-10-30 00:48:53,088 - pdftomd - WARNING - 警告: 认证未启用，服务可能存在安全风险
+2025-10-30 00:49:19,427 - pdftomd - INFO - 收到调用请求: method=convert_pdf_to_md
+2025-10-30 00:49:19,427 - pdftomd - INFO - 开始处理PDF文件: d:\work\datastore\芯片手册\lm5176.pdf
+2025-10-30 00:49:19,427 - pdftomd - INFO - 输出目录: D:\work\datastore\mcp_server\output
+2025-10-30 00:49:19,428 - pdftomd - INFO - 临时目录: D:\work\datastore\mcp_server\temp
+2025-10-30 00:49:19,434 - pdftomd - INFO - PDF转换完成，输出文件: D:\work\datastore\mcp_server\output\lm5176.md
+2025-10-30 00:49:19,434 - pdftomd - INFO - 127.0.0.1 - "POST /api/invoke HTTP/1.1" 200 -
+2025-10-30 00:50:56,060 - pdftomd - INFO - 收到调用请求: method=convert_pdf_to_md
+2025-10-30 00:50:56,061 - pdftomd - INFO - 开始处理PDF文件: d:\work\datastore\芯片手册\lm5176.pdf
+2025-10-30 00:50:56,061 - pdftomd - INFO - 输出目录: D:\work\datastore\mcp_server\output
+2025-10-30 00:50:56,061 - pdftomd - INFO - 临时目录: D:\work\datastore\mcp_server\temp
+2025-10-30 00:50:56,063 - pdftomd - INFO - PDF转换完成，输出文件: D:\work\datastore\mcp_server\output\lm5176.md
+2025-10-30 00:50:56,064 - pdftomd - INFO - 127.0.0.1 - "POST /api/invoke HTTP/1.1" 200 -
+2025-10-30 00:51:28,471 - pdftomd - INFO - PDF转Markdown MCP服务启动中...
+2025-10-30 00:51:28,472 - pdftomd - INFO - 服务版本: 1.0.0
+2025-10-30 00:51:28,472 - pdftomd - INFO - 监听地址: http://127.0.0.1:8081
+2025-10-30 00:51:28,472 - pdftomd - INFO - 健康检查: http://127.0.0.1:8081/health
+2025-10-30 00:51:28,472 - pdftomd - INFO - 服务信息: http://127.0.0.1:8081/info
+2025-10-30 00:51:28,472 - pdftomd - INFO - API接口: http://127.0.0.1:8081/api/invoke
+2025-10-30 00:51:28,473 - pdftomd - WARNING - 警告: 认证未启用，服务可能存在安全风险
+2025-10-30 00:51:39,362 - pdftomd - INFO - 收到调用请求: method=convert_pdf_to_md
+2025-10-30 00:51:39,364 - pdftomd - ERROR - PDF转换失败: local variable 'os' referenced before assignment
+2025-10-30 00:51:39,364 - pdftomd - INFO - 127.0.0.1 - "POST /api/invoke HTTP/1.1" 200 -
+2025-10-30 00:52:09,060 - pdftomd - INFO - 收到调用请求: method=convert_pdf_to_md
+2025-10-30 00:52:09,060 - pdftomd - ERROR - PDF转换失败: local variable 'os' referenced before assignment
+2025-10-30 00:52:09,061 - pdftomd - INFO - 127.0.0.1 - "POST /api/invoke HTTP/1.1" 200 -
+2025-10-30 00:58:27,159 - pdftomd - INFO - PDF转Markdown MCP服务启动中...
+2025-10-30 00:58:27,160 - pdftomd - INFO - 服务版本: 1.0.0
+2025-10-30 00:58:27,160 - pdftomd - INFO - 监听地址: http://127.0.0.1:8081
+2025-10-30 00:58:27,160 - pdftomd - INFO - 健康检查: http://127.0.0.1:8081/health
+2025-10-30 00:58:27,160 - pdftomd - INFO - 服务信息: http://127.0.0.1:8081/info
+2025-10-30 00:58:27,160 - pdftomd - INFO - API接口: http://127.0.0.1:8081/api/invoke
+2025-10-30 00:58:27,161 - pdftomd - WARNING - 警告: 认证未启用，服务可能存在安全风险
+2025-10-30 01:02:24,988 - pdftomd - INFO - 找到Tesseract: C:\Program Files\Tesseract-OCR\tesseract.exe
+2025-10-30 01:02:24,990 - pdftomd - WARNING - 未找到Poppler，请手动指定路径或确保已安装
+2025-10-30 01:02:25,006 - pdftomd - INFO - PDF转Markdown MCP服务启动中...
+2025-10-30 01:02:25,006 - pdftomd - INFO - 服务版本: 1.0.0
+2025-10-30 01:02:25,006 - pdftomd - INFO - 监听地址: http://127.0.0.1:8081
+2025-10-30 01:02:25,006 - pdftomd - INFO - 健康检查: http://127.0.0.1:8081/health
+2025-10-30 01:02:25,007 - pdftomd - INFO - 服务信息: http://127.0.0.1:8081/info
+2025-10-30 01:02:25,007 - pdftomd - INFO - API接口: http://127.0.0.1:8081/api/invoke
+2025-10-30 01:02:25,007 - pdftomd - WARNING - 警告: 认证未启用，服务可能存在安全风险
+2025-10-30 01:02:28,366 - pdftomd - INFO - 收到调用请求: method=convert_pdf_to_md
+2025-10-30 01:02:28,367 - pdftomd - INFO - 开始处理PDF文件: d:\work\datastore\芯片手册\lm5176.pdf
+2025-10-30 01:02:28,367 - pdftomd - INFO - 输出目录: D:\work\datastore\mcp_server\output
+2025-10-30 01:02:28,367 - pdftomd - INFO - 临时目录: D:\work\datastore\mcp_server\temp
+2025-10-30 01:03:03,194 - pdftomd - INFO - 成功转换PDF，共46页
+2025-10-30 01:09:07,858 - pdftomd - INFO - PDF转换完成，输出文件: D:\work\datastore\mcp_server\output\lm5176.md
+2025-10-30 01:09:08,018 - pdftomd - INFO - 127.0.0.1 - "POST /api/invoke HTTP/1.1" 200 -

@@ -1,0 +1,37 @@
+参数类别,参数名称,参数值/描述,单位,参考来源
+基本信息,型号,LM5176,,-
+基本信息,类型,同步四开关降压-升压DC/DC控制器,,-
+电气特性,输入电压范围,4.2至55V（绝对最大值60V）,V,<mcreference link="https://m.elecfans.com/article/6496817.html" index="1">1</mcreference>
+电气特性,输出电压范围,0.8V至55V,V,<mcreference link="https://m.elecfans.com/article/6496817.html" index="1">1</mcreference>
+电气特性,开关频率范围,100KHz至600KHz,KHz,<mcreference link="https://m.elecfans.com/article/xc-2500405746.html" index="4">4</mcreference>
+电气特性,栅极驱动电流,2A,A,<mcreference link="https://m.elecfans.com/article/6496817.html" index="1">1</mcreference>
+电气特性,工作温度范围,-40℃至+125℃,℃,<mcreference link="https://m.elecfans.com/article/xc-2500405746.html" index="4">4</mcreference>
+工作原理,控制方式,峰值电流模式控制,,-
+工作原理,工作模式,降压、升压和降压-升压模式,,-
+工作原理,占空比,最高100%,%,<mcreference link="https://m.elecfans.com/article/xc-2500405746.html" index="4">4</mcreference>
+保护功能,输入欠压锁定(UVLO),可编程,,-
+保护功能,输出过压保护(OVP),支持,,-
+保护功能,过流保护,逐周期电流限制和可选打嗝模式,,-
+保护功能,热关断,支持,,-
+保护功能,短路保护,支持,,-
+封装信息,封装类型,HTSSOP-28和QFN-28,,-
+封装信息,引脚数,28,Pin,<mcreference link="https://m.elecfans.com/article/xc-2500405746.html" index="4">4</mcreference>
+封装信息,安装类型,SMT,,-
+设计参数,开关频率设置,通过外部电阻编程,,-
+设计参数,软启动,可编程,,-
+设计参数,电流限制,可选输入或输出平均电流限制,,-
+设计参数,EMI优化,可选扩频功能,,-
+设计要点,电感选择,根据工作电流和纹波要求选择合适电感值,,-
+设计要点,电容选择,输入输出滤波电容需满足电压和纹波要求,,-
+设计要点,MOSFET选择,需匹配电压和电流规格,,-
+设计要点,PCB布局,注意功率回路和控制回路分离，减少寄生电感,,-
+应用场景,工业PC电源,适合宽输入电压范围的工业应用,,-
+应用场景,电池供电系统,适合电池电压变化较大的应用,,-
+应用场景,汽车电子,适合车载环境的电源转换,,-
+应用场景,分布式电源系统,适合作为中间母线转换器,,-
+设计工具,WEBENCH PowerDesigner,TI提供的电源设计工具,,-
+典型应用,单电感降压-升压转换,使用单个电感器实现电压转换,,-
+典型应用,宽输入范围电源,适用于输入电压不稳定的场景,,-
+调试要点,检查启动波形,确认软启动正常,,-
+调试要点,验证保护功能,测试各种保护机制是否正常工作,,-
+调试要点,效率测量,在不同负载条件下测量转换效率,,-
