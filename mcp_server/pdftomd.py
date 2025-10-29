@@ -334,9 +334,12 @@ def process_text_for_markdown(text: str) -> str:
             processed_lines.append('')
             continue
             
-        # 检测可能的公式（包含数学符号）
-        math_symbols = ['∑', '∫', '∂', '√', '±', '≈', '≠', '≤', '≥', '∞', 'α', 'β', 'γ', 'δ', 'π']
-        if any(symbol in line for symbol in math_symbols):
+        # 检测全大写的文本，可能是标题
+        if line.isupper() and len(line) > 3:
+            # 将全大写的文本转换为三级标题
+            processed_lines.append(f"### {line}")
+        # 检测可能的公式（包含数学符号或等号）
+        elif any(symbol in line for symbol in ['∑', '∫', '∂', '√', '±', '≈', '≠', '≤', '≥', '∞', 'α', 'β', 'γ', 'δ', 'π', '=']):
             # 将公式行用LaTeX格式包围
             processed_lines.append(f"$${line}$$")
         # 检测表格（包含多个制表符或连续空格）
