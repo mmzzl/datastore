@@ -412,8 +412,8 @@ def convert_pdf_to_md(params: Dict[str, Any]) -> Dict[str, Any]:
         logger.info(f"输出目录: {CONFIG['output_dir']}")
         logger.info(f"临时目录: {CONFIG['temp_dir']}")
         
-        # 确保图片目录存在
-        images_dir = os.path.join(os.path.dirname(output_path), "images")
+        # 确保图片目录存在 - 为每个PDF文件创建独立的图片目录
+        images_dir = os.path.join(CONFIG['output_dir'], f"{filename}_images")
         os.makedirs(images_dir, exist_ok=True)
         
         # 将PDF转换为图像
