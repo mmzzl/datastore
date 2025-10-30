@@ -89,3 +89,7 @@
 2025-10-30 01:03:03,194 - pdftomd - INFO - 成功转换PDF，共46页
 2025-10-30 01:09:07,858 - pdftomd - INFO - PDF转换完成，输出文件: D:\work\datastore\mcp_server\output\lm5176.md
 2025-10-30 01:09:08,018 - pdftomd - INFO - 127.0.0.1 - "POST /api/invoke HTTP/1.1" 200 -
+2025-10-30 19:26:28,595 - pdftomd - WARNING - 未找到Tesseract，请手动指定路径或确保已安装
+2025-10-30 19:26:28,613 - pdftomd - WARNING - 未找到Poppler，请手动指定路径或确保已安装
+2025-10-30 19:27:02,541 - pdftomd - WARNING - 未找到Tesseract，请手动指定路径或确保已安装
+2025-10-30 19:27:02,556 - pdftomd - WARNING - 未找到Poppler，请手动指定路径或确保已安装
