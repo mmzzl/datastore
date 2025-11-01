@@ -89,58 +89,7 @@
 2025-10-30 01:03:03,194 - pdftomd - INFO - 成功转换PDF，共46页
 2025-10-30 01:09:07,858 - pdftomd - INFO - PDF转换完成，输出文件: D:\work\datastore\mcp_server\output\lm5176.md
 2025-10-30 01:09:08,018 - pdftomd - INFO - 127.0.0.1 - "POST /api/invoke HTTP/1.1" 200 -
-2025-10-30 01:15:12,978 - pdftomd - INFO - 找到Tesseract: C:\Program Files\Tesseract-OCR\tesseract.exe
-2025-10-30 01:15:12,979 - pdftomd - WARNING - 未找到Poppler，请手动指定路径或确保已安装
-2025-10-30 01:15:14,248 - pdftomd - WARNING - 未找到Poppler，请手动指定路径或确保已安装
-2025-10-30 01:15:14,369 - pdftomd - INFO - 找到Tesseract: C:\Program Files\Tesseract-OCR\tesseract.exe
-2025-10-30 01:15:30,389 - pdftomd - INFO - 找到Tesseract: C:\Program Files\Tesseract-OCR\tesseract.exe
-2025-10-30 01:15:30,391 - pdftomd - WARNING - 未找到Poppler，请手动指定路径或确保已安装
-2025-10-30 01:15:31,433 - pdftomd - WARNING - 未找到Poppler，请手动指定路径或确保已安装
-2025-10-30 01:15:31,615 - pdftomd - INFO - 找到Tesseract: C:\Program Files\Tesseract-OCR\tesseract.exe
-2025-10-30 01:15:41,452 - pdftomd - INFO - 找到Tesseract: C:\Program Files\Tesseract-OCR\tesseract.exe
-2025-10-30 01:15:41,453 - pdftomd - WARNING - 未找到Poppler，请手动指定路径或确保已安装
-2025-10-30 01:15:42,451 - pdftomd - WARNING - 未找到Poppler，请手动指定路径或确保已安装
-2025-10-30 01:15:42,565 - pdftomd - INFO - 找到Tesseract: C:\Program Files\Tesseract-OCR\tesseract.exe
-2025-10-30 01:15:54,446 - pdftomd - INFO - 找到Tesseract: C:\Program Files\Tesseract-OCR\tesseract.exe
-2025-10-30 01:15:54,447 - pdftomd - WARNING - 未找到Poppler，请手动指定路径或确保已安装
-2025-10-30 01:15:55,357 - pdftomd - WARNING - 未找到Poppler，请手动指定路径或确保已安装
-2025-10-30 01:15:55,505 - pdftomd - INFO - 找到Tesseract: C:\Program Files\Tesseract-OCR\tesseract.exe
-2025-10-30 01:17:58,083 - pdftomd - INFO - 找到Tesseract: C:\Program Files\Tesseract-OCR\tesseract.exe
-2025-10-30 01:17:58,085 - pdftomd - WARNING - 未找到Poppler，请手动指定路径或确保已安装
-2025-10-30 01:17:59,076 - pdftomd - WARNING - 未找到Poppler，请手动指定路径或确保已安装
-2025-10-30 01:17:59,194 - pdftomd - INFO - 找到Tesseract: C:\Program Files\Tesseract-OCR\tesseract.exe
-2025-10-30 01:18:06,533 - pdftomd - INFO - 找到Tesseract: C:\Program Files\Tesseract-OCR\tesseract.exe
-2025-10-30 01:18:06,534 - pdftomd - WARNING - 未找到Poppler，请手动指定路径或确保已安装
-2025-10-30 01:18:07,591 - pdftomd - WARNING - 未找到Poppler，请手动指定路径或确保已安装
-2025-10-30 01:18:07,722 - pdftomd - INFO - 找到Tesseract: C:\Program Files\Tesseract-OCR\tesseract.exe
-2025-10-30 01:19:23,726 - pdftomd - INFO - 找到Tesseract: C:\Program Files\Tesseract-OCR\tesseract.exe
-2025-10-30 01:19:23,727 - pdftomd - WARNING - 未找到Poppler，请手动指定路径或确保已安装
-2025-10-30 01:19:39,562 - pdftomd - INFO - 找到Tesseract: C:\Program Files\Tesseract-OCR\tesseract.exe
-2025-10-30 01:19:39,563 - pdftomd - WARNING - 未找到Poppler，请手动指定路径或确保已安装
-2025-10-30 01:19:39,579 - pdftomd - INFO - 开始处理PDF文件: ../芯片手册/C31151_模数转换芯片ADC_AD9288BSTZ-100_规格书_WJ126841.PDF
-2025-10-30 01:19:39,580 - pdftomd - INFO - 输出目录: D:\work\datastore\mcp_server\output
-2025-10-30 01:19:39,580 - pdftomd - INFO - 临时目录: D:\work\datastore\mcp_server\temp
-2025-10-30 01:19:48,621 - pdftomd - INFO - 成功转换PDF，共24页
-2025-10-30 01:22:44,016 - pdftomd - INFO - PDF转换完成，输出文件: D:\work\datastore\mcp_server\output\C31151_模数转换芯片ADC_AD9288BSTZ-100_规格书_WJ126841.md
-2025-10-30 01:22:58,023 - pdftomd - INFO - 找到Tesseract: C:\Program Files\Tesseract-OCR\tesseract.exe
-2025-10-30 01:22:58,025 - pdftomd - WARNING - 未找到Poppler，请手动指定路径或确保已安装
-2025-10-30 01:22:59,158 - pdftomd - WARNING - 未找到Poppler，请手动指定路径或确保已安装
-2025-10-30 01:22:59,285 - pdftomd - INFO - 找到Tesseract: C:\Program Files\Tesseract-OCR\tesseract.exe
-2025-10-30 01:25:52,756 - pdftomd - INFO - 找到Tesseract: C:\Program Files\Tesseract-OCR\tesseract.exe
-2025-10-30 01:25:52,758 - pdftomd - WARNING - 未找到Poppler，请手动指定路径或确保已安装
-2025-10-30 01:25:52,759 - pdftomd - INFO - 开始处理PDF文件: ../芯片手册/C31151_模数转换芯片ADC_AD9288BSTZ-100_规格书_WJ126841.PDF
-2025-10-30 01:25:52,760 - pdftomd - INFO - 输出目录: D:\work\datastore\mcp_server\output
-2025-10-30 01:25:52,760 - pdftomd - INFO - 临时目录: D:\work\datastore\mcp_server\temp
-2025-10-30 01:26:01,799 - pdftomd - INFO - 成功转换PDF，共24页
-2025-10-30 01:28:51,646 - pdftomd - INFO - PDF转换完成，输出文件: D:\work\datastore\mcp_server\output\C31151_模数转换芯片ADC_AD9288BSTZ-100_规格书_WJ126841.md
-2025-10-30 01:28:58,457 - pdftomd - INFO - 找到Tesseract: C:\Program Files\Tesseract-OCR\tesseract.exe
-2025-10-30 01:28:58,458 - pdftomd - WARNING - 未找到Poppler，请手动指定路径或确保已安装
-2025-10-30 01:28:58,459 - pdftomd - INFO - 开始处理PDF文件: ../芯片手册/lm5176.pdf
-2025-10-30 01:28:58,459 - pdftomd - INFO - 输出目录: D:\work\datastore\mcp_server\output
-2025-10-30 01:28:58,460 - pdftomd - INFO - 临时目录: D:\work\datastore\mcp_server\temp
-2025-10-30 01:29:27,604 - pdftomd - INFO - 成功转换PDF，共46页
-2025-10-30 01:35:22,105 - pdftomd - INFO - PDF转换完成，输出文件: D:\work\datastore\mcp_server\output\lm5176.md
-2025-10-30 01:35:47,205 - pdftomd - INFO - 找到Tesseract: C:\Program Files\Tesseract-OCR\tesseract.exe
-2025-10-30 01:35:47,207 - pdftomd - WARNING - 未找到Poppler，请手动指定路径或确保已安装
-2025-10-30 01:35:48,176 - pdftomd - WARNING - 未找到Poppler，请手动指定路径或确保已安装
-2025-10-30 01:35:48,277 - pdftomd - INFO - 找到Tesseract: C:\Program Files\Tesseract-OCR\tesseract.exe
+2025-10-30 19:26:28,595 - pdftomd - WARNING - 未找到Tesseract，请手动指定路径或确保已安装
+2025-10-30 19:26:28,613 - pdftomd - WARNING - 未找到Poppler，请手动指定路径或确保已安装
+2025-10-30 19:27:02,541 - pdftomd - WARNING - 未找到Tesseract，请手动指定路径或确保已安装
+2025-10-30 19:27:02,556 - pdftomd - WARNING - 未找到Poppler，请手动指定路径或确保已安装
