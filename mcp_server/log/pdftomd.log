@@ -93,3 +93,13 @@
 2025-10-30 19:26:28,613 - pdftomd - WARNING - 未找到Poppler，请手动指定路径或确保已安装
 2025-10-30 19:27:02,541 - pdftomd - WARNING - 未找到Tesseract，请手动指定路径或确保已安装
 2025-10-30 19:27:02,556 - pdftomd - WARNING - 未找到Poppler，请手动指定路径或确保已安装
+2025-11-02 16:57:19,709 - pdftomd - INFO - 找到Tesseract: C:\Program Files\Tesseract-OCR\tesseract.exe
+2025-11-02 16:57:19,712 - pdftomd - WARNING - 未找到Poppler，请手动指定路径或确保已安装
+2025-11-02 16:57:19,717 - pdftomd - ERROR - PDF转换失败: stat: path should be string, bytes, os.PathLike or integer, not dict
+2025-11-02 16:57:27,697 - pdftomd - INFO - 找到Tesseract: C:\Program Files\Tesseract-OCR\tesseract.exe
+2025-11-02 16:57:27,699 - pdftomd - WARNING - 未找到Poppler，请手动指定路径或确保已安装
+2025-11-02 16:57:27,701 - pdftomd - INFO - 开始处理PDF文件: ../micropython/doc/raspberry-pi-pico-python-sdk.pdf
+2025-11-02 16:57:27,701 - pdftomd - INFO - 输出目录: D:\work\datastore\mcp_server\output
+2025-11-02 16:57:27,702 - pdftomd - INFO - 临时目录: D:\work\datastore\mcp_server\temp
+2025-11-02 16:58:13,569 - pdftomd - INFO - 成功转换PDF，共54页
+2025-11-02 17:05:21,948 - pdftomd - INFO - PDF转换完成，输出文件: D:\work\datastore\mcp_server\output\raspberry-pi-pico-python-sdk.md

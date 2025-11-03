@@ -25,7 +25,7 @@ style.set_pad_all( 2 )
 style.set_pad_gap( 2 ) 
 style.set_radius( 2 )
 style.set_border_width( 0 )
-style.set_bg_color( lv.palette_lighten( lv.PALETTE.GREY, 3 ) )
+style.set_bg_color( lv.color_hex(0x000000))
 
 class Cont:
     def __init__( self, x=5, y=5, w=480-10, h=320-10 ):
@@ -57,7 +57,7 @@ class Column:
         return self.obj
     
     def __exit__( self, a, b, c ):
-        self.obj.set_size( lv.SIZE.CONTENT, lv.SIZE.CONTENT )
+        self.obj.set_size(lv.SIZE_CONTENT, lv.SIZE_CONTENT)
         context.pop()
 
 class Row:
@@ -73,11 +73,11 @@ class Row:
         return self.obj
     
     def __exit__( self, a, b, c ):
-        self.obj.set_size( lv.SIZE.CONTENT, lv.SIZE.CONTENT )
+        self.obj.set_size(lv.SIZE_CONTENT, lv.SIZE_CONTENT)
         context.pop()
 
 def add_button( name, w=40, h=20, radius=5, checkable=False ):
-    btn = lv.btn( context[-1] )
+    btn = lv.button( context[-1] )
     btn.set_size( w, h )
     btn.set_style_radius( radius, 0 )
     btn.set_style_border_width( 1, 0 )

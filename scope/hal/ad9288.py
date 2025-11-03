@@ -5,55 +5,33 @@ import uctypes
 from hal.dma import DMA 
 
 @rp2.asm_pio(
-    sideset_init = (rp2.PIO.OUT_HIGH, rp2.PIO.OUT_HIGH),
-    in_shiftdir = rp2.PIO.SHIFT_LEFT,
+    sideset_init =(rp2.PIO.OUT_HIGH, rp2.PIO.OUT_HIGH),
+    in_shiftdir  = rp2.PIO.SHIFT_LEFT,
 )
 def build_sm_adc9288():
-    in_(pins, 8).side(0b0)
-    push(block).side(0b1)
+    in_( pins, 8 ) .side( 0b0 )
+    push( block )  .side( 0b1 )
 
-@rp2.asm_pio(
-    sideset_init = (rp2.PIO.OUT_HIGH, rp2.PIO.OUT_HIGH),
-    in_shiftdir  = rp2.PIO.SHIFT_LEFT
-)
-def build_sm_adc9288_trigger():
-    wait(1, irq, 4)
-    wrap_target()
-    in_(pins, 8).side(0b00)
-    push(block).side(0b10)
-    in_(pins, 8).side(0b00)
-    push(block).side(0b10)
-    wrap()
 
-class AD9288:
+class Adc9288:
     PIO0_BASE = 0x50200000
     PIO0_BASE_TXF0 = PIO0_BASE + 0x10
     PIO0_BASE_RXF0 = PIO0_BASE + 0x20
-    def __init__( self, sps, sck, db, use_trigger=False ):
+    def __init__( self, sps, sck, db):
         self.db = db 
         self.sck = sck 
-
-        if (use_trigger):
-            self.sm = rp2.StateMachine( 
-                0, 
-                prog = build_sm_adc9288_trigger,
-                freq = 2 * sps,
-                sideset_base = self.sck,
-                in_base = self.db
-           )
-        else:
-            self.sm = rp2.StateMachine( 
-                0, 
-                prog = build_sm_adc9288,
-                freq = 2 * sps,
-                sideset_base = self.sck,
-                in_base = self.db
-           )
+        self.sm = rp2.StateMachine( 
+            0, 
+            prog = build_sm_adc9288,
+            freq = 2 * sps,
+            sideset_base = self.sck,
+            in_base = self.db
+        )
         self.dma = DMA( 1 )
     
     def dma_config(self, buf, count, ring_size_pow2 = 0):
         self.dma.config(
-            AD9288.PIO0_BASE_TXF0,
+            Adc9288.PIO0_BASE_RXF0,
             uctypes.addressof( buf ),
             count,
             src_inc=False,
@@ -73,17 +51,14 @@ class AD9288:
         self.sm.active(False)
         self.dma.disable()
 
-def test_adb9288():
-    db = machine.Pin(0)
-    sck = machine.Pin(21)
+def test_adc9288():
+    db = machine.Pin(0, machine.Pin.IN)
+    sck = machine.Pin(21, machine.Pin.OUT)
     buf = bytearray(10_000)
-    adc = AD9288( 100_000, sck, db, use_trigger=True )
+    adc = Adc9288(1_000_000, sck, db)
     t0 = time.ticks_us()
     adc.read(buf)
     t1 = time.ticks_us()
     print("buf", buf[0:10], "...")
     print("Read speed [B/s]:", len(buf)/((t1 - t0) / 1e-6))
     print("@CPU freq:", machine.freq())
-
-test_adb9288()
-print("done")
