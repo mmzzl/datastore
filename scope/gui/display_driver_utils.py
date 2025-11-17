@@ -1,11 +1,13 @@
 import lvgl as lv
+from hal.encoder import EH11Encoder
 
 class Display_Driver:
-    def __init__( self, lcd, width=240, height=320, tsc=None, fb_rows=64 ):
+    def __init__( self, lcd, width=240, height=320, tsc=None, fb_rows=64, encoder=None ):
         self.width = width
         self.height = height
         self.lcd = lcd
         self.tsc = tsc
+        self.encoder = encoder
         self.fb_rows = fb_rows
         
         self.is_fb1 = True
@@ -14,6 +16,13 @@ class Display_Driver:
         self.x = 0
         self.y = 0
         self.s = 0
+        
+        # 编码器相关状态
+        self.encoder_events = {
+            "rotation": 0,
+            "button_pressed": False,
+            "button_released": False
+        }
         
         self.init_gui()
     
@@ -30,6 +39,10 @@ class Display_Driver:
         self.disp_drv.set_buffers(self.fb1, self.fb2, len(self.fb1), lv.DISPLAY_RENDER_MODE.PARTIAL)
         # 4. 注册显示驱动
         self.disp_drv.flush_ready()
+        
+        # 初始化编码器输入设备
+        if self.encoder:
+            self.init_encoder()
 
     def disp_drv_flush_cb( self, disp_drv, area, color ):
         #print( "disp_drv_flush_cb", area.x1, area.x2, area.y1, area.y2 )
@@ -77,5 +90,63 @@ class Display_Driver:
         data.state = self.s
         
         return False
+
+    def init_encoder(self):
+        """初始化编码器输入设备"""
+        # 创建编码器输入设备
+        self.indev_encoder = lv.indev_create()
+        self.indev_encoder.set_type(lv.INDEV_TYPE.ENCODER)
+        self.indev_encoder.set_read_cb(self.indev_encoder_read_cb)
+        
+        # 设置编码器回调
+        self.encoder.set_rotation_callback(self._on_encoder_rotation)
+        self.encoder.set_button_callback(self._on_encoder_button)
+    
+    def _on_encoder_rotation(self, direction):
+        """编码器旋转回调"""
+        self.encoder_events["rotation"] += direction
+    
+    def _on_encoder_button(self, event):
+        """编码器按键回调"""
+        if event == "pressed":
+            self.encoder_events["button_pressed"] = True
+            print(f"Button pressed event received")
+        elif event == "released":
+            self.encoder_events["button_released"] = True
+            print(f"Button released event received")
+    
+    def indev_encoder_read_cb(self, indev_drv, data):
+        """编码器输入设备读取回调"""
+        # 获取编码器事件
+        events = self.encoder.get_events() if self.encoder else {"rotation": 0, "button_state": 1}
+        
+        # 设置编码器值
+        data.enc_diff = events["rotation"]
+        data.state = 0 if events["button_state"] == 1 else 1
+        
+        # 重置旋转计数
+        if events["rotation"] != 0:
+            self.encoder.reset_counter()
+        
+        return False
+    
+    def get_encoder_events(self):
+        """获取编码器事件并清除标志"""
+        if not self.encoder:
+            return {"rotation": 0, "button_pressed": False, "button_released": False}
+        
+        # 保存当前事件
+        events = {
+            "rotation": self.encoder_events["rotation"],
+            "button_pressed": self.encoder_events["button_pressed"],
+            "button_released": self.encoder_events["button_released"]
+        }
+        
+        # 清除事件标志
+        self.encoder_events["rotation"] = 0
+        self.encoder_events["button_pressed"] = False
+        self.encoder_events["button_released"] = False
+        
+        return events
 
 print("done")

@@ -6,6 +6,7 @@ from hal.st7789 import ST7789
 from gui.display_driver_utils import Display_Driver
 from gui.async_utils import Lv_Async
 from scope import Scope
+from hal.encoder import EH11Encoder
 
 def main():
      # 引脚定义 - 根据实际硬件连接调整
@@ -20,27 +21,13 @@ def main():
     # 创建ST7789实例 (240x320分辨率)
     lcd = ST7789(baudrate, cs, sck, mosi, miso, dc, rst, bl, 
                     rotation=3)
-    display_driver = Display_Driver(lcd, 320, 240)
+    encoder = EH11Encoder()
+    display_driver = Display_Driver(lcd, 320, 240, encoder=encoder)
     scr = lv.screen_active()
     my_scope = Scope(scr, display_driver)
     timer = lv.timer_create_basic()
-    timer.set_period( 100 )
-    
-    # timer.set_cb(lambda tmr: my_scope.process())
-    while True:
-        lv.task_handler()  # 关键：LVGL会在此处处理定时器逻辑
-        time.sleep_ms(5)
-    # try:
-    #     while True:
-    #         # 处理 LVGL 事件
-    #         lv.task_handler()
-    #         time.sleep_ms(5)  # 短暂延迟，降低 CPU 占用
-    # except KeyboardInterrupt:
-    #     # 捕获 Ctrl+C 退出
-    #     pass
-    # timer.set_cb(None)
-
-
-#     print( "run" )
-#     lva = Lv_Async( refresh_rate=20 )
-#     asyncio.Loop.run_forever()
+    timer.set_period( 50 )
+    timer.set_cb(lambda tmr: my_scope.process())
+    print( "run" )
+    lva = Lv_Async( refresh_rate=20 )
+    asyncio.Loop.run_forever()
