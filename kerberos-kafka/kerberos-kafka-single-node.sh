@@ -110,7 +110,7 @@ tar -xf $KAFKA_TGZ
 KAFKA_DIR="/root/kafka_${SCALA_VERSION}-${KAFKA_VERSION}"
 ln -sfn $KAFKA_DIR kafka
 
-echo ">>> 8 配置Zookeeper"
+echo ">>> 9 配置Zookeeper"
 # 创建Zookeeper配置文件
 ZOO_CFG="/root/kafka/config/zookeeper.properties"
 cat > $ZOO_CFG <<EOF
@@ -123,9 +123,25 @@ admin.serverPort=8080
 tickTime=2000
 initLimit=10
 syncLimit=5
+# SASL认证配置
+authProvider.1=org.apache.zookeeper.server.auth.SASLAuthenticationProvider
+requireClientAuthScheme=sasl
+jaasLoginRenew=3600000
+zookeeper.sasl.client=true
+EOF
+
+# 创建Zookeeper JAAS配置
+ZOO_JAAS="/root/zookeeper_jaas.conf"
+cat > $ZOO_JAAS <<EOF
+Server {
+  com.sun.security.auth.module.Krb5LoginModule required
+  useKeyTab=true storeKey=true keyTab="/etc/kafka.keytab"
+  principal="kafka/$HOST_FQDN@$REALM";
+};
 EOF
 
 echo ">>> 9 启动 Zookeeper"
+export SERVER_JVMFLAGS="-Djava.security.auth.login.config=$ZOO_JAAS"
 nohup $KAFKA_DIR/bin/zookeeper-server-start.sh -daemon $ZOO_CFG
 sleep 5
 echo "✅ Zookeeper 启动成功"
