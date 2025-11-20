@@ -151,8 +151,8 @@ cp $KAFKA_DIR/config/server.properties $SERVER_CFG
 cat >> $SERVER_CFG <<EOF
 
 # ---- Kerberos SASL ----
-listeners=SASL_PLAINTEXT://$HOST_FQDN:9092
-advertised.listeners=SASL_PLAINTEXT://$HOST_FQDN:9092
+listeners=SASL_PLAINTEXT://0.0.0.0:9092
+advertised.listeners=SASL_PLAINTEXT://$HOST_IP:9092
 security.inter.broker.protocol=SASL_PLAINTEXT
 sasl.mechanism.inter.broker.protocol=GSSAPI
 sasl.enabled.mechanisms=GSSAPI
@@ -183,6 +183,6 @@ EOF
 echo "==================== 使用步骤 ===================="
 echo "1. 获取票据：  kinit alice      # 密码 alicepw"
 echo "2. 导出变量：  export KAFKA_OPTS=\"-Djava.security.auth.login.config=/root/kafka_client_jaas.conf\""
-echo "3. 生产消息：  $KAFKA_DIR/bin/kafka-console-producer.sh --bootstrap-server $HOST_FQDN:9092 --topic demo --producer.config $SERVER_CFG"
-echo "4. 消费消息：  $KAFKA_DIR/bin/kafka-console-consumer.sh --bootstrap-server $HOST_FQDN:9092 --topic demo --from-beginning --consumer.config $SERVER_CFG"
+echo "3. 生产消息：  $KAFKA_DIR/bin/kafka-console-producer.sh --bootstrap-server $HOST_IP:9092 --topic demo --producer.config $SERVER_CFG"
+echo "4. 消费消息：  $KAFKA_DIR/bin/kafka-console-consumer.sh --bootstrap-server $HOST_IP:9092 --topic demo --from-beginning --consumer.config $SERVER_CFG"
 echo "================================================="
