@@ -97,6 +97,9 @@ kadmin.local -q "addprinc -pw adminpw admin/admin"
 kadmin.local -q "addprinc -randkey kafka/$HOST_FQDN"
 # 创建并导出Kafka服务密钥表
 kadmin.local -q "ktadd -k /etc/kafka.keytab kafka/$HOST_FQDN"
+# 创建Zookeeper服务主体
+kadmin.local -q "addprinc -randkey zookeeper/$HOST_FQDN"
+kadmin.local -q "ktadd -k /etc/kafka.keytab zookeeper/$HOST_FQDN"
 # 设置密钥表权限
 chmod 600 /etc/kafka.keytab
 
@@ -136,7 +139,7 @@ cat > $ZOO_JAAS <<EOF
 Server {
   com.sun.security.auth.module.Krb5LoginModule required
   useKeyTab=true storeKey=true keyTab="/etc/kafka.keytab"
-  principal="kafka/$HOST_FQDN@$REALM";
+  principal="zookeeper/$HOST_FQDN@$REALM";
 };
 EOF
 
@@ -177,6 +180,10 @@ authorizer.class.name=kafka.security.authorizer.AclAuthorizer
 super.users=User:kafka
 # Zookeeper连接配置
 zookeeper.connect=localhost:2181
+# Zookeeper SASL配置
+zookeeper.set.acl=true
+zookeeper.sasl.client=true
+zookeeper.sasl.kerberos.service.name=zookeeper
 EOF
 
 echo ">>> 11 启动Kafka服务"
