@@ -28,6 +28,8 @@ check_and_create_dir "/etc/krb5kdc"
 check_and_create_dir "/var/lib/krb5kdc"
 check_and_create_dir "/root"
 check_and_create_dir "/root/kafka/logs"
+check_and_create_dir "/root/kafka/config"
+check_and_create_dir "/root/kafka/zookeeper"
 
 echo ">>> 2 装包"
 export DEBIAN_FRONTEND=noninteractive
@@ -87,7 +89,27 @@ tar -xf $KAFKA_TGZ
 KAFKA_DIR="/root/kafka_${SCALA_VERSION}-${KAFKA_VERSION}"
 ln -sfn $KAFKA_DIR kafka
 
-echo ">>> 9 写 server JAAS"
+echo ">>> 9 配置Zookeeper"
+# 创建Zookeeper配置文件
+ZOO_CFG="/root/kafka/config/zookeeper.properties"
+cat > $ZOO_CFG <<EOF
+# Zookeeper配置
+dataDir=/root/kafka/zookeeper
+clientPort=2181
+maxClientCnxns=0
+admin.enableServer=true
+admin.serverPort=8080
+tickTime=2000
+initLimit=10
+syncLimit=5
+EOF
+
+echo ">>> 10 启动 Zookeeper"
+nohup $KAFKA_DIR/bin/zookeeper-server-start.sh -daemon $ZOO_CFG
+sleep 5
+echo "✅ Zookeeper 启动成功"
+
+echo ">>> 11 写 server JAAS"
 JAAS_SERVER="/root/kafka_server_jaas.conf"
 tee $JAAS_SERVER <<EOF
 KafkaServer {
@@ -102,7 +124,7 @@ Client {
 };
 EOF
 
-echo ">>> 10 生成 broker 配置"
+echo ">>> 12 生成 broker 配置"
 SERVER_CFG="/root/kafka/config/server-sasl.properties"
 cp $KAFKA_DIR/config/server.properties $SERVER_CFG
 cat <<EOF >> $SERVER_CFG
@@ -115,18 +137,20 @@ sasl.enabled.mechanisms=GSSAPI
 sasl.kerberos.service.name=kafka
 authorizer.class.name=kafka.security.authorizer.AclAuthorizer
 super.users=User:kafka
+# Zookeeper连接配置
+zookeeper.connect=localhost:2181
 EOF
 
-echo ">>> 11 启动 Kafka"
+echo ">>> 13 启动 Kafka"
 export KAFKA_OPTS="-Djava.security.auth.login.config=$JAAS_SERVER"
 nohup $KAFKA_DIR/bin/kafka-server-start.sh -daemon $SERVER_CFG
 sleep 10
 tail $KAFKA_DIR/logs/server.log | grep -i "Kafka Server started" && echo "✅ Kafka 启动成功"
 
-echo ">>> 12 客户端账号"
+echo ">>> 14 客户端账号"
 kadmin -p admin/admin -w adminpw -q "addprinc -pw alicepw alice"
 
-echo ">>> 13 客户端 JAAS（ticket cache 版）"
+echo ">>> 15 客户端 JAAS（ticket cache 版）"
 JAAS_CLIENT="/root/kafka_client_jaas.conf"
 tee $JAAS_CLIENT <<EOF
 KafkaClient {
