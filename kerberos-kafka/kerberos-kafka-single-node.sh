@@ -169,6 +169,14 @@ nohup $KAFKA_DIR/bin/kafka-server-start.sh -daemon $SERVER_CFG
 sleep 10
 tail $KAFKA_DIR/logs/server.log | grep -i "Kafka Server started" && echo "✅ Kafka 启动成功"
 
+echo ">>> 11.1 检查Kafka进程和端口"
+echo "检查Kafka进程："
+ps aux | grep kafka | grep -v grep || echo "未找到Kafka进程"
+echo "检查9092端口监听："
+netstat -tlnp | grep 9092 || ss -tlnp | grep 9092 || echo "9092端口未监听"
+echo "检查Kafka日志最后20行："
+tail -n 20 $KAFKA_DIR/logs/server.log
+
 echo ">>> 12 创建客户端账号"
 kadmin -p admin/admin -w adminpw -q "addprinc -pw alicepw alice"
 
