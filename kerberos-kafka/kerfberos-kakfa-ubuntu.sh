@@ -123,6 +123,14 @@ Server {
 EOF
 
 echo ">>> 10 启动 Zookeeper"
+# 检查并停止已运行的Zookeeper进程
+ZOOKEEPER_PID=$(ps aux | grep zookeeper | grep -v grep | awk '{print $2}')
+if [ ! -z "$ZOOKEEPER_PID" ]; then
+    echo "发现Zookeeper进程正在运行(PID: $ZOOKEEPER_PID)，正在停止..."
+    kill -9 $ZOOKEEPER_PID
+    sleep 2
+fi
+
 export SERVER_JVMFLAGS="-Djava.security.auth.login.config=$ZOO_JAAS"
 nohup $KAFKA_DIR/bin/zookeeper-server-start.sh -daemon $ZOO_CFG
 sleep 5
@@ -165,6 +173,14 @@ zookeeper.sasl.kerberos.service.name=zookeeper
 EOF
 
 echo ">>> 13 启动 Kafka"
+# 检查并停止已运行的Kafka进程
+KAFKA_PID=$(ps aux | grep kafka | grep -v grep | grep KafkaServer | awk '{print $2}')
+if [ ! -z "$KAFKA_PID" ]; then
+    echo "发现Kafka进程正在运行(PID: $KAFKA_PID)，正在停止..."
+    kill -9 $KAFKA_PID
+    sleep 2
+fi
+
 export KAFKA_OPTS="-Djava.security.auth.login.config=$JAAS_SERVER"
 nohup $KAFKA_DIR/bin/kafka-server-start.sh -daemon $SERVER_CFG
 sleep 10
