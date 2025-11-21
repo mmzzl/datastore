@@ -159,13 +159,21 @@ echo "✅ Zookeeper 启动成功"
 
 echo ">>> 10 配置Kafka SASL认证"
 # 创建服务器JAAS配置文件
-cat > /root/kafka_server_jaas.conf <<EOF
+echo ">>> 9 写 server JAAS"
+JAAS_SERVER="/root/kafka_server_jaas.conf"
+tee $JAAS_SERVER <<EOF
 KafkaServer {
   com.sun.security.auth.module.Krb5LoginModule required
   useKeyTab=true storeKey=true keyTab="/etc/kafka.keytab"
   principal="kafka/$HOST_FQDN@$REALM";
 };
 Client {
+  com.sun.security.auth.module.Krb5LoginModule required
+  useKeyTab=true storeKey=true keyTab="/etc/kafka.keytab"
+  principal="kafka/$HOST_FQDN@$REALM";
+};
+// Zookeeper客户端配置
+ZookeeperClient {
   com.sun.security.auth.module.Krb5LoginModule required
   useKeyTab=true storeKey=true keyTab="/etc/kafka.keytab"
   principal="kafka/$HOST_FQDN@$REALM";

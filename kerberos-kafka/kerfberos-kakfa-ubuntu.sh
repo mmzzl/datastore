@@ -149,6 +149,12 @@ Client {
   useKeyTab=true storeKey=true keyTab="/etc/kafka.keytab"
   principal="kafka/$HOST_FQDN@$REALM";
 };
+// Zookeeper客户端配置
+ZookeeperClient {
+  com.sun.security.auth.module.Krb5LoginModule required
+  useKeyTab=true storeKey=true keyTab="/etc/kafka.keytab"
+  principal="kafka/$HOST_FQDN@$REALM";
+};
 EOF
 
 echo ">>> 12 生成 broker 配置"
