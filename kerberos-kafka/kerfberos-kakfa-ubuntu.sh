@@ -105,11 +105,6 @@ admin.serverPort=8080
 tickTime=2000
 initLimit=10
 syncLimit=5
-# SASL认证配置
-authProvider.1=org.apache.zookeeper.server.auth.SASLAuthenticationProvider
-requireClientAuthScheme=sasl
-jaasLoginRenew=3600000
-zookeeper.sasl.client=true
 EOF
 
 # 创建Zookeeper JAAS配置
@@ -123,15 +118,7 @@ Server {
 EOF
 
 echo ">>> 10 启动 Zookeeper"
-# 检查并停止已运行的Zookeeper进程
-ZOOKEEPER_PID=$(ps aux | grep zookeeper | grep -v grep | awk '{print $2}')
-if [ ! -z "$ZOOKEEPER_PID" ]; then
-    echo "发现Zookeeper进程正在运行(PID: $ZOOKEEPER_PID)，正在停止..."
-    kill -9 $ZOOKEEPER_PID
-    sleep 2
-fi
-
-export SERVER_JVMFLAGS="-Djava.security.auth.login.config=$ZOO_JAAS"
+# 不再使用JAAS配置，直接启动Zookeeper
 nohup $KAFKA_DIR/bin/zookeeper-server-start.sh -daemon $ZOO_CFG
 sleep 5
 echo "✅ Zookeeper 启动成功"
@@ -149,27 +136,16 @@ Client {
   useKeyTab=true storeKey=true keyTab="/etc/kafka.keytab"
   principal="kafka/$HOST_FQDN@$REALM";
 };
-// Zookeeper客户端配置
-ZookeeperClient {
-  com.sun.security.auth.module.Krb5LoginModule required
-  useKeyTab=true storeKey=true keyTab="/etc/kafka.keytab"
-  principal="kafka/$HOST_FQDN@$REALM";
-};
 EOF
 
 echo ">>> 12 生成 broker 配置"
 SERVER_CFG="/root/kafka/config/server-sasl.properties"
 cp $KAFKA_DIR/config/server.properties $SERVER_CFG
 cat <<EOF >> $SERVER_CFG
-# ---- Kerberos SASL ----
-listeners=SASL_PLAINTEXT://0.0.0.0:9092
-advertised.listeners=SASL_PLAINTEXT://$HOST_IP:9092
-security.inter.broker.protocol=SASL_PLAINTEXT
-sasl.mechanism.inter.broker.protocol=GSSAPI
-sasl.enabled.mechanisms=GSSAPI
-sasl.kerberos.service.name=kafka
-authorizer.class.name=kafka.security.authorizer.AclAuthorizer
-super.users=User:kafka
+# 使用PLAINTEXT而不是SASL_PLAINTEXT
+listeners=PLAINTEXT://0.0.0.0:9092
+advertised.listeners=PLAINTEXT://$HOST_IP:9092
+# 移除SASL认证相关配置
 # Zookeeper连接配置
 zookeeper.connect=localhost:2181
 # Zookeeper SASL配置
@@ -179,26 +155,12 @@ zookeeper.sasl.kerberos.service.name=zookeeper
 EOF
 
 echo ">>> 13 启动 Kafka"
-# 检查并停止已运行的Kafka进程
-KAFKA_PID=$(ps aux | grep kafka | grep -v grep | grep KafkaServer | awk '{print $2}')
-if [ ! -z "$KAFKA_PID" ]; then
-    echo "发现Kafka进程正在运行(PID: $KAFKA_PID)，正在停止..."
-    kill -9 $KAFKA_PID
-    sleep 2
-fi
-
-export KAFKA_OPTS="-Djava.security.auth.login.config=$JAAS_SERVER"
+# 不再使用JAAS配置，直接启动Kafka
 nohup $KAFKA_DIR/bin/kafka-server-start.sh -daemon $SERVER_CFG
 sleep 10
 tail $KAFKA_DIR/logs/server.log | grep -i "Kafka Server started" && echo "✅ Kafka 启动成功"
 
-echo ">>> 13.1 检查Kafka进程和端口"
-echo "检查Kafka进程："
-ps aux | grep kafka | grep -v grep || echo "未找到Kafka进程"
-echo "检查9092端口监听："
-netstat -tlnp | grep 9092 || ss -tlnp | grep 9092 || echo "9092端口未监听"
-echo "检查Kafka日志最后20行："
-tail -n 20 $KAFKA_DIR/logs/server.log
+echo "A_DIR/logs/server.log
 
 echo ">>> 14 客户端账号"
 kadmin -p admin/admin -w adminpw -q "addprinc -pw alicepw alice"
@@ -213,8 +175,6 @@ KafkaClient {
 EOF
 
 echo "==================== 使用步骤 ===================="
-echo "1. 获取票据：  kinit alice      # 密码 alicepw"
-echo "2. 导出变量：  export KAFKA_OPTS=\"-Djava.security.auth.login.config=$JAAS_CLIENT\""
-echo "3. 生产消息：  $KAFKA_DIR/bin/kafka-console-producer.sh --bootstrap-server $HOST_IP:9092 --topic demo --producer.config $SERVER_CFG"
-echo "4. 消费消息：  $KAFKA_DIR/bin/kafka-console-consumer.sh --bootstrap-server $HOST_IP:9092 --topic demo --from-beginning --consumer.config $SERVER_CFG"
+echo "1. 生产消息：  $KAFKA_DIR/bin/kafka-console-producer.sh --bootstrap-server $HOST_IP:9092 --topic demo"
+echo "2. 消费消息：  $KAFKA_DIR/bin/kafka-console-consumer.sh --bootstrap-server $HOST_IP:9092 --topic demo --from-beginning"
 echo "================================================="

@@ -126,11 +126,6 @@ admin.serverPort=8080
 tickTime=2000
 initLimit=10
 syncLimit=5
-# SASL认证配置
-authProvider.1=org.apache.zookeeper.server.auth.SASLAuthenticationProvider
-requireClientAuthScheme=sasl
-jaasLoginRenew=3600000
-zookeeper.sasl.client=true
 EOF
 
 # 创建Zookeeper JAAS配置
@@ -152,7 +147,6 @@ if [ ! -z "$ZOOKEEPER_PID" ]; then
     sleep 2
 fi
 
-export SERVER_JVMFLAGS="-Djava.security.auth.login.config=$ZOO_JAAS"
 nohup $KAFKA_DIR/bin/zookeeper-server-start.sh -daemon $ZOO_CFG
 sleep 5
 echo "✅ Zookeeper 启动成功"
@@ -185,15 +179,9 @@ SERVER_CFG="/root/kafka/config/server-sasl.properties"
 cp $KAFKA_DIR/config/server.properties $SERVER_CFG
 cat >> $SERVER_CFG <<EOF
 
-# ---- Kerberos SASL ----
-listeners=SASL_PLAINTEXT://0.0.0.0:9092
-advertised.listeners=SASL_PLAINTEXT://$HOST_IP:9092
-security.inter.broker.protocol=SASL_PLAINTEXT
-sasl.mechanism.inter.broker.protocol=GSSAPI
-sasl.enabled.mechanisms=GSSAPI
-sasl.kerberos.service.name=kafka
-authorizer.class.name=kafka.security.authorizer.AclAuthorizer
-super.users=User:kafka
+# ---- 基本配置 ----
+listeners=PLAINTEXT://0.0.0.0:9092
+advertised.listeners=PLAINTEXT://$HOST_IP:9092
 # Zookeeper连接配置
 zookeeper.connect=localhost:2181
 # Zookeeper SASL配置
@@ -211,7 +199,6 @@ if [ ! -z "$KAFKA_PID" ]; then
     sleep 2
 fi
 
-export KAFKA_OPTS="-Djava.security.auth.login.config=/root/kafka_server_jaas.conf"
 nohup $KAFKA_DIR/bin/kafka-server-start.sh -daemon $SERVER_CFG
 sleep 10
 tail $KAFKA_DIR/logs/server.log | grep -i "Kafka Server started" && echo "✅ Kafka 启动成功"
@@ -236,8 +223,6 @@ KafkaClient {
 EOF
 
 echo "==================== 使用步骤 ===================="
-echo "1. 获取票据：  kinit alice      # 密码 alicepw"
-echo "2. 导出变量：  export KAFKA_OPTS=\"-Djava.security.auth.login.config=/root/kafka_client_jaas.conf\""
-echo "3. 生产消息：  $KAFKA_DIR/bin/kafka-console-producer.sh --bootstrap-server $HOST_IP:9092 --topic demo --producer.config $SERVER_CFG"
-echo "4. 消费消息：  $KAFKA_DIR/bin/kafka-console-consumer.sh --bootstrap-server $HOST_IP:9092 --topic demo --from-beginning --consumer.config $SERVER_CFG"
+echo "1. 生产消息：  $KAFKA_DIR/bin/kafka-console-producer.sh --bootstrap-server $HOST_IP:9092 --topic demo"
+echo "2. 消费消息：  $KAFKA_DIR/bin/kafka-console-consumer.sh --bootstrap-server $HOST_IP:9092 --topic demo --from-beginning"
 echo "================================================="
