@@ -150,6 +150,8 @@ class ShanHaiJing:
                 print(f"未找到图片「{image_path}」（匹配精度：{confidence}）")
                 return None
         except Exception as e:
+            # import traceback
+            # print(traceback.format_exc())
             # print(f"{image_path}查找图片失败：{e}")
             # print("提示:1. 检查图片路径是否正确；2. Linux/macOS需安装 opencv-python（pip install opencv-python）；3. 图片需清晰无多余背景")
             return None
