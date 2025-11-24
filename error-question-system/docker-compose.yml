@@ -1,0 +1,101 @@
+version: '3.8'
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: error_question_db
+    restart: always
+    environment:
+      MYSQL_DATABASE: error_question_db
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_PASSWORD: userpassword
+      MYSQL_USER: dbuser
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - error_question_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: error_question_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - error_question_network
+
+  backend:
+    build: ./backend
+    container_name: error_question_backend
+    restart: always
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - static_volume:/app/static
+      - media_volume:/app/media
+    environment:
+      - DEBUG=True
+      - DB_HOST=db
+      - DB_NAME=error_question_db
+      - DB_USER=dbuser
+      - DB_PASSWORD=userpassword
+      - REDIS_URL=redis://redis:6379/1
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+    networks:
+      - error_question_network
+
+  celery:
+    build: ./backend
+    container_name: error_question_celery
+    restart: always
+    command: celery -A config worker -l info
+    volumes:
+      - ./backend:/app
+    environment:
+      - DEBUG=True
+      - DB_HOST=db
+      - DB_NAME=error_question_db
+      - DB_USER=dbuser
+      - DB_PASSWORD=userpassword
+      - REDIS_URL=redis://redis:6379/1
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+    networks:
+      - error_question_network
+
+  nginx:
+    image: nginx:alpine
+    container_name: error_question_nginx
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - static_volume:/var/www/static
+      - media_volume:/var/www/media
+    depends_on:
+      - backend
+    networks:
+      - error_question_network
+
+volumes:
+  mysql_data:
+  redis_data:
+  static_volume:
+  media_volume:
+
+networks:
+  error_question_network:
+    driver: bridge

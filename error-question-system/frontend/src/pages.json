@@ -1,0 +1,120 @@
+{
+    "pages": [
+        {
+            "path": "pages/index/index",
+            "style": {
+                "navigationBarTitleText": "首页"
+            }
+        },
+        {
+            "path": "pages/login/index",
+            "style": {
+                "navigationBarTitleText": "登录"
+            }
+        },
+        {
+            "path": "pages/register/index",
+            "style": {
+                "navigationBarTitleText": "注册"
+            }
+        },
+        {
+            "path": "pages/profile/index",
+            "style": {
+                "navigationBarTitleText": "个人中心"
+            }
+        },
+        {
+            "path": "pages/questions/list",
+            "style": {
+                "navigationBarTitleText": "错题列表"
+            }
+        },
+        {
+            "path": "pages/questions/add",
+            "style": {
+                "navigationBarTitleText": "添加错题"
+            }
+        },
+        {
+            "path": "pages/questions/detail",
+            "style": {
+                "navigationBarTitleText": "错题详情"
+            }
+        },
+        {
+            "path": "pages/category/index",
+            "style": {
+                "navigationBarTitleText": "错题分类"
+            }
+        },
+        {
+            "path": "pages/category/detail",
+            "style": {
+                "navigationBarTitleText": "分类详情"
+            }
+        },
+        {
+            "path": "pages/search/index",
+            "style": {
+                "navigationBarTitleText": "搜索"
+            }
+        },
+        {
+            "path": "pages/answers/index",
+            "style": {
+                "navigationBarTitleText": "我的解答"
+            }
+        },
+        {
+            "path": "pages/about/index",
+            "style": {
+                "navigationBarTitleText": "关于我们"
+            }
+        },
+        {
+            "path": "pages/feedback/index",
+            "style": {
+                "navigationBarTitleText": "意见反馈"
+            }
+        }
+    ],
+    "globalStyle": {
+        "navigationBarTextStyle": "black",
+        "navigationBarTitleText": "智能错题本系统",
+        "navigationBarBackgroundColor": "#F8F8F8",
+        "backgroundColor": "#F8F8F8"
+    },
+    "tabBar": {
+        "color": "#7A7E83",
+        "selectedColor": "#3cc51f",
+        "borderStyle": "black",
+        "backgroundColor": "#ffffff",
+        "list": [
+            {
+                "pagePath": "pages/index/index",
+                "iconPath": "static/images/tab-home.png",
+                "selectedIconPath": "static/images/tab-home-active.png",
+                "text": "首页"
+            },
+            {
+                "pagePath": "pages/questions/list",
+                "iconPath": "static/images/tab-question.png",
+                "selectedIconPath": "static/images/tab-question-active.png",
+                "text": "错题"
+            },
+            {
+                "pagePath": "pages/category/index",
+                "iconPath": "static/images/tab-category.png",
+                "selectedIconPath": "static/images/tab-category-active.png",
+                "text": "分类"
+            },
+            {
+                "pagePath": "pages/profile/index",
+                "iconPath": "static/images/tab-profile.png",
+                "selectedIconPath": "static/images/tab-profile-active.png",
+                "text": "我的"
+            }
+        ]
+    }
+}
