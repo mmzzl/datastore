@@ -22,7 +22,11 @@ class ShanHaiJing:
             tuple: 窗口区域坐标 (x, y, width, height)
         """
         active_window = self.filtered_windows[0]
-        active_window.activate() 
+        try:
+            active_window.activate() 
+        except Exception as e:
+            print(f"激活窗口时出错: {e}")
+            return None
         # 处理最小化窗口
         if active_window.isMinimized:
             active_window.restore()

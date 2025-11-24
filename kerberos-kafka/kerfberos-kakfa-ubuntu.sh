@@ -154,18 +154,18 @@ zookeeper.sasl.client=true
 zookeeper.sasl.kerberos.service.name=zookeeper
 EOF
 
-echo ">>> 13 启动 Kafka"
+echo "13 启动 Kafka"
 # 不再使用JAAS配置，直接启动Kafka
 nohup $KAFKA_DIR/bin/kafka-server-start.sh -daemon $SERVER_CFG
 sleep 10
 tail $KAFKA_DIR/logs/server.log | grep -i "Kafka Server started" && echo "✅ Kafka 启动成功"
 
-echo "A_DIR/logs/server.log
+echo "A_DIR/logs/server.log"
 
-echo ">>> 14 客户端账号"
+echo " 14 客户端账号"
 kadmin -p admin/admin -w adminpw -q "addprinc -pw alicepw alice"
 
-echo ">>> 15 客户端 JAAS（ticket cache 版）"
+echo "15 客户端 JAAS（ticket cache 版）"
 JAAS_CLIENT="/root/kafka_client_jaas.conf"
 tee $JAAS_CLIENT <<EOF
 KafkaClient {
