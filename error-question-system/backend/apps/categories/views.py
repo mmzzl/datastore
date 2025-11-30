@@ -45,14 +45,14 @@ class CategoryViewSet(viewsets.ModelViewSet):
         serializer.save(user=self.request.user)
         
         # 记录用户活动
-        from apps.system.models import UserActivityLog
+        from apps.authentication.models import UserActivityLog
         UserActivityLog.objects.create(
             user=self.request.user,
             action='create_category',
-            resource_type='category',
-            resource_id=serializer.instance.id,
-            description="创建分类",
-            ip_address=self.request.META.get('REMOTE_ADDR'),
+            object_type='category',
+            object_id=serializer.instance.id,
+            object_repr=serializer.instance.name[:100],
+            details={"ip_address": self.request.META.get('REMOTE_ADDR')},
             user_agent=self.request.META.get('HTTP_USER_AGENT', '')
         )
         
@@ -63,21 +63,23 @@ class CategoryViewSet(viewsets.ModelViewSet):
         serializer.save()
         
         # 记录用户活动
-        from apps.system.models import UserActivityLog
+        from apps.authentication.models import UserActivityLog
         UserActivityLog.objects.create(
             user=self.request.user,
             action='update_category',
-            resource_type='category',
-            resource_id=serializer.instance.id,
-            description="更新分类",
-            ip_address=self.request.META.get('REMOTE_ADDR'),
+            object_type='category',
+            object_id=serializer.instance.id,
+            object_repr=serializer.instance.name[:100],
+            details={"ip_address": self.request.META.get('REMOTE_ADDR')},
             user_agent=self.request.META.get('HTTP_USER_AGENT', '')
         )
         
         logger.info("更新分类成功", category_id=serializer.instance.id, user_id=self.request.user.id)
     
-    def perform_destroy(self, instance):
+    def destroy(self, request, *args, **kwargs):
         """删除分类前检查是否有子分类和关联的题目"""
+        instance = self.get_object()
+        
         # 检查是否有子分类
         has_children = Category.objects.filter(parent=instance).exists()
         if has_children:
@@ -95,20 +97,20 @@ class CategoryViewSet(viewsets.ModelViewSet):
             )
         
         # 记录用户活动
-        from apps.system.models import UserActivityLog
+        from apps.authentication.models import UserActivityLog
         UserActivityLog.objects.create(
-            user=self.request.user,
+            user=request.user,
             action='delete_category',
-            resource_type='category',
-            resource_id=instance.id,
-            description="删除分类",
-            ip_address=self.request.META.get('REMOTE_ADDR'),
-            user_agent=self.request.META.get('HTTP_USER_AGENT', '')
+            object_type='category',
+            object_id=instance.id,
+            object_repr=instance.name[:100],
+            details={"ip_address": request.META.get('REMOTE_ADDR')},
+            user_agent=request.META.get('HTTP_USER_AGENT', '')
         )
         
-        logger.info("删除分类成功", category_id=instance.id, user_id=self.request.user.id)
+        logger.info("删除分类成功", category_id=instance.id, user_id=request.user.id)
         
-        super().perform_destroy(instance)
+        return super().destroy(request, *args, **kwargs)
     
     @extend_schema(
         summary="获取分类树",
@@ -211,13 +213,13 @@ class CategoryViewSet(viewsets.ModelViewSet):
             categories = serializer.save(user=request.user)
             
             # 记录用户活动
-            from apps.system.models import UserActivityLog
+            from apps.authentication.models import UserActivityLog
             UserActivityLog.objects.create(
                 user=request.user,
                 action='batch_create_category',
-                resource_type='category',
-                description=f"批量创建{len(categories)}个分类",
-                ip_address=request.META.get('REMOTE_ADDR'),
+                object_type='category',
+                object_repr=f"批量创建{len(categories)}个分类",
+                details={"ip_address": request.META.get('REMOTE_ADDR')},
                 user_agent=request.META.get('HTTP_USER_AGENT', '')
             )
             
@@ -269,14 +271,14 @@ class CategoryViewSet(viewsets.ModelViewSet):
         category.save(update_fields=['parent'])
         
         # 记录用户活动
-        from apps.system.models import UserActivityLog
+        from apps.authentication.models import UserActivityLog
         UserActivityLog.objects.create(
             user=request.user,
             action='move_category',
-            resource_type='category',
-            resource_id=category.id,
-            description=f"移动分类到{parent_id if parent_id else '根目录'}",
-            ip_address=request.META.get('REMOTE_ADDR'),
+            object_type='category',
+            object_id=category.id,
+            object_repr=category.name[:100],
+            details={"ip_address": request.META.get('REMOTE_ADDR'), "parent_id": parent_id},
             user_agent=request.META.get('HTTP_USER_AGENT', '')
         )
         
@@ -331,13 +333,13 @@ class QuestionCategoryViewSet(viewsets.ModelViewSet):
         serializer.save()
         
         # 记录用户活动
-        from apps.system.models import UserActivityLog
+        from apps.authentication.models import UserActivityLog
         UserActivityLog.objects.create(
             user=self.request.user,
             action='add_question_category',
-            resource_type='question_category',
-            description=f"将题目{question.id}添加到分类{category.id}",
-            ip_address=self.request.META.get('REMOTE_ADDR'),
+            object_type='question_category',
+            object_repr=f"将题目{question.id}添加到分类{category.id}",
+            details={"ip_address": self.request.META.get('REMOTE_ADDR')},
             user_agent=self.request.META.get('HTTP_USER_AGENT', '')
         )
         
@@ -349,13 +351,13 @@ class QuestionCategoryViewSet(viewsets.ModelViewSet):
         category_id = instance.category.id
         
         # 记录用户活动
-        from apps.system.models import UserActivityLog
+        from apps.authentication.models import UserActivityLog
         UserActivityLog.objects.create(
             user=self.request.user,
             action='remove_question_category',
-            resource_type='question_category',
-            description=f"从分类{category_id}移除题目{question_id}",
-            ip_address=self.request.META.get('REMOTE_ADDR'),
+            object_type='question_category',
+            object_repr=f"从分类{category_id}移除题目{question_id}",
+            details={"ip_address": self.request.META.get('REMOTE_ADDR')},
             user_agent=self.request.META.get('HTTP_USER_AGENT', '')
         )
         
@@ -421,13 +423,13 @@ class QuestionCategoryViewSet(viewsets.ModelViewSet):
                 created_count += 1
         
         # 记录用户活动
-        from apps.system.models import UserActivityLog
+        from apps.authentication.models import UserActivityLog
         UserActivityLog.objects.create(
             user=request.user,
             action='batch_add_question_category',
-            resource_type='question_category',
-            description=f"批量添加{created_count}个题目到分类{category_id}",
-            ip_address=request.META.get('REMOTE_ADDR'),
+            object_type='question_category',
+            object_repr=f"批量添加{created_count}个题目到分类{category_id}",
+            details={"ip_address": request.META.get('REMOTE_ADDR')},
             user_agent=request.META.get('HTTP_USER_AGENT', '')
         )
         
@@ -482,13 +484,13 @@ class QuestionCategoryViewSet(viewsets.ModelViewSet):
         ).delete()
         
         # 记录用户活动
-        from apps.system.models import UserActivityLog
+        from apps.authentication.models import UserActivityLog
         UserActivityLog.objects.create(
             user=request.user,
             action='batch_remove_question_category',
-            resource_type='question_category',
-            description=f"从分类{category_id}移除{deleted_count}个题目",
-            ip_address=request.META.get('REMOTE_ADDR'),
+            object_type='question_category',
+            object_repr=f"从分类{category_id}移除{deleted_count}个题目",
+            details={"ip_address": request.META.get('REMOTE_ADDR')},
             user_agent=request.META.get('HTTP_USER_AGENT', '')
         )
         

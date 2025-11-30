@@ -2,13 +2,7 @@ from django.db import models
 from django.contrib.auth import get_user_model
 from django.utils.translation import gettext_lazy as _
 import structlog
-
-# 导入通用JSONField
-try:
-    from apps.common.fields import get_json_field
-    JSONField = get_json_field()
-except ImportError:
-    from django.db.models import JSONField
+import json
 
 logger = structlog.get_logger(__name__)
 User = get_user_model()
@@ -122,6 +116,12 @@ class Question(models.Model):
         related_name='questions',
         verbose_name=_('知识点')
     )
+    categories = models.ManyToManyField(
+        'categories.Category',
+        blank=True,
+        related_name='questions',
+        verbose_name=_('分类')
+    )
     title = models.CharField(_('题目标题'), max_length=200)
     content = models.TextField(_('题目内容'))
     question_type = models.CharField(
@@ -130,7 +130,7 @@ class Question(models.Model):
         choices=QUESTION_TYPE_CHOICES,
         default='other'
     )
-    options = models.JSONField(_('选项'), default=dict, blank=True)
+    options = models.TextField(_('选项'), default='{}', blank=True)
     correct_answer = models.TextField(_('正确答案'), blank=True)
     user_answer = models.TextField(_('用户答案'), blank=True)
     analysis = models.TextField(_('解析'), blank=True)
@@ -146,8 +146,36 @@ class Question(models.Model):
         default='other'
     )
     source_detail = models.CharField(_('来源详情'), max_length=100, blank=True)
-    tags = models.JSONField(_('标签'), default=list, blank=True)
-    images = models.JSONField(_('图片'), default=list, blank=True)
+    tags = models.TextField(_('标签'), default='[]', blank=True)
+    images = models.TextField(_('图片'), default='[]', blank=True)
+    
+    # JSON字段访问器
+    def get_options(self):
+        try:
+            return json.loads(self.options)
+        except (json.JSONDecodeError, TypeError):
+            return {}
+    
+    def set_options(self, value):
+        self.options = json.dumps(value, ensure_ascii=False)
+    
+    def get_tags(self):
+        try:
+            return json.loads(self.tags)
+        except (json.JSONDecodeError, TypeError):
+            return []
+    
+    def set_tags(self, value):
+        self.tags = json.dumps(value, ensure_ascii=False)
+    
+    def get_images(self):
+        try:
+            return json.loads(self.images)
+        except (json.JSONDecodeError, TypeError):
+            return []
+    
+    def set_images(self, value):
+        self.images = json.dumps(value, ensure_ascii=False)
     is_solved = models.BooleanField(_('是否已解决'), default=False)
     is_marked = models.BooleanField(_('是否标记'), default=False)
     view_count = models.IntegerField(_('查看次数'), default=0)
@@ -175,6 +203,19 @@ class Question(models.Model):
         """创建方法，兼容测试代码中的answer和solution字段"""
         answer_content = kwargs.pop('answer', None)
         solution_content = kwargs.pop('solution', None)
+        
+        # 如果没有提供subject，创建一个默认的学科
+        if 'subject' not in kwargs:
+            subject, _ = Subject.objects.get_or_create(
+                name='默认学科',
+                defaults={
+                    'description': '默认学科',
+                    'color': '#1890ff',
+                    'sort_order': 1,
+                    'is_active': True
+                }
+            )
+            kwargs['subject'] = subject
         
         # 创建Question实例
         question = cls.objects.create(**kwargs)

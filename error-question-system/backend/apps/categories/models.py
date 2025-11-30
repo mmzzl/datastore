@@ -48,8 +48,9 @@ class Category(models.Model):
         ]
     
     def __str__(self):
-        prefix = '  ' * (self.level - 1)
-        return f"{prefix}{self.name}"
+        if self.parent:
+            return f"{self.parent.name} - {self.name}"
+        return self.name
     
     def get_full_name(self):
         """获取完整分类路径"""
@@ -63,8 +64,77 @@ class Category(models.Model):
     
     def get_questions_count(self):
         """获取该分类下的错题数量"""
+        # 通过QuestionCategory关联获取题目数量
         from apps.questions.models import Question
-        return Question.objects.filter(categories=self).count()
+        return Question.objects.filter(question_categories__category=self).count()
+    
+    # 添加属性以满足测试需求
+    @property
+    def has_children(self):
+        """是否有子分类"""
+        return self.children.exists()
+    
+    @property
+    def question_count(self):
+        """该分类下的错题数量（包括子分类的题目）"""
+        count = self.get_questions_count()
+        # 加上所有子分类的题目数量
+        for child in self.children.all():
+            count += child.question_count
+        return count
+    
+    # 添加方法以满足测试需求
+    def get_children(self):
+        """获取子分类"""
+        return self.children.all()
+    
+    def get_siblings(self):
+        """获取同级分类"""
+        if self.parent:
+            return self.parent.children.exclude(id=self.id)
+        return Category.objects.filter(parent=None, user=self.user).exclude(id=self.id)
+    
+    def get_all_children(self):
+        """获取所有子分类（包括子分类的子分类）"""
+        all_children = []
+        for child in self.children.all():
+            all_children.append(child)
+            all_children.extend(child.get_all_children())
+        return all_children
+    
+    def get_root(self):
+        """获取根分类"""
+        if self.parent:
+            return self.parent.get_root()
+        return self
+    
+    def get_path(self):
+        """获取分类路径"""
+        if self.parent:
+            path = self.parent.get_path()
+            path.append(self)
+            return path
+        return [self]
+    
+    def is_descendant_of(self, category):
+        """是否为某个分类的后代"""
+        if self.parent == category:
+            return True
+        if self.parent:
+            return self.parent.is_descendant_of(category)
+        return False
+    
+    def is_ancestor_of(self, category):
+        """是否为某个分类的祖先"""
+        return category.is_descendant_of(self)
+    
+    def save(self, *args, **kwargs):
+        """保存时自动设置层级"""
+        if self.parent:
+            self.level = self.parent.level + 1
+        else:
+            self.level = 1
+        super().save(*args, **kwargs)
 
 
 class QuestionCategory(models.Model):

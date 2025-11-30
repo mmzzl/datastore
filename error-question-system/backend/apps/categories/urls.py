@@ -5,6 +5,8 @@ from .views import (
     CategoryViewSet, QuestionCategoryViewSet
 )
 
+app_name = 'categories'
+
 router = DefaultRouter()
 router.register(r'categories', CategoryViewSet)
 router.register(r'question-categories', QuestionCategoryViewSet)

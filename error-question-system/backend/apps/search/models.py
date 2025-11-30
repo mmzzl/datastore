@@ -1,16 +1,10 @@
 import time
 import uuid
+import json
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.utils.translation import gettext_lazy as _
 import structlog
-
-# 导入通用JSONField
-try:
-    from apps.common.fields import get_json_field
-    JSONField = get_json_field()
-except ImportError:
-    from django.db.models import JSONField
 
 logger = structlog.get_logger(__name__)
 User = get_user_model()
@@ -28,7 +22,17 @@ class SearchHistory(models.Model):
         verbose_name=_('搜索者')
     )
     query = models.CharField(_('搜索关键词'), max_length=200)
-    filters = models.JSONField(_('筛选条件'), default=dict, blank=True)
+    filters = models.TextField(verbose_name=_('搜索过滤条件'), default='{}', blank=True)
+    
+    # JSON字段访问器
+    def get_filters(self):
+        try:
+            return json.loads(self.filters)
+        except (json.JSONDecodeError, TypeError):
+            return {}
+    
+    def set_filters(self, value):
+        self.filters = json.dumps(value, ensure_ascii=False)
     results_count = models.IntegerField(_('结果数量'), default=0)
     ip_address = models.GenericIPAddressField(_('IP地址'), blank=True, null=True)
     user_agent = models.TextField(_('用户代理'), blank=True)

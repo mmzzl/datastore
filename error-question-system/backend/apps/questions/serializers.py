@@ -119,14 +119,15 @@ class QuestionListSerializer(serializers.ModelSerializer):
 class QuestionDetailSerializer(QuestionListSerializer):
     """错题详情序列化器"""
     knowledge_points = serializers.SerializerMethodField()
-    images = QuestionImageSerializer(many=True, read_only=True)
+    images = QuestionImageSerializer(source='question_images', many=True, read_only=True)
+    attachments = serializers.JSONField(source='get_images', read_only=True)
     notes = QuestionNoteSerializer(many=True, read_only=True)
     reviews = QuestionReviewSerializer(many=True, read_only=True)
     
     class Meta(QuestionListSerializer.Meta):
         fields = QuestionListSerializer.Meta.fields + (
             'content', 'options', 'correct_answer', 'user_answer', 'analysis',
-            'source_detail', 'images', 'knowledge_points', 'notes', 'reviews'
+            'source_detail', 'images', 'attachments', 'knowledge_points', 'notes', 'reviews'
         )
         read_only_fields = QuestionListSerializer.Meta.read_only_fields
     
@@ -137,17 +138,19 @@ class QuestionDetailSerializer(QuestionListSerializer):
 class QuestionCreateSerializer(serializers.ModelSerializer):
     """错题创建序列化器"""
     images = serializers.ListField(child=serializers.ImageField(), required=False, write_only=True)
+    attachments = serializers.ListField(child=serializers.DictField(), required=False, write_only=True)
     
     class Meta:
         model = Question
         fields = (
             'subject', 'knowledge_points', 'title', 'content', 'question_type',
             'options', 'correct_answer', 'user_answer', 'analysis', 'difficulty',
-            'source', 'source_detail', 'tags', 'images'
+            'source', 'source_detail', 'tags', 'images', 'attachments'
         )
     
     def create(self, validated_data):
         images_data = validated_data.pop('images', [])
+        attachments_data = validated_data.pop('attachments', [])
         knowledge_points = validated_data.pop('knowledge_points', [])
         
         question = Question.objects.create(**validated_data)
@@ -156,7 +159,13 @@ class QuestionCreateSerializer(serializers.ModelSerializer):
         if knowledge_points:
             question.knowledge_points.set(knowledge_points)
         
-        # 添加图片
+        # 处理附件（新版上传）
+        if attachments_data:
+            import json
+            question.images = json.dumps(attachments_data, ensure_ascii=False)
+            question.save(update_fields=['images'])
+        
+        # 添加图片（旧版上传兼容）
         for i, image_data in enumerate(images_data):
             QuestionImage.objects.create(
                 question=question,
@@ -175,21 +184,28 @@ class QuestionUpdateSerializer(serializers.ModelSerializer):
         many=True,
         required=False
     )
+    attachments = serializers.ListField(child=serializers.DictField(), required=False, write_only=True)
     
     class Meta:
         model = Question
         fields = (
             'subject', 'knowledge_points', 'title', 'content', 'question_type',
             'options', 'correct_answer', 'user_answer', 'analysis', 'difficulty',
-            'source', 'source_detail', 'tags', 'is_solved', 'is_marked'
+            'source', 'source_detail', 'tags', 'is_solved', 'is_marked', 'attachments'
         )
     
     def update(self, instance, validated_data):
         knowledge_points = validated_data.pop('knowledge_points', None)
+        attachments_data = validated_data.pop('attachments', None)
         
         # 更新知识点关联
         if knowledge_points is not None:
             instance.knowledge_points.set(knowledge_points)
+        
+        # 更新附件
+        if attachments_data is not None:
+            import json
+            instance.images = json.dumps(attachments_data, ensure_ascii=False)
         
         # 更新其他字段
         for attr, value in validated_data.items():

@@ -2,13 +2,7 @@ from django.db import models
 from django.contrib.auth import get_user_model
 from django.utils.translation import gettext_lazy as _
 import structlog
-
-# 导入通用JSONField
-try:
-    from apps.common.fields import get_json_field
-    JSONField = get_json_field()
-except ImportError:
-    from django.db.models import JSONField
+import json
 
 logger = structlog.get_logger(__name__)
 User = get_user_model()
@@ -193,7 +187,17 @@ class OperationLog(models.Model):
     description = models.TextField(_('描述'), blank=True)
     ip_address = models.GenericIPAddressField(_('IP地址'), blank=True, null=True)
     user_agent = models.TextField(_('用户代理'), blank=True)
-    extra_data = models.JSONField(_('额外数据'), default=dict, blank=True)
+    extra_data = models.TextField(_('额外数据'), default='{}', blank=True)
+    
+    # JSON字段访问器
+    def get_extra_data(self):
+        try:
+            return json.loads(self.extra_data)
+        except (json.JSONDecodeError, TypeError):
+            return {}
+    
+    def set_extra_data(self, value):
+        self.extra_data = json.dumps(value, ensure_ascii=False)
     created_at = models.DateTimeField(_('操作时间'), auto_now_add=True)
     
     class Meta:

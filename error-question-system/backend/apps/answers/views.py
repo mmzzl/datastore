@@ -2,6 +2,7 @@ from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework import status
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q, Count, Avg
 from django.utils import timezone
@@ -16,6 +17,9 @@ from .serializers import (
     AnswerCreateSerializer, AnswerUpdateSerializer
 )
 
+# 导入AI服务函数
+from .ai_service import generate_ai_answer
+
 logger = structlog.get_logger(__name__)
 
 
@@ -23,11 +27,23 @@ class AnswerViewSet(viewsets.ModelViewSet):
     """答案视图集"""
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['question', 'is_correct', 'is_public']
+    filterset_fields = ['question', 'is_public']
     search_fields = ['content']
     ordering_fields = ['created_at', 'updated_at', 'like_count']
     ordering = ['-created_at']
     queryset = Answer.objects.all()
+    
+    def get_object(self):
+        """获取对象时检查权限"""
+        obj = super().get_object()
+        
+        # 对于更新和删除操作，检查用户是否为对象创建者
+        if self.action in ['update', 'partial_update', 'destroy']:
+            if obj.user != self.request.user:
+                from rest_framework.exceptions import NotFound
+                raise NotFound("答案不存在")
+        
+        return obj
     
     def get_queryset(self):
         """获取答案列表，根据用户权限过滤"""
@@ -41,7 +57,7 @@ class AnswerViewSet(viewsets.ModelViewSet):
             )
         
         # 按题目过滤
-        question_id = self.request.query_params.get('question_id')
+        question_id = self.request.query_params.get('question_id') or self.request.query_params.get('question')
         if question_id:
             queryset = queryset.filter(question_id=question_id)
         
@@ -67,14 +83,14 @@ class AnswerViewSet(viewsets.ModelViewSet):
         serializer.save(user=self.request.user)
         
         # 记录用户活动
-        from apps.system.models import UserActivityLog
+        from apps.authentication.models import UserActivityLog
         UserActivityLog.objects.create(
             user=self.request.user,
             action='create_answer',
-            resource_type='answer',
-            resource_id=serializer.instance.id,
-            description="创建答案",
-            ip_address=self.request.META.get('REMOTE_ADDR'),
+            object_type='answer',
+            object_id=serializer.instance.id,
+            object_repr=serializer.instance.content[:100],
+            details={"ip_address": self.request.META.get('REMOTE_ADDR')},
             user_agent=self.request.META.get('HTTP_USER_AGENT', '')
         )
         
@@ -85,18 +101,36 @@ class AnswerViewSet(viewsets.ModelViewSet):
         serializer.save()
         
         # 记录用户活动
-        from apps.system.models import UserActivityLog
+        from apps.authentication.models import UserActivityLog
         UserActivityLog.objects.create(
             user=self.request.user,
             action='update_answer',
-            resource_type='answer',
-            resource_id=serializer.instance.id,
-            description="更新答案",
-            ip_address=self.request.META.get('REMOTE_ADDR'),
+            object_type='answer',
+            object_id=serializer.instance.id,
+            object_repr=serializer.instance.content[:100],
+            details={"ip_address": self.request.META.get('REMOTE_ADDR')},
             user_agent=self.request.META.get('HTTP_USER_AGENT', '')
         )
         
         logger.info("更新答案成功", answer_id=serializer.instance.id, user_id=self.request.user.id)
+    
+    def perform_destroy(self, instance):
+        """删除答案时记录活动"""
+        # 记录用户活动
+        from apps.authentication.models import UserActivityLog
+        UserActivityLog.objects.create(
+            user=self.request.user,
+            action='delete_answer',
+            object_type='answer',
+            object_id=instance.id,
+            object_repr=instance.content[:100],
+            details={"ip_address": self.request.META.get('REMOTE_ADDR')},
+            user_agent=self.request.META.get('HTTP_USER_AGENT', '')
+        )
+        
+        logger.info("删除答案成功", answer_id=instance.id, user_id=self.request.user.id)
+        
+        super().perform_destroy(instance)
     
     @extend_schema(
         summary="点赞答案",
@@ -129,14 +163,14 @@ class AnswerViewSet(viewsets.ModelViewSet):
         answer.save(update_fields=['like_count'])
         
         # 记录用户活动
-        from apps.system.models import UserActivityLog
+        from apps.authentication.models import UserActivityLog
         UserActivityLog.objects.create(
             user=user,
             action='like_answer' if is_liked else 'unlike_answer',
-            resource_type='answer',
-            resource_id=answer.id,
-            description=f"{action_text}答案",
-            ip_address=request.META.get('REMOTE_ADDR'),
+            object_type='answer',
+            object_id=answer.id,
+            object_repr=answer.content[:100],
+            details={"ip_address": request.META.get('REMOTE_ADDR')},
             user_agent=request.META.get('HTTP_USER_AGENT', '')
         )
         
@@ -174,14 +208,14 @@ class AnswerViewSet(viewsets.ModelViewSet):
         answer.save(update_fields=['is_correct'])
         
         # 记录用户活动
-        from apps.system.models import UserActivityLog
+        from apps.authentication.models import UserActivityLog
         UserActivityLog.objects.create(
             user=request.user,
             action='mark_correct',
-            resource_type='answer',
-            resource_id=answer.id,
-            description="标记答案为正确",
-            ip_address=request.META.get('REMOTE_ADDR'),
+            object_type='answer',
+            object_id=answer.id,
+            object_repr=answer.content[:100],
+            details={"ip_address": request.META.get('REMOTE_ADDR')},
             user_agent=request.META.get('HTTP_USER_AGENT', '')
         )
         
@@ -272,14 +306,14 @@ class AnswerViewSet(viewsets.ModelViewSet):
         answer.save(update_fields=['comment_count'])
         
         # 记录用户活动
-        from apps.system.models import UserActivityLog
+        from apps.authentication.models import UserActivityLog
         UserActivityLog.objects.create(
             user=request.user,
             action='comment_answer',
-            resource_type='answer',
-            resource_id=answer.id,
-            description="评论答案",
-            ip_address=request.META.get('REMOTE_ADDR'),
+            object_type='answer',
+            object_id=answer.id,
+            object_repr=answer.content[:100],
+            details={"ip_address": request.META.get('REMOTE_ADDR')},
             user_agent=request.META.get('HTTP_USER_AGENT', '')
         )
         
@@ -287,6 +321,118 @@ class AnswerViewSet(viewsets.ModelViewSet):
         
         serializer = AnswerCommentSerializer(comment)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+    
+    @extend_schema(
+        summary="请求AI解答",
+        description="为指定题目生成AI解答",
+        request={
+            'application/json': {
+                'type': 'object',
+                'properties': {
+                    'question': {'type': 'integer'}
+                },
+                'required': ['question']
+            }
+        },
+        responses={201: AnswerSerializer}
+    )
+    @action(detail=False, methods=['post'])
+    def ai_answer(self, request):
+        """请求AI解答"""
+        question_id = request.data.get('question')
+        
+        if not question_id:
+            return Response(
+                {'error': '题目ID不能为空'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            from apps.questions.models import Question
+            question = Question.objects.get(id=question_id)
+        except Question.DoesNotExist:
+            return Response(
+                {'error': '题目不存在'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        try:
+            # 调用AI服务生成答案
+            ai_result = generate_ai_answer(question.content)
+            
+            # 创建AI生成的答案
+            answer = Answer.objects.create(
+                question=question,
+                user=request.user,
+                content=ai_result.get('content', ''),
+                is_ai_generated=True,
+                is_public=True
+            )
+            
+            # 记录用户活动
+            from apps.authentication.models import UserActivityLog
+            UserActivityLog.objects.create(
+                user=request.user,
+                action='request_ai_answer',
+                object_type='answer',
+                object_id=answer.id,
+                object_repr=answer.content[:100],
+                details={"ip_address": request.META.get('REMOTE_ADDR')},
+                user_agent=request.META.get('HTTP_USER_AGENT', '')
+            )
+            
+            logger.info("AI生成答案成功", answer_id=answer.id, user_id=request.user.id)
+            
+            serializer = self.get_serializer(answer)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            
+        except Exception as e:
+            logger.error("AI生成答案失败", error=str(e), user_id=request.user.id)
+            return Response(
+                {'error': 'AI服务暂时不可用，请稍后再试'},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+    
+    @extend_schema(
+        summary="获取题目答案列表",
+        description="获取指定题目的所有答案列表",
+        parameters=[
+            OpenApiParameter(
+                name='question_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='题目ID',
+                required=True
+            )
+        ],
+        responses={200: AnswerSerializer(many=True)}
+    )
+    @action(detail=False, methods=['get'], url_path='question/(?P<question_id>[^/.]+)')
+    def question_answers(self, request, question_id=None):
+        """获取题目答案列表"""
+        try:
+            from apps.questions.models import Question
+            question = Question.objects.get(id=question_id)
+        except Question.DoesNotExist:
+            return Response(
+                {'error': '题目不存在'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # 获取该题目的所有答案
+        answers = Answer.objects.filter(question=question)
+        
+        # 非管理员只能看到自己的答案和公开的答案
+        if not request.user.is_staff:
+            answers = answers.filter(
+                Q(user=request.user) | Q(is_public=True)
+            )
+        
+        # 按创建时间倒序排列
+        answers = answers.order_by('-created_at')
+        
+        serializer = self.get_serializer(answers, many=True)
+        return Response(serializer.data)
 
 
 class AnswerCommentViewSet(viewsets.ModelViewSet):
@@ -322,14 +468,14 @@ class AnswerCommentViewSet(viewsets.ModelViewSet):
         answer.save(update_fields=['comment_count'])
         
         # 记录用户活动
-        from apps.system.models import UserActivityLog
+        from apps.authentication.models import UserActivityLog
         UserActivityLog.objects.create(
             user=self.request.user,
             action='create_comment',
-            resource_type='comment',
-            resource_id=serializer.instance.id,
-            description="创建评论",
-            ip_address=self.request.META.get('REMOTE_ADDR'),
+            object_type='comment',
+            object_id=serializer.instance.id,
+            object_repr=serializer.instance.content[:100],
+            details={"ip_address": self.request.META.get('REMOTE_ADDR')},
             user_agent=self.request.META.get('HTTP_USER_AGENT', '')
         )
         
@@ -345,14 +491,14 @@ class AnswerCommentViewSet(viewsets.ModelViewSet):
         answer.save(update_fields=['comment_count'])
         
         # 记录用户活动
-        from apps.system.models import UserActivityLog
+        from apps.authentication.models import UserActivityLog
         UserActivityLog.objects.create(
             user=self.request.user,
             action='delete_comment',
-            resource_type='comment',
-            resource_id=instance.id,
-            description="删除评论",
-            ip_address=self.request.META.get('REMOTE_ADDR'),
+            object_type='comment',
+            object_id=instance.id,
+            object_repr=instance.content[:100],
+            details={"ip_address": self.request.META.get('REMOTE_ADDR')},
             user_agent=self.request.META.get('HTTP_USER_AGENT', '')
         )
         
@@ -389,14 +535,14 @@ class AnswerCommentViewSet(viewsets.ModelViewSet):
         comment.save(update_fields=['like_count'])
         
         # 记录用户活动
-        from apps.system.models import UserActivityLog
+        from apps.authentication.models import UserActivityLog
         UserActivityLog.objects.create(
             user=user,
             action='like_comment' if is_liked else 'unlike_comment',
-            resource_type='comment',
-            resource_id=comment.id,
-            description=f"{action_text}评论",
-            ip_address=request.META.get('REMOTE_ADDR'),
+            object_type='comment',
+            object_id=comment.id,
+            object_repr=comment.content[:100],
+            details={"ip_address": request.META.get('REMOTE_ADDR')},
             user_agent=request.META.get('HTTP_USER_AGENT', '')
         )
         

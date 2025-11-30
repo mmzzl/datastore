@@ -149,6 +149,31 @@ class CategoryUpdateSerializer(serializers.ModelSerializer):
             'name', 'description', 'color', 'icon', 'parent', 'sort_order', 'is_active'
         )
     
+    def validate_parent(self, value):
+        """验证父分类不能是自己或自己的后代"""
+        instance = self.instance
+        if value is None:
+            return value
+            
+        # 不能将父分类设置为自己
+        if value == instance:
+            raise serializers.ValidationError("不能将分类的父分类设置为自己")
+        
+        # 不能将父分类设置为自己的后代
+        def is_descendant(parent, child):
+            """检查child是否是parent的后代"""
+            if parent == child:
+                return True
+            for direct_child in parent.children.all():
+                if is_descendant(direct_child, child):
+                    return True
+            return False
+        
+        if is_descendant(instance, value):
+            raise serializers.ValidationError("不能将分类的父分类设置为自己的后代")
+        
+        return value
+    
     def update(self, instance, validated_data):
         # 如果父分类发生变化，需要更新层级
         parent = validated_data.get('parent')

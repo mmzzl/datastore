@@ -6,6 +6,8 @@ from .views import (
     FeedbackViewSet, OperationLogViewSet
 )
 
+app_name = 'system'
+
 router = DefaultRouter()
 router.register(r'configs', SystemConfigViewSet)
 router.register(r'system-notifications', SystemNotificationViewSet)

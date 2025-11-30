@@ -3,6 +3,9 @@ import os
 import time
 import pygetwindow as gw
 import pyautogui 
+from apscheduler.schedulers.blocking import BlockingScheduler
+from apscheduler.schedulers.background import BackgroundScheduler
+
 
 class ShanHaiJing:
     def __init__(self, keyword="山海北荒卷"):
@@ -95,6 +98,7 @@ class ShanHaiJing:
         file_path = os.path.join(self.base_dir, "auto_egg.png")
         if self.is_image_exist(file_path):
             # 点击相关按钮执行自动孵蛋操作
+            print("点击自动孵蛋按钮")
             self.move_mouse_to_window_relative(259, 888)  # 第一个按钮位置
             self.move_mouse_to_window_relative(243, 690)  # 第二个按钮位置
     
@@ -165,10 +169,13 @@ class ShanHaiJing:
         检查当前窗口是否在孵蛋界面
         """
         file_path = os.path.join(self.base_dir, "egg.png")
-        retry_count = 20
+        retry_count = 15
+        image_list = ['egg1.png', 'egg2.png', 'egg3.png', 'egg4.png']
         while retry_count:
-            if self.is_image_exist(file_path):
-                return True
+            for image in image_list:
+                file_path = os.path.join(self.base_dir, image)
+                if self.is_image_exist(file_path):
+                    return True
             time.sleep(1)
             retry_count -= 1
         return False
@@ -179,7 +186,7 @@ class ShanHaiJing:
         """
 
         file_path = os.path.join(self.base_dir, "confirm.png")
-        retry_count = 20
+        retry_count = 5
         while retry_count:
             if self.is_image_exist(file_path):
                 return True
@@ -195,13 +202,20 @@ class ShanHaiJing:
         if self.is_on_hatching_screen():
             print("当前在孵蛋界面")
         else:
-            # 先点击
+            # 先点击自动孵蛋按钮
+            print("自动孵蛋停止")
             self.move_mouse_to_window_relative(272,754)
-            if self.needs_to_capture():
+            needs_to_capture = True
+            if needs_to_capture:
                 print("需要收服")
                 self.move_mouse_to_window_relative(350, 748)  # 收服按钮位置
                 # 再点击出售按钮
                 self.move_mouse_to_window_relative(168, 748)  # 出售按钮位置
+                time.sleep(1)
+                # 判断是否出现确定按钮
+                if self.check_confim_capture():
+                    print("需要点击确定按钮")
+                    self.move_mouse_to_window_relative(354, 599)
             else:
                 print("不需要收服,点击出售")
                 # 直接点击出售按钮
@@ -213,22 +227,47 @@ class ShanHaiJing:
         """
         try:
             print("开始运行山海北荒卷自动化脚本...")
-            time.sleep(5)
-            while True:
-                if self.check_confim_capture():
-                    self.move_mouse_to_window_relative(231, 608)  # 确认按钮位置
-                    time.sleep(1)  # 循环间隔
-                self.click_auto_hatch_button()
-                self.check_egg_screen()
+            time.sleep(2)
+            # while True:
+            if self.check_confim_capture():
+                print("点击确认按钮")
+                self.move_mouse_to_window_relative(231, 608)  # 确认按钮位置
                 time.sleep(1)  # 循环间隔
+                
+            self.click_auto_hatch_button()
+            self.check_egg_screen()
+            time.sleep(1)  # 循环间隔
         except KeyboardInterrupt:
             print("\n程序被用户中断")
         except Exception as error:
             print(f"程序运行出错：{error}")
             # 出错后尝试重新点击自动孵蛋按钮
             self.click_auto_hatch_button()
+    
+    def __enter__(self):
+        return self 
+    
+    def __exit__(self, exc_type, exc_value, traceback):
+        print("上下文对象销毁")
+        for attr in list(vars(self)):
+            delattr(self, attr)
+        return False
+
+def job():
+    with ShanHaiJing("山海北荒卷") as app:
+        app = ShanHaiJing("山海北荒卷")
+        app.run()
+
 
 if __name__ == '__main__':
-    app = ShanHaiJing("山海北荒卷")
-    app.run()
-    
+    # scheduler = BlockingScheduler()
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(job, 'interval', seconds=600)  # 每5秒执行
+    try:
+        print('调度器开始运行...')
+        scheduler.start()
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        scheduler.shutdown(wait=False)  # wait=False 表示不等待当前任务完成
+        print('调度器已停止')

@@ -78,19 +78,22 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
-# Database
+# Database - 临时使用SQLite进行测试
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': BASE_DIR / 'db.sqlite3',
+#     }
+# }
+
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': config('DB_NAME', default='error_question_db'),
-        'USER': config('DB_USER', default='root'),
-        'PASSWORD': config('DB_PASSWORD', default=''),
-        'HOST': config('DB_HOST', default='localhost'),
-        'PORT': config('DB_PORT', default='3306'),
-        'OPTIONS': {
-            'charset': 'utf8mb4',
-            'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
-        },
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.getenv('DB_NAME', 'error_question_db'),
+        'USER': os.getenv('DB_USER', 'postgres'),
+        'PASSWORD': os.getenv('DB_PASSWORD', 'sip@1234'),
+        'HOST': os.getenv('DB_HOST', 'localhost'),
+        'PORT': os.getenv('DB_PORT', '5550'),
     }
 }
 
@@ -170,8 +173,8 @@ SIMPLE_JWT = {
 
 # CORS Configuration
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:8080",
-    "http://127.0.0.1:8080",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
 ]
 
 CORS_ALLOW_CREDENTIALS = True
@@ -189,10 +192,7 @@ LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
     'formatters': {
-        'json': {
-            '()': 'pythonjsonlogger.jsonlogger.JsonFormatter',
-            'format': '%(asctime)s %(name)s %(levelname)s %(message)s'
-        },
+        # 移除JSON格式化器配置，因为无法安装pythonjsonlogger
         'verbose': {
             'format': '%(levelname)s %(asctime)s %(module)s %(process)d %(thread)d %(message)s'
         },
@@ -201,7 +201,7 @@ LOGGING = {
         'console': {
             'level': 'INFO',
             'class': 'logging.StreamHandler',
-            'formatter': 'json'
+            'formatter': 'verbose'
         },
         'file': {
             'level': 'DEBUG',
@@ -209,7 +209,7 @@ LOGGING = {
             'filename': BASE_DIR / 'logs' / 'error_question.log',
             'maxBytes': 1024*1024*10,  # 10MB
             'backupCount': 5,
-            'formatter': 'json'
+            'formatter': 'verbose'
         },
         'error_file': {
             'level': 'ERROR',
@@ -217,7 +217,7 @@ LOGGING = {
             'filename': BASE_DIR / 'logs' / 'error_question_error.log',
             'maxBytes': 1024*1024*10,  # 10MB
             'backupCount': 5,
-            'formatter': 'json'
+            'formatter': 'verbose'
         },
     },
     'loggers': {
@@ -274,13 +274,13 @@ ANSWER_SERVICE_URL = config('ANSWER_SERVICE_URL', default='http://localhost:8002
 ANSWER_API_KEY = config('ANSWER_API_KEY', default='')
 
 # Cache Configuration
-CACHES = {
-    'default': {
-        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
-        'LOCATION': config('REDIS_URL', default='redis://127.0.0.1:6379/1'),
-    }
-}
-
+# CACHES = {
+#     'default': {
+#         'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+#         'LOCATION': config('REDIS_URL', default='redis://127.0.0.1:6379/1'),
+#     }
+# }
+APPEND_SLASH=False
 # Security Settings
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True

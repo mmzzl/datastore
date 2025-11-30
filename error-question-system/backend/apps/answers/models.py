@@ -4,12 +4,8 @@ from django.utils.translation import gettext_lazy as _
 from django.conf import settings
 import structlog
 
-# 导入通用JSONField
-try:
-    from apps.common.fields import get_json_field
-    JSONField = get_json_field()
-except ImportError:
-    from django.db.models import JSONField
+# 导入SQLite兼容的JSONField
+from apps.common.fields import SQLiteJSONField
 
 logger = structlog.get_logger(__name__)
 User = get_user_model()
@@ -19,10 +15,10 @@ class Answer(models.Model):
     """
     答案模型
     """
-    question = models.OneToOneField(
+    question = models.ForeignKey(
         'questions.Question',
         on_delete=models.CASCADE,
-        related_name='answer',
+        related_name='answers',
         verbose_name=_('关联错题')
     )
     user = models.ForeignKey(
@@ -33,9 +29,30 @@ class Answer(models.Model):
     )
     content = models.TextField(_('答案内容'))
     explanation = models.TextField(_('解释'), blank=True)
-    steps = models.JSONField(_('解题步骤'), default=list, blank=True)
-    images = models.JSONField(_('图片'), default=list, blank=True)
+    steps = models.TextField(_('解题步骤'), default='[]', blank=True)
+    images = models.TextField(_('图片'), default='[]', blank=True)
+    
+    # JSON字段访问器
+    def get_steps(self):
+        try:
+            return json.loads(self.steps)
+        except (json.JSONDecodeError, TypeError):
+            return []
+    
+    def set_steps(self, value):
+        self.steps = json.dumps(value, ensure_ascii=False)
+    
+    def get_images(self):
+        try:
+            return json.loads(self.images)
+        except (json.JSONDecodeError, TypeError):
+            return []
+    
+    def set_images(self, value):
+        self.images = json.dumps(value, ensure_ascii=False)
     source = models.CharField(_('来源'), max_length=50, blank=True)
+    is_ai_generated = models.BooleanField(_('是否AI生成'), default=False)
+    is_correct = models.BooleanField(_('是否正确'), default=False)
     is_verified = models.BooleanField(_('是否已验证'), default=False)
     is_public = models.BooleanField(_('是否公开'), default=True)
     likes_count = models.IntegerField(_('点赞数'), default=0)
@@ -54,7 +71,7 @@ class Answer(models.Model):
         ]
     
     def __str__(self):
-        return f"{self.question.title}的答案"
+        return f"{self.user.username}对{self.question.title}的答案"
     
     def get_images_list(self):
         """获取图片列表"""
@@ -74,6 +91,29 @@ class Answer(models.Model):
         """减少点赞数"""
         self.likes_count = max(0, self.likes_count - 1)
         self.save(update_fields=['likes_count'])
+    
+    @property
+    def like_count(self):
+        """获取点赞数（兼容性属性）"""
+        return self.likes_count
+    
+    @like_count.setter
+    def like_count(self, value):
+        """设置点赞数（兼容性属性）"""
+        self.likes_count = value
+        self.save(update_fields=['likes_count'])
+    
+    @property
+    def comment_count(self):
+        """获取评论数"""
+        return self.comments.count()
+    
+    @comment_count.setter
+    def comment_count(self, value):
+        """设置评论数（用于视图中的更新）"""
+        # 这个setter主要用于视图中的批量更新
+        # 实际评论数应该通过comments.count()获取
+        pass
 
 
 class AnswerImage(models.Model):
@@ -88,6 +128,7 @@ class AnswerImage(models.Model):
     )
     image = models.ImageField(_('图片'), upload_to='answer_images/')
     description = models.CharField(_('描述'), max_length=200, blank=True)
+    sort_order = models.IntegerField(_('排序'), default=0)
     created_at = models.DateTimeField(_('创建时间'), auto_now_add=True)
     
     class Meta:
@@ -97,7 +138,7 @@ class AnswerImage(models.Model):
         ordering = ['-created_at']
     
     def __str__(self):
-        return f"{self.answer.question.title}的答案图片"
+        return f"{self.answer.user.username} - {self.answer.question.title} - 解答图片"
 
 
 class AnswerComment(models.Model):
@@ -141,7 +182,7 @@ class AnswerComment(models.Model):
         ]
     
     def __str__(self):
-        return f"{self.user.username}对{self.answer.question.title}的评论"
+        return f"{self.user.username} - {self.answer.question.title}"
     
     def increment_likes_count(self):
         """增加点赞数"""
@@ -182,7 +223,7 @@ class AnswerLike(models.Model):
         ]
     
     def __str__(self):
-        return f"{self.user.username}点赞了{self.answer.question.title}的答案"
+        return f"{self.user.username} - {self.answer.question.title}"
 
 
 class CommentLike(models.Model):
@@ -213,7 +254,7 @@ class CommentLike(models.Model):
         ]
     
     def __str__(self):
-        return f"{self.user.username}点赞了评论"
+        return f"{self.user.username} - {self.comment.answer.question.title}"
 
 
 # 信号处理函数

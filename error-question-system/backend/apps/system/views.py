@@ -235,14 +235,14 @@ class UserNotificationViewSet(viewsets.ReadOnlyModelViewSet):
         notification.save(update_fields=['is_read', 'read_at'])
         
         # 记录用户活动
-        from apps.system.models import UserActivityLog
+        from apps.authentication.models import UserActivityLog
         UserActivityLog.objects.create(
             user=request.user,
             action='read_notification',
-            resource_type='user_notification',
-            resource_id=notification.id,
-            description=f"阅读通知: {notification.title}",
-            ip_address=request.META.get('REMOTE_ADDR'),
+            object_type='user_notification',
+            object_id=notification.id,
+            object_repr=f"阅读通知: {notification.title}",
+            details={"ip_address": request.META.get('REMOTE_ADDR')},
             user_agent=request.META.get('HTTP_USER_AGENT', '')
         )
         
@@ -267,13 +267,13 @@ class UserNotificationViewSet(viewsets.ReadOnlyModelViewSet):
         )
         
         # 记录用户活动
-        from apps.system.models import UserActivityLog
+        from apps.authentication.models import UserActivityLog
         UserActivityLog.objects.create(
             user=request.user,
             action='read_all_notifications',
-            resource_type='user_notification',
-            description=f"标记{count}条通知为已读",
-            ip_address=request.META.get('REMOTE_ADDR'),
+            object_type='user_notification',
+            object_repr=f"标记{count}条通知为已读",
+            details={"ip_address": request.META.get('REMOTE_ADDR')},
             user_agent=request.META.get('HTTP_USER_AGENT', '')
         )
         
@@ -302,13 +302,13 @@ class UserNotificationViewSet(viewsets.ReadOnlyModelViewSet):
         notification.delete()
         
         # 记录用户活动
-        from apps.system.models import UserActivityLog
+        from apps.authentication.models import UserActivityLog
         UserActivityLog.objects.create(
             user=request.user,
             action='delete_notification',
-            resource_type='user_notification',
-            description=f"删除通知: {title}",
-            ip_address=request.META.get('REMOTE_ADDR'),
+            object_type='user_notification',
+            object_repr=f"删除通知: {title}",
+            details={"ip_address": request.META.get('REMOTE_ADDR')},
             user_agent=request.META.get('HTTP_USER_AGENT', '')
         )
         
@@ -349,14 +349,14 @@ class FeedbackViewSet(viewsets.ModelViewSet):
         feedback = serializer.save(user=self.request.user)
         
         # 记录用户活动
-        from apps.system.models import UserActivityLog
+        from apps.authentication.models import UserActivityLog
         UserActivityLog.objects.create(
             user=self.request.user,
             action='create_feedback',
-            resource_type='feedback',
-            resource_id=feedback.id,
-            description=f"提交反馈: {feedback.title}",
-            ip_address=self.request.META.get('REMOTE_ADDR'),
+            object_type='feedback',
+            object_id=feedback.id,
+            object_repr=f"提交反馈: {feedback.title}",
+            details={"ip_address": self.request.META.get('REMOTE_ADDR')},
             user_agent=self.request.META.get('HTTP_USER_AGENT', '')
         )
         

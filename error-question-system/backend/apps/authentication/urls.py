@@ -10,6 +10,8 @@ from .views import (
     change_password, login_history, activity_logs
 )
 
+app_name = 'authentication'
+
 router = DefaultRouter()
 # 认证模块没有需要注册的视图集
 

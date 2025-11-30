@@ -209,3 +209,11 @@ error-question-system/
 
 - 项目维护者: [Your Name](mailto:your.email@example.com)
 - 项目链接: [https://github.com/yourusername/error-question-system](https://github.com/yourusername/error-question-system)
+1. 分析error-question-system backend项目
+2. 前端项目使用uni-app框架
+3. vue create -p dcloudio/uni-preset-vue frontend 创建前端项目
+4. 前端要实现的功能，参见docs/URD下面的需求
+5. 需要有登录和注册页面
+6. 如果后端返回401，需要调整到用户登录页面
+7. 页面需要易用性，操作流程简单
+8. 页面优美，符合uni-app的设计规范

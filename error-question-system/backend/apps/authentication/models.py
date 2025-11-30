@@ -176,6 +176,10 @@ class UserActivityLog(models.Model):
     用户活动日志
     """
     ACTION_CHOICES = [
+        ('register', _('注册')),
+        ('login', _('登录')),
+        ('logout', _('登出')),
+        ('update_profile', _('更新个人信息')),
         ('create_question', _('创建错题')),
         ('update_question', _('更新错题')),
         ('delete_question', _('删除错题')),
