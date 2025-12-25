@@ -67,6 +67,7 @@ def capture_and_recognize():
             result = ocr.predict(screenshot_path)
             
             # 提取文字
+             # 提取文字和坐标信息
             if result and isinstance(result, list) and len(result) > 0:
                 if isinstance(result[0], dict):
                     text_list = result[0].get('rec_texts', [])
@@ -75,7 +76,8 @@ def capture_and_recognize():
                     text_list = []
                     for item in result:
                         if isinstance(item, list) and len(item) > 1:
-                            text_list.append(item[1][0])
+                            if item:
+                                text_list.append(item[1][0])
                 return text_list
             
             return None
@@ -91,34 +93,109 @@ def parse_beast_attributes(text_list):
     Returns:
         dict: 包含异兽属性的字典
     """
-    if not text_list:
-        return None
-    print(text_list)
-    attributes = []
-    old_attribute = {
-        'name': text_list[0],
-        'type': text_list[1],
-        'hp': int(text_list[4]),
-        'attack': int(text_list[8]),
-        'defense': int(text_list[11]),
-        'speed': int(text_list[15]),
-        'special_attribute': text_list[5],  # 特殊属性（如闪避、吸血等）
-        'special_value': text_list[6]  # 特殊属性的数值
-    }
-    new_attribute = {
-        'name': text_list[21],
-        'type': text_list[22],
-        'hp': int(text_list[25]),
-        'attack': int(text_list[29]),
-        'defense': int(text_list[32]),
-        'speed': int(text_list[34]),
-        'special_attribute': text_list[26],  # 特殊属性（如闪避、吸血等）
-        'special_value': text_list[27]  # 特殊属性的数值
-    }
-    attributes.append(old_attribute)
-    attributes.append(new_attribute)
     
-    return attributes
+    if not text_list or len(text_list) < 10:
+        print(f"OCR识别结果太少，无法解析（只有{len(text_list) if text_list else 0}个文本片段）")
+        return None
+    try:
+        # 辅助函数：根据关键词查找对应的数值
+        def find_value_by_keyword(text_list, keyword, search_start=0, search_end=None):
+            """在指定范围内查找关键词后的数值"""
+            for i in range(search_start, len(text_list) if search_end is None else search_end):
+                if keyword in text_list[i]:
+                    # 查找关键词后面的数值
+                    for j in range(i+1, min(i+5, len(text_list))):
+                        try:
+                            # 尝试转换为数字
+                            value = text_list[j].replace(',', '').replace('，', '')
+                            if value.isdigit():
+                                return int(value)
+                        except:
+                            continue
+            return None
+        
+        # 辅助函数：根据Y坐标将文本分为上下两部分（旧异兽和新异兽）
+        def split_by_y_coordinate(text_list):
+            """根据Y坐标将OCR结果分为上下两部分"""
+            if not text_list:
+                return [], []
+            count = len(text_list) // 2
+            return text_list[:count], text_list[count:]
+            # 计算所有文本的Y坐标中心点
+            
+        
+        # 将OCR结果分为上下两部分
+        upper_part, lower_part = split_by_y_coordinate(text_list)
+        
+        print(f"上半部分（旧异兽）有{len(upper_part)}个文本片段")
+        print(f"下半部分（新异兽）有{len(lower_part)}个文本片段")
+        
+        # 解析旧异兽属性
+        old_attribute = {}
+        if upper_part:
+            # 名称通常是第一个文本
+            old_attribute['name'] = upper_part[0] if upper_part else ''
+            # 类型通常是第二个文本
+            old_attribute['type'] = upper_part[1] if len(upper_part) > 1 else ''
+            
+            # 使用关键词查找属性值
+            old_attribute['hp'] = find_value_by_keyword(upper_part, '生命') or 0
+            old_attribute['attack'] = find_value_by_keyword(upper_part, '攻击') or 0
+            old_attribute['defense'] = find_value_by_keyword(upper_part, '防御') or 0
+            old_attribute['speed'] = find_value_by_keyword(upper_part, '速度') or 0
+            
+            # 特殊属性和数值
+            special_keywords = ['闪避', '吸血', '暴击', '反击', '坚韧', '穿透', '命中', '格挡']
+            for keyword in special_keywords:
+                if find_value_by_keyword(upper_part, keyword):
+                    old_attribute['special_attribute'] = keyword
+                    old_attribute['special_value'] = find_value_by_keyword(upper_part, keyword)
+                    break
+            
+            if 'special_attribute' not in old_attribute:
+                old_attribute['special_attribute'] = ''
+                old_attribute['special_value'] = '0'
+        
+        # 解析新异兽属性
+        new_attribute = {}
+        if lower_part:
+            # 名称通常是第一个文本
+            new_attribute['name'] = lower_part[0] if lower_part else ''
+            # 类型通常是第二个文本
+            new_attribute['type'] = lower_part[1] if len(lower_part) > 1 else ''
+            
+            # 使用关键词查找属性值
+            new_attribute['hp'] = find_value_by_keyword(lower_part, '生命') or 0
+            new_attribute['attack'] = find_value_by_keyword(lower_part, '攻击') or 0
+            new_attribute['defense'] = find_value_by_keyword(lower_part, '防御') or 0
+            new_attribute['speed'] = find_value_by_keyword(lower_part, '速度') or 0
+            
+            # 特殊属性和数值
+            special_keywords = ['闪避', '吸血', '暴击', '反击', '连击', '击晕']
+            for keyword in special_keywords:
+                if find_value_by_keyword(lower_part, keyword):
+                    new_attribute['special_attribute'] = keyword
+                    new_attribute['special_value'] = find_value_by_keyword(lower_part, keyword)
+                    break
+            
+            if 'special_attribute' not in new_attribute:
+                new_attribute['special_attribute'] = ''
+                new_attribute['special_value'] = '0'
+        
+        attributes = [old_attribute, new_attribute]
+        
+        print("解析结果:")
+        print(f"  旧异兽: {old_attribute}")
+        print(f"  新异兽: {new_attribute}")
+        
+        return attributes
+        
+    except Exception as e:
+        print(f"解析异兽属性出错: {e}")
+        import traceback
+        print(traceback.format_exc())
+        return None
+
 
 if __name__ == "__main__":
     text_list = capture_and_recognize()

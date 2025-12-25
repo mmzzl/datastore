@@ -3,19 +3,22 @@ import os
 import time
 import datetime
 import logging
+import logging.handlers
 import pygetwindow as gw
 import pyautogui 
+import traceback
 from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.schedulers.background import BackgroundScheduler
 from paddleocr import PaddleOCR
 
+ocr = PaddleOCR(lang="ch", use_textline_orientation=False, cpu_threads=8, text_det_limit_side_len=640)
 
 class ShanHaiJing:
     def __init__(self, keyword="山海北荒卷"):
         self.keyword = keyword
         self.base_dir = os.path.dirname(os.path.abspath(__file__))
         self.filtered_windows = self.filter_windows_by_title(self.keyword)
-        self.ocr = PaddleOCR(lang="ch", use_textline_orientation=False, cpu_threads=8, text_det_limit_side_len=640)
+        
         self.previous_beast = None  # 记录之前的异兽属性
         self.target_attribute = '暴击'  # 目标属性，可以修改为其他属性如'吸血'、'暴击'等
         self.screenshot_dir = os.path.join(self.base_dir, "screenshots")
@@ -33,25 +36,45 @@ class ShanHaiJing:
     
     def setup_logging(self):
         """
-        配置日志系统
+        配置日志系统 - 按天分割日志文件
         """
         # 创建日志文件名（按日期）
         log_filename = datetime.datetime.now().strftime("beast_capture_%Y%m%d.log")
         log_filepath = os.path.join(self.log_dir, log_filename)
         
-        # 配置日志格式
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(levelname)s - %(message)s',
-            handlers=[
-                logging.FileHandler(log_filepath, encoding='utf-8'),
-                logging.StreamHandler()  # 同时输出到控制台
-            ]
-        )
-        
+        # 创建logger
         self.logger = logging.getLogger(__name__)
+        self.logger.setLevel(logging.INFO)
+        
+        # 日志格式
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        
+        # 1. 文件处理器 - 使用TimedRotatingFileHandler按天分割日志
+        # when='midnight' 表示每天午夜分割
+        # interval=1 表示每天分割一次
+        # backupCount=30 表示保留30天的日志
+        file_handler = logging.handlers.TimedRotatingFileHandler(
+            log_filepath,
+            when='midnight',
+            interval=1,
+            backupCount=30,
+            encoding='utf-8'
+        )
+        file_handler.setFormatter(formatter)
+        file_handler.suffix = "%Y%m%d.log"  # 设置日志文件名后缀格式
+        
+        # 2. 控制台处理器
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(formatter)
+        
+        # 添加处理器
+        self.logger.addHandler(file_handler)
+        self.logger.addHandler(console_handler)
+        
+        # 记录启动信息
         self.logger.info("=" * 80)
         self.logger.info(f"山海北荒卷自动化脚本启动 - 目标属性: {self.target_attribute}")
+        self.logger.info(f"日志文件: {log_filepath}")
         self.logger.info("=" * 80)
     
     def get_active_window_region(self):
@@ -235,16 +258,25 @@ class ShanHaiJing:
         """
         截图并使用OCR识别文字
         Returns:
-            list: 识别到的文字列表
+            list: 识别到的文字列表（包含坐标和文字）
         """
         try:
             # 获取窗口区域
-            region = self.get_active_window_region()
-            if not region:
+            window_region = self.get_active_window_region()
+            if not window_region:
                 return None
             
+            # 计算截图区域（相对于窗口的固定坐标）
+            # 起点: (27, 199), 终点: (460, 783)
+            screenshot_region = (
+                window_region[0] + 27,      # x: 窗口左上角x + 27
+                window_region[1] + 199,     # y: 窗口左上角y + 199
+                460 - 27,                   # width: 433
+                783 - 199                   # height: 584
+            )
+            
             # 截图
-            screenshot = pyautogui.screenshot(region=region)
+            screenshot = pyautogui.screenshot(region=screenshot_region)
             
             # 保存截图
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -253,27 +285,24 @@ class ShanHaiJing:
             self.logger.info(f"截图已保存到: {screenshot_path}")
             
             # OCR识别
-            result = self.ocr.predict(screenshot_path)
+            result = ocr.predict(screenshot_path)
             
-            # 提取文字
+            # 提取文字和坐标信息
             if result and isinstance(result, list) and len(result) > 0:
-                if isinstance(result[0], dict):
-                    text_list = result[0].get('rec_texts', [])
-                else:
-                    # 尝试直接从结果中提取文字
-                    text_list = []
-                    for item in result:
-                        if isinstance(item, list) and len(item) > 1:
-                            text_list.append(item[1][0])
-                
-                self.logger.debug(f"识别到{len(text_list)}个文本片段:")
-                self.logger.debug(text_list)
-                return text_list
-            
-            return None
+                    if isinstance(result[0], dict):
+                        text_list = result[0].get('rec_texts', [])
+                    else:
+                        # 尝试直接从结果中提取文字
+                        text_list = []
+                        for item in result:
+                            if isinstance(item, list) and len(item) > 1:
+                                if item:
+                                    text_list.append(item[1][0])
+                    return text_list
+            return []
         except Exception as e:
             self.logger.error(f"OCR识别出错: {e}")
-            return None
+            return []
     
     def parse_beast_attributes(self, text_list):
         """
@@ -283,34 +312,109 @@ class ShanHaiJing:
         Returns:
             dict: 包含异兽属性的字典
         """
-        if not text_list:
-            return None
-        attributes = []
-        old_attribute = {
-            'name': text_list[0],
-            'type': text_list[1],
-            'hp': int(text_list[4]),
-            'attack': int(text_list[8]),
-            'defense': int(text_list[11]),
-            'speed': int(text_list[15]),
-            'special_attribute': text_list[5],  # 特殊属性（如闪避、吸血等）
-            'special_value': text_list[6]  # 特殊属性的数值
-        }
-        new_attribute = {
-            'name': text_list[21],
-            'type': text_list[22],
-            'hp': int(text_list[25]),
-            'attack': int(text_list[29]),
-            'defense': int(text_list[32]),
-            'speed': int(text_list[34]),
-            'special_attribute': text_list[26],  # 特殊属性（如闪避、吸血等）
-            'special_value': text_list[27]  # 特殊属性的数值
-        }
-        attributes.append(old_attribute)
-        attributes.append(new_attribute)
         
-        return attributes
-    
+        if not text_list or len(text_list) < 10:
+            self.logger.info(f"OCR识别结果太少，无法解析（只有{len(text_list) if text_list else 0}个文本片段）")
+            return None
+        try:
+            # 辅助函数：根据关键词查找对应的数值
+            def find_value_by_keyword(text_list, keyword, search_start=0, search_end=None):
+                """在指定范围内查找关键词后的数值"""
+                for i in range(search_start, len(text_list) if search_end is None else search_end):
+                    if keyword in text_list[i]:
+                        # 查找关键词后面的数值
+                        for j in range(i+1, min(i+5, len(text_list))):
+                            try:
+                                # 尝试转换为数字
+                                value = text_list[j].replace(',', '').replace('，', '')
+                                if value.isdigit():
+                                    return int(value)
+                            except:
+                                continue
+                return None
+            
+            # 辅助函数：根据Y坐标将文本分为上下两部分（旧异兽和新异兽）
+            def split_by_y_coordinate(text_list):
+                """根据Y坐标将OCR结果分为上下两部分"""
+                if not text_list:
+                    return [], []
+                count = len(text_list) // 2
+                return text_list[:count], text_list[count:]
+                # 计算所有文本的Y坐标中心点
+                
+            
+            # 将OCR结果分为上下两部分
+            upper_part, lower_part = split_by_y_coordinate(text_list)
+            
+            print(f"上半部分（旧异兽）有{len(upper_part)}个文本片段")
+            print(f"下半部分（新异兽）有{len(lower_part)}个文本片段")
+            
+            # 解析旧异兽属性
+            old_attribute = {}
+            if upper_part:
+                # 名称通常是第一个文本
+                old_attribute['name'] = upper_part[0] if upper_part else ''
+                # 类型通常是第二个文本
+                old_attribute['type'] = upper_part[1] if len(upper_part) > 1 else ''
+                
+                # 使用关键词查找属性值
+                old_attribute['hp'] = find_value_by_keyword(upper_part, '生命') or 0
+                old_attribute['attack'] = find_value_by_keyword(upper_part, '攻击') or 0
+                old_attribute['defense'] = find_value_by_keyword(upper_part, '防御') or 0
+                old_attribute['speed'] = find_value_by_keyword(upper_part, '速度') or 0
+                
+                # 特殊属性和数值
+                special_keywords = ['闪避', '吸血', '暴击', '反击', '坚韧', '穿透', '命中', '格挡']
+                for keyword in special_keywords:
+                    if find_value_by_keyword(upper_part, keyword):
+                        old_attribute['special_attribute'] = keyword
+                        old_attribute['special_value'] = find_value_by_keyword(upper_part, keyword)
+                        break
+                
+                if 'special_attribute' not in old_attribute:
+                    old_attribute['special_attribute'] = ''
+                    old_attribute['special_value'] = '0'
+            
+            # 解析新异兽属性
+            new_attribute = {}
+            if lower_part:
+                # 名称通常是第一个文本
+                new_attribute['name'] = lower_part[0] if lower_part else ''
+                # 类型通常是第二个文本
+                new_attribute['type'] = lower_part[1] if len(lower_part) > 1 else ''
+                
+                # 使用关键词查找属性值
+                new_attribute['hp'] = find_value_by_keyword(lower_part, '生命') or 0
+                new_attribute['attack'] = find_value_by_keyword(lower_part, '攻击') or 0
+                new_attribute['defense'] = find_value_by_keyword(lower_part, '防御') or 0
+                new_attribute['speed'] = find_value_by_keyword(lower_part, '速度') or 0
+                
+                # 特殊属性和数值
+                special_keywords = ['闪避', '吸血', '暴击', '反击', '连击', '击晕']
+                for keyword in special_keywords:
+                    if find_value_by_keyword(lower_part, keyword):
+                        new_attribute['special_attribute'] = keyword
+                        new_attribute['special_value'] = find_value_by_keyword(lower_part, keyword)
+                        break
+                
+                if 'special_attribute' not in new_attribute:
+                    new_attribute['special_attribute'] = ''
+                    new_attribute['special_value'] = '0'
+            
+            attributes = [old_attribute, new_attribute]
+            
+            self.logger.info("解析结果:")
+            self.logger.info(f"  旧异兽: {old_attribute}")
+            self.logger.info(f"  新异兽: {new_attribute}")
+            
+            return attributes
+            
+        except Exception as e:
+            self.logger.info(f"解析异兽属性出错: {e}")
+            import traceback
+            self.logger.info(traceback.format_exc())
+            return None
+
     def should_capture(self, beast_list):
         """
         判断是否需要收服
@@ -423,7 +527,7 @@ class ShanHaiJing:
             # 先点击自动孵蛋按钮
             self.logger.info("自动孵蛋停止")
             self.move_mouse_to_window_relative(272,754)
-            
+            time.sleep(1)
             # 截图并识别异兽属性
             self.logger.info("开始OCR识别异兽属性...")
             text_list = self.capture_and_recognize()
@@ -466,8 +570,9 @@ class ShanHaiJing:
         except KeyboardInterrupt:
             self.logger.warning("程序被用户中断")
         except Exception as error:
-            self.logger.error(f"程序运行出错：{error}")
+            self.logger.error(f"程序运行出错：{error}d")
             # 出错后尝试重新点击自动孵蛋按钮
+            print(traceback.format_exc())
             self.click_auto_hatch_button()
     
     def __enter__(self):
@@ -479,17 +584,78 @@ class ShanHaiJing:
             delattr(self, attr)
         return False
 
+def single():
+    """
+    检查当前进程是否正在运行（单实例检查）
+    使用文件锁机制实现跨平台的单实例检查
+    Returns:
+        bool: 如果进程正在运行返回True，否则返回False
+    """
+    import os
+    
+    # 锁文件路径
+    lock_file = os.path.join(os.path.dirname(__file__), '.shan_hai_jing.lock')
+    
+    try:
+        # 尝试以独占模式打开锁文件
+        if os.name == 'nt':  # Windows系统
+            import msvcrt
+            lock_file_handle = open(lock_file, 'w')
+            try:
+                # 尝试获取文件锁（非阻塞模式）
+                msvcrt.locking(lock_file_handle.fileno(), msvcrt.LK_NBLCK, 1)
+                # 获取锁成功，写入当前进程ID
+                lock_file_handle.write(str(os.getpid()))
+                lock_file_handle.flush()
+                return False
+            except IOError:
+                # 获取锁失败，说明已有实例在运行
+                lock_file_handle.close()
+                return True
+        else:  # Unix/Linux/Mac系统
+            import fcntl
+            lock_file_handle = open(lock_file, 'w')
+            try:
+                # 尝试获取文件锁（独占锁 + 非阻塞模式）
+                fcntl.flock(lock_file_handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                # 获取锁成功，写入当前进程ID
+                lock_file_handle.write(str(os.getpid()))
+                lock_file_handle.flush()
+                return False
+            except IOError:
+                # 获取锁失败，说明已有实例在运行
+                lock_file_handle.close()
+                return True
+    except Exception as e:
+        print(f"单实例检查出错: {e}")
+        return False
+
+
 def job():
+    # 检查是否已有实例在运行
+    # if single():
+    #     print("程序已在运行中，请勿重复启动！")
+    #     return
+    
     with ShanHaiJing("山海北荒卷") as app:
         app = ShanHaiJing("山海北荒卷")
         app.run()
 
-
+    
     
 if __name__ == '__main__':
     # scheduler = BlockingScheduler()
     scheduler = BackgroundScheduler()
-    scheduler.add_job(job, 'interval', seconds=180)  # 每5秒执行
+    
+    # 配置调度器默认参数
+    job_defaults = {
+        'coalesce': True,  # 合并错过的任务
+        'max_instances': 1,  # 最多同时运行1个实例
+        'misfire_grace_time': 300  # 允许5分钟的延迟执行
+    }
+    scheduler.configure(job_defaults=job_defaults)
+    
+    scheduler.add_job(job, 'interval', seconds=60)  # 每60秒执行
     try:
         print('调度器开始运行...')
         scheduler.start()
