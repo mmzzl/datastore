@@ -17,7 +17,7 @@ class ShanHaiJing:
         self.filtered_windows = self.filter_windows_by_title(self.keyword)
         self.ocr = PaddleOCR(lang="ch", use_textline_orientation=False, cpu_threads=8, text_det_limit_side_len=640)
         self.previous_beast = None  # 记录之前的异兽属性
-        self.target_attribute = '闪避'  # 目标属性，可以修改为其他属性如'吸血'、'暴击'等
+        self.target_attribute = '暴击'  # 目标属性，可以修改为其他属性如'吸血'、'暴击'等
         self.screenshot_dir = os.path.join(self.base_dir, "screenshots")
         os.makedirs(self.screenshot_dir, exist_ok=True)
         
@@ -285,124 +285,128 @@ class ShanHaiJing:
         """
         if not text_list:
             return None
-        
-        attributes = {
-            'name': None,
-            'type': None,
-            'hp': None,
-            'attack': None,
-            'defense': None,
-            'speed': None,
-            'special_attribute': None,  # 特殊属性（如闪避、吸血等）
-            'special_value': None  # 特殊属性的数值
+        attributes = []
+        old_attribute = {
+            'name': text_list[0],
+            'type': text_list[1],
+            'hp': int(text_list[4]),
+            'attack': int(text_list[8]),
+            'defense': int(text_list[11]),
+            'speed': int(text_list[15]),
+            'special_attribute': text_list[5],  # 特殊属性（如闪避、吸血等）
+            'special_value': text_list[6]  # 特殊属性的数值
         }
-        
-        # 查找属性
-        for i, text in enumerate(text_list):
-            if text == '生命':
-                if i + 1 < len(text_list):
-                    attributes['hp'] = int(text_list[i + 1].replace(',', ''))
-            elif text == '攻击':
-                if i + 1 < len(text_list):
-                    attributes['attack'] = int(text_list[i + 1].replace(',', ''))
-            elif text == '防御':
-                if i + 1 < len(text_list):
-                    attributes['defense'] = int(text_list[i + 1].replace(',', ''))
-            elif text == '速度':
-                if i + 1 < len(text_list):
-                    attributes['speed'] = int(text_list[i + 1].replace(',', ''))
-            elif text in ['闪避', '吸血', '连击', '击晕', '暴击', '反击']:
-                attributes['special_attribute'] = text
-                if i + 1 < len(text_list):
-                    try:
-                        # 尝试提取百分比数值
-                        value_str = text_list[i + 1].replace('%', '')
-                        attributes['special_value'] = float(value_str)
-                    except ValueError:
-                        pass
-        
-        # 提取名称和类型
-        for i, text in enumerate(text_list):
-            if '系' in text:
-                attributes['type'] = text
-                if i > 0:
-                    attributes['name'] = text_list[i - 1]
-                break
+        new_attribute = {
+            'name': text_list[21],
+            'type': text_list[22],
+            'hp': int(text_list[25]),
+            'attack': int(text_list[29]),
+            'defense': int(text_list[32]),
+            'speed': int(text_list[34]),
+            'special_attribute': text_list[26],  # 特殊属性（如闪避、吸血等）
+            'special_value': text_list[27]  # 特殊属性的数值
+        }
+        attributes.append(old_attribute)
+        attributes.append(new_attribute)
         
         return attributes
     
-    def should_capture(self, current_beast, previous_beast):
+    def should_capture(self, beast_list):
         """
         判断是否需要收服
         Args:
-            current_beast: 当前异兽属性字典
-            previous_beast: 之前异兽属性字典
+            beast_list: 包含两个异兽属性的列表，beast_list[0]是旧属性，beast_list[1]是新属性
         Returns:
             bool: 是否需要收服
         """
-        if not current_beast:
-            self.logger.warning("当前异兽属性为空，无法判断")
+        if not beast_list or len(beast_list) < 2:
+            self.logger.warning("异兽属性列表为空或格式不正确，无法判断")
             return False
         
-        current_special = current_beast.get('special_attribute')
+        old_beast = beast_list[0]
+        new_beast = beast_list[1]
         
-        # 记录当前异兽属性
+        old_special = old_beast.get('special_attribute')
+        new_special = new_beast.get('special_attribute')
+        new_name = new_beast.get('name', '')
+        
+        # 记录旧异兽属性
         self.logger.info("-" * 60)
-        self.logger.info("【当前异兽属性】")
-        self.logger.info(f"  名称: {current_beast.get('name')}")
-        self.logger.info(f"  类型: {current_beast.get('type')}")
-        self.logger.info(f"  生命: {current_beast.get('hp')}")
-        self.logger.info(f"  攻击: {current_beast.get('attack')}")
-        self.logger.info(f"  防御: {current_beast.get('defense')}")
-        self.logger.info(f"  速度: {current_beast.get('speed')}")
-        self.logger.info(f"  特殊属性: {current_special} ({current_beast.get('special_value')}%)")
+        self.logger.info("【旧异兽属性】")
+        self.logger.info(f"  名称: {old_beast.get('name')}")
+        self.logger.info(f"  类型: {old_beast.get('type')}")
+        self.logger.info(f"  生命: {old_beast.get('hp')}")
+        self.logger.info(f"  攻击: {old_beast.get('attack')}")
+        self.logger.info(f"  防御: {old_beast.get('defense')}")
+        self.logger.info(f"  速度: {old_beast.get('speed')}")
+        self.logger.info(f"  特殊属性: {old_special} ({old_beast.get('special_value')}%)")
         
-        # 如果当前不是目标属性，直接不收服
-        if current_special != self.target_attribute:
-            self.logger.info(f"✗ 判断结果: 当前异兽不是{self.target_attribute}属性，不收服")
-            self.logger.info("-" * 60)
-            return False
+        # 记录新异兽属性
+        self.logger.info("【新异兽属性】")
+        self.logger.info(f"  名称: {new_beast.get('name')}")
+        self.logger.info(f"  类型: {new_beast.get('type')}")
+        self.logger.info(f"  生命: {new_beast.get('hp')}")
+        self.logger.info(f"  攻击: {new_beast.get('attack')}")
+        self.logger.info(f"  防御: {new_beast.get('defense')}")
+        self.logger.info(f"  速度: {new_beast.get('speed')}")
+        self.logger.info(f"  特殊属性: {new_special} ({new_beast.get('special_value')}%)")
         
-        # 如果之前没有异兽记录，直接收服
-        if not previous_beast:
-            self.logger.info(f"✓ 判断结果: 之前没有异兽记录，收服当前{self.target_attribute}异兽")
-            self.logger.info("-" * 60)
-            return True
+        # 规则1: 如果旧属性和新属性的特殊属性相同
+        if old_special == new_special:
+            self.logger.info("【判断规则1】新旧异兽特殊属性相同")
+            self.logger.info("【属性对比】")
+            hp_better = new_beast.get('hp', 0) > old_beast.get('hp', 0)
+            attack_better = new_beast.get('attack', 0) > old_beast.get('attack', 0)
+            defense_better = new_beast.get('defense', 0) > old_beast.get('defense', 0)
+            speed_better = new_beast.get('speed', 0) > old_beast.get('speed', 0)
+            
+            self.logger.info(f"  生命: {new_beast.get('hp')} vs {old_beast.get('hp')} - {'✓ 更好' if hp_better else '✗ 更差'}")
+            self.logger.info(f"  攻击: {new_beast.get('attack')} vs {old_beast.get('attack')} - {'✓ 更好' if attack_better else '✗ 更差'}")
+            self.logger.info(f"  防御: {new_beast.get('defense')} vs {old_beast.get('defense')} - {'✓ 更好' if defense_better else '✗ 更差'}")
+            self.logger.info(f"  速度: {new_beast.get('speed')} vs {old_beast.get('speed')} - {'✓ 更好' if speed_better else '✗ 更差'}")
+            
+            if hp_better or attack_better or defense_better or speed_better:
+                self.logger.info(f"✓ 判断结果: 新异兽至少有一项属性更好，需要收服")
+                self.logger.info("-" * 60)
+                return True
+            else:
+                self.logger.info(f"✗ 判断结果: 新异兽所有属性都不比旧的好，不收服")
+                self.logger.info("-" * 60)
+                return False
         
-        previous_special = previous_beast.get('special_attribute')
+        # 规则2: 如果新异兽的特殊属性是目标属性，旧异兽不是目标属性
+        elif new_special == self.target_attribute and old_special != self.target_attribute:
+            self.logger.info("【判断规则2】新异兽是目标属性，旧异兽不是目标属性")
+            
+            # 检查新异兽名称是否包含"神兽"或"至尊神兽"
+            if '神兽' in new_name:
+                self.logger.info(f"✓ 判断结果: 新异兽名称包含'神兽'（{new_name}），收服")
+                self.logger.info("-" * 60)
+                return True
+            elif '至尊神兽' in new_name:
+                self.logger.info(f"✓ 判断结果: 新异兽名称包含'至尊神兽'（{new_name}），收服")
+                self.logger.info("-" * 60)
+                return True
+            elif '鸿蒙祖兽' in new_name:
+                self.logger.info(f"✓ 判断结果: 新异兽名称包含'鸿蒙祖兽'（{new_name}），收服")
+                self.logger.info("-" * 60)
+                return True
+            elif '混沌源兽' in new_name:
+                self.logger.info(f"✓ 判断结果: 新异兽名称包含'混沌源兽'（{new_name}），收服")
+                self.logger.info("-" * 60)
+                return True
+            else:
+                self.logger.info(f"✗ 判断结果: 新异兽名称不包含'神兽'（{new_name}），不收服")
+                self.logger.info("-" * 60)
+                return False
         
-        # 记录之前异兽属性
-        self.logger.info("【之前异兽属性】")
-        self.logger.info(f"  名称: {previous_beast.get('name')}")
-        self.logger.info(f"  类型: {previous_beast.get('type')}")
-        self.logger.info(f"  生命: {previous_beast.get('hp')}")
-        self.logger.info(f"  攻击: {previous_beast.get('attack')}")
-        self.logger.info(f"  防御: {previous_beast.get('defense')}")
-        self.logger.info(f"  速度: {previous_beast.get('speed')}")
-        self.logger.info(f"  特殊属性: {previous_special} ({previous_beast.get('special_value')}%)")
-        
-        # 如果之前不是目标属性，直接收服
-        if previous_special != self.target_attribute:
-            self.logger.info(f"✓ 判断结果: 之前异兽不是{self.target_attribute}属性，收服当前{self.target_attribute}异兽")
-            self.logger.info("-" * 60)
-            return True
-        
-        # 如果都是目标属性，比较属性
-        self.logger.info("【属性对比】")
-        hp_better = current_beast.get('hp', 0) > previous_beast.get('hp', 0)
-        attack_better = current_beast.get('attack', 0) > previous_beast.get('attack', 0)
-        defense_better = current_beast.get('defense', 0) > previous_beast.get('defense', 0)
-        
-        self.logger.info(f"  生命: {current_beast.get('hp')} vs {previous_beast.get('hp')} - {'✓ 更好' if hp_better else '✗ 更差'}")
-        self.logger.info(f"  攻击: {current_beast.get('attack')} vs {previous_beast.get('attack')} - {'✓ 更好' if attack_better else '✗ 更差'}")
-        self.logger.info(f"  防御: {current_beast.get('defense')} vs {previous_beast.get('defense')} - {'✓ 更好' if defense_better else '✗ 更差'}")
-        
-        if hp_better or attack_better or defense_better:
-            self.logger.info(f"✓ 判断结果: 当前异兽至少有一项属性更好，需要收服")
-            self.logger.info("-" * 60)
-            return True
+        # 其他情况不收服
         else:
-            self.logger.info(f"✗ 判断结果: 当前异兽所有属性都不比之前的好，不收服")
+            self.logger.info("【判断规则3】其他情况")
+            if new_special != self.target_attribute:
+                self.logger.info(f"✗ 判断结果: 新异兽不是目标属性（{self.target_attribute}），不收服")
+            else:
+                self.logger.info(f"✗ 判断结果: 旧异兽也是目标属性，不满足收服条件，不收服")
             self.logger.info("-" * 60)
             return False
 
@@ -423,15 +427,13 @@ class ShanHaiJing:
             # 截图并识别异兽属性
             self.logger.info("开始OCR识别异兽属性...")
             text_list = self.capture_and_recognize()
-            current_beast = self.parse_beast_attributes(text_list)
+            beast_list = self.parse_beast_attributes(text_list)
             
             # 判断是否需要收服
-            should_capture_beast = self.should_capture(current_beast, self.previous_beast)
+            should_capture_beast = self.should_capture(beast_list)
             
             if should_capture_beast:
                 self.logger.info("执行收服操作")
-                # 更新之前的异兽记录
-                self.previous_beast = current_beast
                 self.move_mouse_to_window_relative(350, 748)  # 收服按钮位置
                 # 再点击出售按钮
                 self.move_mouse_to_window_relative(168, 748)  # 出售按钮位置
