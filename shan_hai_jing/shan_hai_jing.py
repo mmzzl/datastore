@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*-
 import os
 import time
+import datetime
+import logging
 import pygetwindow as gw
 import pyautogui 
 from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.schedulers.background import BackgroundScheduler
+from paddleocr import PaddleOCR
 
 
 class ShanHaiJing:
@@ -12,10 +15,44 @@ class ShanHaiJing:
         self.keyword = keyword
         self.base_dir = os.path.dirname(os.path.abspath(__file__))
         self.filtered_windows = self.filter_windows_by_title(self.keyword)
+        self.ocr = PaddleOCR(lang="ch", use_textline_orientation=False, cpu_threads=8, text_det_limit_side_len=640)
+        self.previous_beast = None  # 记录之前的异兽属性
+        self.target_attribute = '闪避'  # 目标属性，可以修改为其他属性如'吸血'、'暴击'等
+        self.screenshot_dir = os.path.join(self.base_dir, "screenshots")
+        os.makedirs(self.screenshot_dir, exist_ok=True)
+        
+        # 配置日志
+        self.log_dir = os.path.join(self.base_dir, "logs")
+        os.makedirs(self.log_dir, exist_ok=True)
+        self.setup_logging()
+        
         if not self.filtered_windows:
             print(f"未找到包含关键词: [{self.keyword}]的窗口")
             return
         self.filtered_windows[0].activate()
+    
+    def setup_logging(self):
+        """
+        配置日志系统
+        """
+        # 创建日志文件名（按日期）
+        log_filename = datetime.datetime.now().strftime("beast_capture_%Y%m%d.log")
+        log_filepath = os.path.join(self.log_dir, log_filename)
+        
+        # 配置日志格式
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(levelname)s - %(message)s',
+            handlers=[
+                logging.FileHandler(log_filepath, encoding='utf-8'),
+                logging.StreamHandler()  # 同时输出到控制台
+            ]
+        )
+        
+        self.logger = logging.getLogger(__name__)
+        self.logger.info("=" * 80)
+        self.logger.info(f"山海北荒卷自动化脚本启动 - 目标属性: {self.target_attribute}")
+        self.logger.info("=" * 80)
     
     def get_active_window_region(self):
         """
@@ -81,15 +118,15 @@ class ShanHaiJing:
         # 计算绝对位置
         absolute_x = region[0] + clamped_x
         absolute_y = region[1] + clamped_y
-        print(f"移动鼠标：窗口内相对坐标 ({clamped_x}, {clamped_y}) → 屏幕绝对坐标 ({absolute_x}, {absolute_y})")
+        self.logger.debug(f"移动鼠标：窗口内相对坐标 ({clamped_x}, {clamped_y}) → 屏幕绝对坐标 ({absolute_x}, {absolute_y})")
         
         # 移动鼠标并点击
         duration = 1 if smooth else 0
         pyautogui.moveTo(absolute_x, absolute_y, duration=duration)
-        print("鼠标移动完成！")
+        self.logger.debug("鼠标移动完成！")
         pyautogui.sleep(0.5)
         pyautogui.click()
-        print(f"已点击窗口内坐标{clamped_x}, {clamped_y}")
+        self.logger.debug(f"已点击窗口内坐标{clamped_x}, {clamped_y}")
     
     def click_auto_hatch_button(self):
         """
@@ -98,7 +135,7 @@ class ShanHaiJing:
         file_path = os.path.join(self.base_dir, "auto_egg.png")
         if self.is_image_exist(file_path):
             # 点击相关按钮执行自动孵蛋操作
-            print("点击自动孵蛋按钮")
+            self.logger.info("点击自动孵蛋按钮")
             self.move_mouse_to_window_relative(259, 888)  # 第一个按钮位置
             self.move_mouse_to_window_relative(243, 690)  # 第二个按钮位置
     
@@ -147,15 +184,15 @@ class ShanHaiJing:
                 if region:
                     relative_x = center_x - region[0]
                     relative_y = center_y - region[1]
-                    print(f"找到图片！")
-                    print(f"图片屏幕坐标：左上角({image_position.left}, {image_position.top}) → 中心点({center_x}, {center_y})")
-                    print(f"图片在窗口内相对坐标：({relative_x}, {relative_y})")
+                    self.logger.debug(f"找到图片！")
+                    self.logger.debug(f"图片屏幕坐标：左上角({image_position.left}, {image_position.top}) → 中心点({center_x}, {center_y})")
+                    self.logger.debug(f"图片在窗口内相对坐标：({relative_x}, {relative_y})")
                 else:
-                    print(f"找到图片！")
-                    print(f"图片屏幕坐标：左上角({image_position.left}, {image_position.top}) → 中心点({center_x}, {center_y})")
+                    self.logger.debug(f"找到图片！")
+                    self.logger.debug(f"图片屏幕坐标：左上角({image_position.left}, {image_position.top}) → 中心点({center_x}, {center_y})")
                 return image_position
             else:
-                print(f"未找到图片「{image_path}」（匹配精度：{confidence}）")
+                self.logger.debug(f"未找到图片「{image_path}」（匹配精度：{confidence}）")
                 return None
         except Exception as e:
             # import traceback
@@ -194,30 +231,217 @@ class ShanHaiJing:
             retry_count -= 1
         return False
     
+    def capture_and_recognize(self):
+        """
+        截图并使用OCR识别文字
+        Returns:
+            list: 识别到的文字列表
+        """
+        try:
+            # 获取窗口区域
+            region = self.get_active_window_region()
+            if not region:
+                return None
+            
+            # 截图
+            screenshot = pyautogui.screenshot(region=region)
+            
+            # 保存截图
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            screenshot_path = os.path.join(self.screenshot_dir, f"beast_{timestamp}.png")
+            screenshot.save(screenshot_path)
+            self.logger.info(f"截图已保存到: {screenshot_path}")
+            
+            # OCR识别
+            result = self.ocr.predict(screenshot_path)
+            
+            # 提取文字
+            if result and isinstance(result, list) and len(result) > 0:
+                if isinstance(result[0], dict):
+                    text_list = result[0].get('rec_texts', [])
+                else:
+                    # 尝试直接从结果中提取文字
+                    text_list = []
+                    for item in result:
+                        if isinstance(item, list) and len(item) > 1:
+                            text_list.append(item[1][0])
+                
+                self.logger.debug(f"识别到{len(text_list)}个文本片段:")
+                self.logger.debug(text_list)
+                return text_list
+            
+            return None
+        except Exception as e:
+            self.logger.error(f"OCR识别出错: {e}")
+            return None
+    
+    def parse_beast_attributes(self, text_list):
+        """
+        解析异兽属性
+        Args:
+            text_list: OCR识别的文字列表
+        Returns:
+            dict: 包含异兽属性的字典
+        """
+        if not text_list:
+            return None
+        
+        attributes = {
+            'name': None,
+            'type': None,
+            'hp': None,
+            'attack': None,
+            'defense': None,
+            'speed': None,
+            'special_attribute': None,  # 特殊属性（如闪避、吸血等）
+            'special_value': None  # 特殊属性的数值
+        }
+        
+        # 查找属性
+        for i, text in enumerate(text_list):
+            if text == '生命':
+                if i + 1 < len(text_list):
+                    attributes['hp'] = int(text_list[i + 1].replace(',', ''))
+            elif text == '攻击':
+                if i + 1 < len(text_list):
+                    attributes['attack'] = int(text_list[i + 1].replace(',', ''))
+            elif text == '防御':
+                if i + 1 < len(text_list):
+                    attributes['defense'] = int(text_list[i + 1].replace(',', ''))
+            elif text == '速度':
+                if i + 1 < len(text_list):
+                    attributes['speed'] = int(text_list[i + 1].replace(',', ''))
+            elif text in ['闪避', '吸血', '连击', '击晕', '暴击', '反击']:
+                attributes['special_attribute'] = text
+                if i + 1 < len(text_list):
+                    try:
+                        # 尝试提取百分比数值
+                        value_str = text_list[i + 1].replace('%', '')
+                        attributes['special_value'] = float(value_str)
+                    except ValueError:
+                        pass
+        
+        # 提取名称和类型
+        for i, text in enumerate(text_list):
+            if '系' in text:
+                attributes['type'] = text
+                if i > 0:
+                    attributes['name'] = text_list[i - 1]
+                break
+        
+        return attributes
+    
+    def should_capture(self, current_beast, previous_beast):
+        """
+        判断是否需要收服
+        Args:
+            current_beast: 当前异兽属性字典
+            previous_beast: 之前异兽属性字典
+        Returns:
+            bool: 是否需要收服
+        """
+        if not current_beast:
+            self.logger.warning("当前异兽属性为空，无法判断")
+            return False
+        
+        current_special = current_beast.get('special_attribute')
+        
+        # 记录当前异兽属性
+        self.logger.info("-" * 60)
+        self.logger.info("【当前异兽属性】")
+        self.logger.info(f"  名称: {current_beast.get('name')}")
+        self.logger.info(f"  类型: {current_beast.get('type')}")
+        self.logger.info(f"  生命: {current_beast.get('hp')}")
+        self.logger.info(f"  攻击: {current_beast.get('attack')}")
+        self.logger.info(f"  防御: {current_beast.get('defense')}")
+        self.logger.info(f"  速度: {current_beast.get('speed')}")
+        self.logger.info(f"  特殊属性: {current_special} ({current_beast.get('special_value')}%)")
+        
+        # 如果当前不是目标属性，直接不收服
+        if current_special != self.target_attribute:
+            self.logger.info(f"✗ 判断结果: 当前异兽不是{self.target_attribute}属性，不收服")
+            self.logger.info("-" * 60)
+            return False
+        
+        # 如果之前没有异兽记录，直接收服
+        if not previous_beast:
+            self.logger.info(f"✓ 判断结果: 之前没有异兽记录，收服当前{self.target_attribute}异兽")
+            self.logger.info("-" * 60)
+            return True
+        
+        previous_special = previous_beast.get('special_attribute')
+        
+        # 记录之前异兽属性
+        self.logger.info("【之前异兽属性】")
+        self.logger.info(f"  名称: {previous_beast.get('name')}")
+        self.logger.info(f"  类型: {previous_beast.get('type')}")
+        self.logger.info(f"  生命: {previous_beast.get('hp')}")
+        self.logger.info(f"  攻击: {previous_beast.get('attack')}")
+        self.logger.info(f"  防御: {previous_beast.get('defense')}")
+        self.logger.info(f"  速度: {previous_beast.get('speed')}")
+        self.logger.info(f"  特殊属性: {previous_special} ({previous_beast.get('special_value')}%)")
+        
+        # 如果之前不是目标属性，直接收服
+        if previous_special != self.target_attribute:
+            self.logger.info(f"✓ 判断结果: 之前异兽不是{self.target_attribute}属性，收服当前{self.target_attribute}异兽")
+            self.logger.info("-" * 60)
+            return True
+        
+        # 如果都是目标属性，比较属性
+        self.logger.info("【属性对比】")
+        hp_better = current_beast.get('hp', 0) > previous_beast.get('hp', 0)
+        attack_better = current_beast.get('attack', 0) > previous_beast.get('attack', 0)
+        defense_better = current_beast.get('defense', 0) > previous_beast.get('defense', 0)
+        
+        self.logger.info(f"  生命: {current_beast.get('hp')} vs {previous_beast.get('hp')} - {'✓ 更好' if hp_better else '✗ 更差'}")
+        self.logger.info(f"  攻击: {current_beast.get('attack')} vs {previous_beast.get('attack')} - {'✓ 更好' if attack_better else '✗ 更差'}")
+        self.logger.info(f"  防御: {current_beast.get('defense')} vs {previous_beast.get('defense')} - {'✓ 更好' if defense_better else '✗ 更差'}")
+        
+        if hp_better or attack_better or defense_better:
+            self.logger.info(f"✓ 判断结果: 当前异兽至少有一项属性更好，需要收服")
+            self.logger.info("-" * 60)
+            return True
+        else:
+            self.logger.info(f"✗ 判断结果: 当前异兽所有属性都不比之前的好，不收服")
+            self.logger.info("-" * 60)
+            return False
+
+
+    
     def check_egg_screen(self):
         """
         检查当前窗口是否在蛋界面并执行相应操作
         """
         # 检查是否在孵蛋界面
         if self.is_on_hatching_screen():
-            print("当前在孵蛋界面")
+            self.logger.info("当前在孵蛋界面")
         else:
             # 先点击自动孵蛋按钮
-            print("自动孵蛋停止")
+            self.logger.info("自动孵蛋停止")
             self.move_mouse_to_window_relative(272,754)
-            needs_to_capture = True
-            if needs_to_capture:
-                print("需要收服")
+            
+            # 截图并识别异兽属性
+            self.logger.info("开始OCR识别异兽属性...")
+            text_list = self.capture_and_recognize()
+            current_beast = self.parse_beast_attributes(text_list)
+            
+            # 判断是否需要收服
+            should_capture_beast = self.should_capture(current_beast, self.previous_beast)
+            
+            if should_capture_beast:
+                self.logger.info("执行收服操作")
+                # 更新之前的异兽记录
+                self.previous_beast = current_beast
                 self.move_mouse_to_window_relative(350, 748)  # 收服按钮位置
                 # 再点击出售按钮
                 self.move_mouse_to_window_relative(168, 748)  # 出售按钮位置
                 time.sleep(1)
                 # 判断是否出现确定按钮
                 if self.check_confim_capture():
-                    print("需要点击确定按钮")
+                    self.logger.info("点击确定按钮")
                     self.move_mouse_to_window_relative(354, 599)
             else:
-                print("不需要收服,点击出售")
+                self.logger.info("不收服，直接出售")
                 # 直接点击出售按钮
                 self.move_mouse_to_window_relative(168, 748)  # 出售按钮位置
 
@@ -226,11 +450,11 @@ class ShanHaiJing:
         主循环 - 持续执行自动孵蛋和检查蛋界面的操作
         """
         try:
-            print("开始运行山海北荒卷自动化脚本...")
+            self.logger.info("开始运行山海北荒卷自动化脚本...")
             time.sleep(2)
             # while True:
             if self.check_confim_capture():
-                print("点击确认按钮")
+                self.logger.info("点击确认按钮")
                 self.move_mouse_to_window_relative(231, 608)  # 确认按钮位置
                 time.sleep(1)  # 循环间隔
                 
@@ -238,9 +462,9 @@ class ShanHaiJing:
             self.check_egg_screen()
             time.sleep(1)  # 循环间隔
         except KeyboardInterrupt:
-            print("\n程序被用户中断")
+            self.logger.warning("程序被用户中断")
         except Exception as error:
-            print(f"程序运行出错：{error}")
+            self.logger.error(f"程序运行出错：{error}")
             # 出错后尝试重新点击自动孵蛋按钮
             self.click_auto_hatch_button()
     
@@ -248,7 +472,7 @@ class ShanHaiJing:
         return self 
     
     def __exit__(self, exc_type, exc_value, traceback):
-        print("上下文对象销毁")
+        self.logger.info("上下文对象销毁")
         for attr in list(vars(self)):
             delattr(self, attr)
         return False
@@ -259,10 +483,11 @@ def job():
         app.run()
 
 
+    
 if __name__ == '__main__':
     # scheduler = BlockingScheduler()
     scheduler = BackgroundScheduler()
-    scheduler.add_job(job, 'interval', seconds=600)  # 每5秒执行
+    scheduler.add_job(job, 'interval', seconds=180)  # 每5秒执行
     try:
         print('调度器开始运行...')
         scheduler.start()
