@@ -1,4 +1,9 @@
 # -*- coding: utf-8 -*-
+"""
+山海北荒卷自动化脚本
+功能：自动孵蛋、识别异兽属性、智能收服
+"""
+
 import os
 import time
 import datetime
@@ -11,16 +16,59 @@ from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.schedulers.background import BackgroundScheduler
 from paddleocr import PaddleOCR
 
-ocr = PaddleOCR(lang="ch", use_textline_orientation=False, cpu_threads=8, text_det_limit_side_len=640)
+# 初始化OCR
+ocr = PaddleOCR(
+    lang="ch",
+    text_detection_model_name="PP-OCRv5_server_det",
+    text_recognition_model_name="PP-OCRv5_server_rec",
+    use_doc_orientation_classify=False,
+    use_doc_unwarping=False,
+    use_textline_orientation=False,
+)
+
 
 class ShanHaiJing:
+    """
+    山海北荒卷自动化主类
+    """
+    
+    # ==================== 初始化和配置 ====================
+    
     def __init__(self, keyword="山海北荒卷"):
+        """
+        初始化山海北荒卷自动化脚本
+        Args:
+            keyword: 窗口标题关键词
+        """
         self.keyword = keyword
         self.base_dir = os.path.dirname(os.path.abspath(__file__))
         self.filtered_windows = self.filter_windows_by_title(self.keyword)
-        
         self.previous_beast = None  # 记录之前的异兽属性
-        self.target_attribute = '暴击'  # 目标属性，可以修改为其他属性如'吸血'、'暴击'等
+        self.current_beast = None  # 记录当前异兽属性
+        
+        # 6种特殊属性
+        self.special_attributes = ['暴击', '连击', '闪避', '反击', '击晕', '吸血']
+        
+        # 追踪每种属性的格子数量（实际使用）
+        self.attribute_slots = {attr: 0 for attr in self.special_attributes}
+        self.total_slots = 9  # 总格子数
+        
+        # 属性格子状态文件路径
+        self.slots_file = os.path.join(self.base_dir, "attribute_slots.json")
+        
+        # 收服策略配置
+        self.strategy = 'focused'  # 可选: 'focused'(专注), 'balanced'(平衡), 'optimal'(最优)
+        self.target_attributes = ['暴击', '连击', '闪避']  # 专注策略的目标属性（支持多个）
+        
+        # 基础属性权重（用于计算综合评分）
+        self.attribute_weights = {
+            'hp': 1.0,      # 生命权重
+            'attack': 1.2,  # 攻击权重（攻击通常更重要）
+            'defense': 1.0,  # 防御权重
+            'speed': 1.1    # 速度权重
+        }
+        
+        # 截图目录
         self.screenshot_dir = os.path.join(self.base_dir, "screenshots")
         os.makedirs(self.screenshot_dir, exist_ok=True)
         
@@ -29,6 +77,10 @@ class ShanHaiJing:
         os.makedirs(self.log_dir, exist_ok=True)
         self.setup_logging()
         
+        # 加载属性格子状态
+        self.load_attribute_slots()
+
+        # 激活窗口
         if not self.filtered_windows:
             print(f"未找到包含关键词: [{self.keyword}]的窗口")
             return
@@ -73,14 +125,305 @@ class ShanHaiJing:
         
         # 记录启动信息
         self.logger.info("=" * 80)
-        self.logger.info(f"山海北荒卷自动化脚本启动 - 目标属性: {self.target_attribute}")
+        self.logger.info(f"山海北荒卷自动化脚本启动 - 目标属性: {', '.join(self.target_attributes)}")
         self.logger.info(f"日志文件: {log_filepath}")
         self.logger.info("=" * 80)
+    
+    # ==================== 属性格子管理 ====================
+    
+    def update_attribute_slots(self, old_special, new_special, captured):
+        """
+        更新属性格子数量
+        Args:
+            old_special: 旧异兽的特殊属性
+            new_special: 新异兽的特殊属性
+            captured: 是否收服了新异兽
+        """
+        if captured:
+            # 收服新异兽：减少旧属性格子，增加新属性格子
+            if old_special and old_special in self.attribute_slots:
+                self.attribute_slots[old_special] = max(0, self.attribute_slots[old_special] - 1)
+            if new_special and new_special in self.attribute_slots:
+                self.attribute_slots[new_special] = min(self.total_slots, self.attribute_slots[new_special] + 1)
+        else:
+            # 未收服：保持不变（旧属性格子不变）
+            pass
+        
+        # 记录当前格子状态
+        self.logger.info("【当前格子状态】")
+        for attr, count in self.attribute_slots.items():
+            self.logger.info(f"  {attr}: {count}/{self.total_slots}")
+        
+        # 保存到文件
+        self.save_attribute_slots()
+    
+    def load_attribute_slots(self):
+        """
+        从文件加载属性格子状态
+        """
+        import json
+        try:
+            if os.path.exists(self.slots_file):
+                with open(self.slots_file, 'r', encoding='utf-8') as f:
+                    loaded_slots = json.load(f)
+                    # 验证加载的数据
+                    if isinstance(loaded_slots, dict):
+                        # 确保所有属性都存在
+                        for attr in self.special_attributes:
+                            if attr in loaded_slots:
+                                self.attribute_slots[attr] = loaded_slots[attr]
+                        self.logger.info(f"【加载格子状态】从文件加载成功: {self.attribute_slots}")
+                    else:
+                        self.logger.warning(f"【加载格子状态】文件格式错误，使用默认值")
+            else:
+                self.logger.info(f"【加载格子状态】文件不存在，使用默认值")
+        except Exception as e:
+            self.logger.error(f"【加载格子状态】加载失败: {e}，使用默认值")
+    
+    def save_attribute_slots(self):
+        """
+        保存属性格子状态到文件
+        """
+        import json
+        try:
+            with open(self.slots_file, 'w', encoding='utf-8') as f:
+                json.dump(self.attribute_slots, f, ensure_ascii=False, indent=2)
+            self.logger.debug(f"【保存格子状态】保存成功: {self.attribute_slots}")
+        except Exception as e:
+            self.logger.error(f"【保存格子状态】保存失败: {e}")
+    
+    def calculate_comprehensive_score(self, beast):
+        """
+        计算异兽的综合评分
+        Args:
+            beast: 异兽属性字典
+        Returns:
+            float: 综合评分
+        """
+        score = 0
+        score += beast.get('hp', 0) * self.attribute_weights['hp']
+        score += beast.get('attack', 0) * self.attribute_weights['attack']
+        score += beast.get('defense', 0) * self.attribute_weights['defense']
+        score += beast.get('speed', 0) * self.attribute_weights['speed']
+        
+        # 特殊属性加成
+        special_value = beast.get('special_value', 0)
+        if special_value and isinstance(special_value, str):
+            try:
+                special_value = int(special_value)
+            except:
+                special_value = 0
+        score += special_value * 10  # 特殊属性值加成
+        
+        return score
+    
+    def get_optimal_target_attribute(self):
+        """
+        获取最优目标属性（格子数量最多的属性）
+        Returns:
+            str: 最优目标属性
+        """
+        # 找出格子数量最多的属性
+        max_count = max(self.attribute_slots.values())
+        candidates = [attr for attr, count in self.attribute_slots.items() if count == max_count]
+        
+        # 如果有多个属性格子数量相同，优先选择特殊属性价值高的
+        # 这里简单返回第一个
+        return candidates[0] if candidates else '暴击'
+    
+    # ==================== 收服策略判断 ====================
+    
+    def should_capture_optimal(self, old_beast, new_beast):
+        """
+        最优策略：最大化收益
+        Args:
+            old_beast: 旧异兽属性
+            new_beast: 新异兽属性
+        Returns:
+            bool: 是否收服
+        """
+        old_special = old_beast.get('special_attribute')
+        new_special = new_beast.get('special_attribute')
+        new_name = new_beast.get('name', '')
+        
+        # 优先收服稀有异兽
+        if any(keyword in new_name for keyword in ['神兽', '至尊神兽', '鸿蒙祖兽', '混沌源兽']):
+            self.logger.info("【最优策略】新异兽为稀有异兽，优先收服")
+            return True
+        
+        # 如果新异兽的特殊属性格子数量更多，优先收服
+        old_slots = self.attribute_slots.get(old_special, 0)
+        new_slots = self.attribute_slots.get(new_special, 0)
+        
+        if new_slots > old_slots:
+            self.logger.info(f"【最优策略】新属性({new_special})格子数({new_slots}) > 旧属性({old_special})格子数({old_slots})，收服")
+            return True
+        
+        # 如果格子数量相同，比较综合评分
+        if new_slots == old_slots:
+            old_score = self.calculate_comprehensive_score(old_beast)
+            new_score = self.calculate_comprehensive_score(new_beast)
+            if new_score > old_score:
+                self.logger.info(f"【最优策略】格子数相同，新异兽评分({new_score}) > 旧异兽评分({old_score})，收服")
+                return True
+        
+        return False
+    
+    def should_capture_balanced(self, old_beast, new_beast):
+        """
+        平衡策略：在多种属性间保持平衡
+        Args:
+            old_beast: 旧异兽属性
+            new_beast: 新异兽属性
+        Returns:
+            bool: 是否收服
+        """
+        old_special = old_beast.get('special_attribute')
+        new_special = new_beast.get('special_attribute')
+        new_name = new_beast.get('name', '')
+        
+        # 优先收服稀有异兽
+        if any(keyword in new_name for keyword in ['神兽', '至尊神兽', '鸿蒙祖兽', '混沌源兽']):
+            self.logger.info("【平衡策略】新异兽为稀有异兽，优先收服")
+            return True
+        
+        # 计算所有属性格子数量的标准差，衡量平衡度
+        counts = list(self.attribute_slots.values())
+        mean = sum(counts) / len(counts)
+        variance = sum((x - mean) ** 2 for x in counts) / len(counts)
+        std_dev = variance ** 0.5
+        
+        # 如果当前平衡度较好（标准差小），只收服评分更高的
+        if std_dev < 2:
+            old_score = self.calculate_comprehensive_score(old_beast)
+            new_score = self.calculate_comprehensive_score(new_beast)
+            if new_score > old_score:
+                self.logger.info(f"【平衡策略】当前平衡度较好，新异兽评分({new_score}) > 旧异兽评分({old_score})，收服")
+                return True
+        else:
+            # 如果不平衡，优先收服格子数少的属性
+            old_slots = self.attribute_slots.get(old_special, 0)
+            new_slots = self.attribute_slots.get(new_special, 0)
+            if new_slots < old_slots:
+                self.logger.info(f"【平衡策略】当前不平衡，优先收服格子少的属性({new_special}: {new_slots} < {old_special}: {old_slots})，收服")
+                return True
+        
+        return False
+    
+    def should_capture_focused(self, old_beast, new_beast):
+        """
+        专注策略：专注于目标属性，同时快速提升基础属性
+        Args:
+            old_beast: 旧异兽属性
+            new_beast: 新异兽属性
+        Returns:
+            bool: 是否收服
+        """
+        old_special = old_beast.get('special_attribute')
+        new_special = new_beast.get('special_attribute')
+        new_name = new_beast.get('name', '')
+        
+        # 优先收服稀有异兽
+        if any(keyword in new_name for keyword in ['神兽', '至尊神兽', '鸿蒙祖兽', '混沌源兽']):
+            self.logger.info("【专注策略】新异兽为稀有异兽，优先收服")
+            return True
+        
+        # 如果新异兽是目标属性之一，收服（快速提升专一特殊属性）
+        if new_special in self.target_attributes:
+            self.logger.info(f"【专注策略】新异兽是目标属性({new_special})，收服")
+            return True
+        
+        # 如果旧异兽不是目标属性，新异兽也不是目标属性，比较基础属性
+        # 只要新异兽的基础属性更高就收服（快速提升基础属性）
+        if old_special not in self.target_attributes and new_special not in self.target_attributes:
+            # 计算基础属性总分（不包含特殊属性）
+            old_basic_score = (
+                old_beast.get('hp', 0) +
+                old_beast.get('attack', 0) +
+                old_beast.get('defense', 0) +
+                old_beast.get('speed', 0)
+            )
+            new_basic_score = (
+                new_beast.get('hp', 0) +
+                new_beast.get('attack', 0) +
+                new_beast.get('defense', 0) +
+                new_beast.get('speed', 0)
+            )
+            
+            if new_basic_score > old_basic_score:
+                self.logger.info(f"【专注策略】新旧异兽都不是目标属性，新异兽基础属性({new_basic_score}) > 旧异兽基础属性({old_basic_score})，收服")
+                return True
+        
+        return False
+    
+    def should_capture(self, beast_list):
+        """
+        判断是否需要收服（主入口）
+        Args:
+            beast_list: 包含两个异兽属性的列表，beast_list[0]是旧属性，beast_list[1]是新属性
+        Returns:
+            bool: 是否需要收服
+        """
+        if not beast_list or len(beast_list) < 2:
+            self.logger.warning("异兽属性列表为空或格式不正确，无法判断")
+            return False
+        
+        old_beast = beast_list[0]
+        new_beast = beast_list[1]
+        
+        old_special = old_beast.get('special_attribute')
+        new_special = new_beast.get('special_attribute')
+        new_name = new_beast.get('name', '')
+        
+        # 记录旧异兽属性
+        self.logger.info("-" * 60)
+        self.logger.info("【旧异兽属性】")
+        self.logger.info(f"  名称: {old_beast.get('name')}")
+        self.logger.info(f"  类型: {old_beast.get('type')}")
+        self.logger.info(f"  生命: {old_beast.get('hp')}")
+        self.logger.info(f"  攻击: {old_beast.get('attack')}")
+        self.logger.info(f"  防御: {old_beast.get('defense')}")
+        self.logger.info(f"  速度: {old_beast.get('speed')}")
+        self.logger.info(f"  特殊属性: {old_special} ({old_beast.get('special_value')}%)")
+        
+        # 记录新异兽属性
+        self.logger.info("【新异兽属性】")
+        self.logger.info(f"  名称: {new_beast.get('name')}")
+        self.logger.info(f"  类型: {new_beast.get('type')}")
+        self.logger.info(f"  生命: {new_beast.get('hp')}")
+        self.logger.info(f"  攻击: {new_beast.get('attack')}")
+        self.logger.info(f"  防御: {new_beast.get('defense')}")
+        self.logger.info(f"  速度: {new_beast.get('speed')}")
+        self.logger.info(f"  特殊属性: {new_special} ({new_beast.get('special_value')}%)")
+        
+        # 根据策略选择判断逻辑
+        self.logger.info(f"【当前策略】{self.strategy}")
+        
+        if self.strategy == 'focused':
+            # 专注策略
+            captured = self.should_capture_focused(old_beast, new_beast)
+        elif self.strategy == 'balanced':
+            # 平衡策略
+            captured = self.should_capture_balanced(old_beast, new_beast)
+        elif self.strategy == 'optimal':
+            # 最优策略
+            captured = self.should_capture_optimal(old_beast, new_beast)
+        else:
+            # 默认使用最优策略
+            self.logger.warning(f"未知策略 {self.strategy}，使用最优策略")
+            captured = self.should_capture_optimal(old_beast, new_beast)
+        
+        # 更新属性格子数量
+        self.update_attribute_slots(old_special, new_special, captured)
+        
+        self.logger.info("-" * 60)
+        return captured
+    
+    # ==================== 窗口管理 ====================
     
     def get_active_window_region(self):
         """
         获取当前激活窗口的查找区域
-        
         Returns:
             tuple: 窗口区域坐标 (x, y, width, height)
         """
@@ -104,15 +447,12 @@ class ShanHaiJing:
         print(f"查找范围：当前激活窗口「{active_window.title}」")
         print(f"窗口区域：(x={active_window.left}, y={active_window.top}, 宽={active_window.width}, 高={active_window.height})")
         return region
-        
-
+    
     def filter_windows_by_title(self, keyword):
         """
         根据关键词过滤窗口列表
-        
         Args:
             keyword (str): 窗口标题中需要包含的关键词
-            
         Returns:
             list: 符合条件的窗口列表
         """
@@ -120,13 +460,12 @@ class ShanHaiJing:
         print(f"\n包含关键词: [{keyword}]的窗口")
         filtered_windows = [window for window in all_windows if keyword in window.title]
         return filtered_windows
-
     
+    # ==================== 鼠标操作 ====================
     
     def move_mouse_to_window_relative(self, relative_x, relative_y, smooth=True):
         """
         移动鼠标到当前激活窗口内的相对位置并点击
-        
         Args:
             relative_x (int): 窗口内的相对X坐标
             relative_y (int): 窗口内的相对Y坐标
@@ -162,9 +501,13 @@ class ShanHaiJing:
             self.move_mouse_to_window_relative(259, 888)  # 第一个按钮位置
             self.move_mouse_to_window_relative(243, 690)  # 第二个按钮位置
     
+    # ==================== 界面检查 ====================
+    
     def needs_to_capture(self):
         """
         判断是否需要收服
+        Returns:
+            bool: 是否需要收服
         """
         file_path = os.path.join(self.base_dir, "move_up.png")
         retry_count = 2 
@@ -174,17 +517,14 @@ class ShanHaiJing:
             time.sleep(1)
             retry_count -= 1
         return False
-        
     
     def is_image_exist(self, image_path, confidence=0.8, only_active_window=True):
         """
         判断目标图片是否存在（支持仅在激活窗口内查找）
-        
         Args:
             image_path (str): 目标图片路径
             confidence (float): 匹配精度（0-1，值越高越精准，建议 0.7-0.9）
             only_active_window (bool): 是否仅在当前激活窗口内查找
-            
         Returns:
             tuple or None: 找到返回图片位置元组 (left, top, width, height)，未找到返回 None
         """
@@ -218,15 +558,13 @@ class ShanHaiJing:
                 self.logger.debug(f"未找到图片「{image_path}」（匹配精度：{confidence}）")
                 return None
         except Exception as e:
-            # import traceback
-            # print(traceback.format_exc())
-            # print(f"{image_path}查找图片失败：{e}")
-            # print("提示:1. 检查图片路径是否正确；2. Linux/macOS需安装 opencv-python（pip install opencv-python）；3. 图片需清晰无多余背景")
             return None
     
     def is_on_hatching_screen(self):
         """
         检查当前窗口是否在孵蛋界面
+        Returns:
+            bool: 是否在孵蛋界面
         """
         file_path = os.path.join(self.base_dir, "egg.png")
         retry_count = 15
@@ -239,12 +577,13 @@ class ShanHaiJing:
             time.sleep(1)
             retry_count -= 1
         return False
-
+    
     def check_confim_capture(self):
         """
         检查是否有确定按钮
+        Returns:
+            bool: 是否有确定按钮
         """
-
         file_path = os.path.join(self.base_dir, "confirm.png")
         retry_count = 5
         while retry_count:
@@ -253,6 +592,8 @@ class ShanHaiJing:
             time.sleep(1)
             retry_count -= 1
         return False
+    
+    # ==================== OCR和属性解析 ====================
     
     def capture_and_recognize(self):
         """
@@ -312,7 +653,6 @@ class ShanHaiJing:
         Returns:
             dict: 包含异兽属性的字典
         """
-        
         if not text_list or len(text_list) < 10:
             self.logger.info(f"OCR识别结果太少，无法解析（只有{len(text_list) if text_list else 0}个文本片段）")
             return None
@@ -340,8 +680,6 @@ class ShanHaiJing:
                     return [], []
                 count = len(text_list) // 2
                 return text_list[:count], text_list[count:]
-                # 计算所有文本的Y坐标中心点
-                
             
             # 将OCR结果分为上下两部分
             upper_part, lower_part = split_by_y_coordinate(text_list)
@@ -414,107 +752,8 @@ class ShanHaiJing:
             import traceback
             self.logger.info(traceback.format_exc())
             return None
-
-    def should_capture(self, beast_list):
-        """
-        判断是否需要收服
-        Args:
-            beast_list: 包含两个异兽属性的列表，beast_list[0]是旧属性，beast_list[1]是新属性
-        Returns:
-            bool: 是否需要收服
-        """
-        if not beast_list or len(beast_list) < 2:
-            self.logger.warning("异兽属性列表为空或格式不正确，无法判断")
-            return False
-        
-        old_beast = beast_list[0]
-        new_beast = beast_list[1]
-        
-        old_special = old_beast.get('special_attribute')
-        new_special = new_beast.get('special_attribute')
-        new_name = new_beast.get('name', '')
-        
-        # 记录旧异兽属性
-        self.logger.info("-" * 60)
-        self.logger.info("【旧异兽属性】")
-        self.logger.info(f"  名称: {old_beast.get('name')}")
-        self.logger.info(f"  类型: {old_beast.get('type')}")
-        self.logger.info(f"  生命: {old_beast.get('hp')}")
-        self.logger.info(f"  攻击: {old_beast.get('attack')}")
-        self.logger.info(f"  防御: {old_beast.get('defense')}")
-        self.logger.info(f"  速度: {old_beast.get('speed')}")
-        self.logger.info(f"  特殊属性: {old_special} ({old_beast.get('special_value')}%)")
-        
-        # 记录新异兽属性
-        self.logger.info("【新异兽属性】")
-        self.logger.info(f"  名称: {new_beast.get('name')}")
-        self.logger.info(f"  类型: {new_beast.get('type')}")
-        self.logger.info(f"  生命: {new_beast.get('hp')}")
-        self.logger.info(f"  攻击: {new_beast.get('attack')}")
-        self.logger.info(f"  防御: {new_beast.get('defense')}")
-        self.logger.info(f"  速度: {new_beast.get('speed')}")
-        self.logger.info(f"  特殊属性: {new_special} ({new_beast.get('special_value')}%)")
-        
-        # 规则1: 如果旧属性和新属性的特殊属性相同
-        if old_special == new_special:
-            self.logger.info("【判断规则1】新旧异兽特殊属性相同")
-            self.logger.info("【属性对比】")
-            hp_better = new_beast.get('hp', 0) > old_beast.get('hp', 0)
-            attack_better = new_beast.get('attack', 0) > old_beast.get('attack', 0)
-            defense_better = new_beast.get('defense', 0) > old_beast.get('defense', 0)
-            speed_better = new_beast.get('speed', 0) > old_beast.get('speed', 0)
-            
-            self.logger.info(f"  生命: {new_beast.get('hp')} vs {old_beast.get('hp')} - {'✓ 更好' if hp_better else '✗ 更差'}")
-            self.logger.info(f"  攻击: {new_beast.get('attack')} vs {old_beast.get('attack')} - {'✓ 更好' if attack_better else '✗ 更差'}")
-            self.logger.info(f"  防御: {new_beast.get('defense')} vs {old_beast.get('defense')} - {'✓ 更好' if defense_better else '✗ 更差'}")
-            self.logger.info(f"  速度: {new_beast.get('speed')} vs {old_beast.get('speed')} - {'✓ 更好' if speed_better else '✗ 更差'}")
-            
-            if hp_better or attack_better or defense_better or speed_better:
-                self.logger.info(f"✓ 判断结果: 新异兽至少有一项属性更好，需要收服")
-                self.logger.info("-" * 60)
-                return True
-            else:
-                self.logger.info(f"✗ 判断结果: 新异兽所有属性都不比旧的好，不收服")
-                self.logger.info("-" * 60)
-                return False
-        
-        # 规则2: 如果新异兽的特殊属性是目标属性，旧异兽不是目标属性
-        elif new_special == self.target_attribute and old_special != self.target_attribute:
-            self.logger.info("【判断规则2】新异兽是目标属性，旧异兽不是目标属性")
-            
-            # 检查新异兽名称是否包含"神兽"或"至尊神兽"
-            if '神兽' in new_name:
-                self.logger.info(f"✓ 判断结果: 新异兽名称包含'神兽'（{new_name}），收服")
-                self.logger.info("-" * 60)
-                return True
-            elif '至尊神兽' in new_name:
-                self.logger.info(f"✓ 判断结果: 新异兽名称包含'至尊神兽'（{new_name}），收服")
-                self.logger.info("-" * 60)
-                return True
-            elif '鸿蒙祖兽' in new_name:
-                self.logger.info(f"✓ 判断结果: 新异兽名称包含'鸿蒙祖兽'（{new_name}），收服")
-                self.logger.info("-" * 60)
-                return True
-            elif '混沌源兽' in new_name:
-                self.logger.info(f"✓ 判断结果: 新异兽名称包含'混沌源兽'（{new_name}），收服")
-                self.logger.info("-" * 60)
-                return True
-            else:
-                self.logger.info(f"✗ 判断结果: 新异兽名称不包含'神兽'（{new_name}），不收服")
-                self.logger.info("-" * 60)
-                return False
-        
-        # 其他情况不收服
-        else:
-            self.logger.info("【判断规则3】其他情况")
-            if new_special != self.target_attribute:
-                self.logger.info(f"✗ 判断结果: 新异兽不是目标属性（{self.target_attribute}），不收服")
-            else:
-                self.logger.info(f"✗ 判断结果: 旧异兽也是目标属性，不满足收服条件，不收服")
-            self.logger.info("-" * 60)
-            return False
-
-
+    
+    # ==================== 主要业务逻辑 ====================
     
     def check_egg_screen(self):
         """
@@ -526,7 +765,7 @@ class ShanHaiJing:
         else:
             # 先点击自动孵蛋按钮
             self.logger.info("自动孵蛋停止")
-            self.move_mouse_to_window_relative(272,754)
+            self.move_mouse_to_window_relative(272, 754)
             time.sleep(1)
             # 截图并识别异兽属性
             self.logger.info("开始OCR识别异兽属性...")
@@ -538,6 +777,11 @@ class ShanHaiJing:
             
             if should_capture_beast:
                 self.logger.info("执行收服操作")
+                # 记录新异兽属性作为当前异兽属性
+                if beast_list and len(beast_list) >= 2:
+                    self.current_beast = beast_list[1].copy()
+                    self.logger.info(f"已更新当前异兽属性: {self.current_beast.get('name')} ({self.current_beast.get('special_attribute')})")
+                
                 self.move_mouse_to_window_relative(350, 748)  # 收服按钮位置
                 # 再点击出售按钮
                 self.move_mouse_to_window_relative(168, 748)  # 出售按钮位置
@@ -550,7 +794,10 @@ class ShanHaiJing:
                 self.logger.info("不收服，直接出售")
                 # 直接点击出售按钮
                 self.move_mouse_to_window_relative(168, 748)  # 出售按钮位置
-
+                if self.check_confim_capture():
+                    self.logger.info("点击确定按钮")
+                    self.move_mouse_to_window_relative(354, 599)
+    
     def run(self):
         """
         主循环 - 持续执行自动孵蛋和检查蛋界面的操作
@@ -570,10 +817,12 @@ class ShanHaiJing:
         except KeyboardInterrupt:
             self.logger.warning("程序被用户中断")
         except Exception as error:
-            self.logger.error(f"程序运行出错：{error}d")
+            self.logger.error(f"程序运行出错：{error}")
             # 出错后尝试重新点击自动孵蛋按钮
             print(traceback.format_exc())
             self.click_auto_hatch_button()
+    
+    # ==================== 上下文管理 ====================
     
     def __enter__(self):
         return self 
@@ -584,65 +833,16 @@ class ShanHaiJing:
             delattr(self, attr)
         return False
 
-def single():
-    """
-    检查当前进程是否正在运行（单实例检查）
-    使用文件锁机制实现跨平台的单实例检查
-    Returns:
-        bool: 如果进程正在运行返回True，否则返回False
-    """
-    import os
-    
-    # 锁文件路径
-    lock_file = os.path.join(os.path.dirname(__file__), '.shan_hai_jing.lock')
-    
-    try:
-        # 尝试以独占模式打开锁文件
-        if os.name == 'nt':  # Windows系统
-            import msvcrt
-            lock_file_handle = open(lock_file, 'w')
-            try:
-                # 尝试获取文件锁（非阻塞模式）
-                msvcrt.locking(lock_file_handle.fileno(), msvcrt.LK_NBLCK, 1)
-                # 获取锁成功，写入当前进程ID
-                lock_file_handle.write(str(os.getpid()))
-                lock_file_handle.flush()
-                return False
-            except IOError:
-                # 获取锁失败，说明已有实例在运行
-                lock_file_handle.close()
-                return True
-        else:  # Unix/Linux/Mac系统
-            import fcntl
-            lock_file_handle = open(lock_file, 'w')
-            try:
-                # 尝试获取文件锁（独占锁 + 非阻塞模式）
-                fcntl.flock(lock_file_handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-                # 获取锁成功，写入当前进程ID
-                lock_file_handle.write(str(os.getpid()))
-                lock_file_handle.flush()
-                return False
-            except IOError:
-                # 获取锁失败，说明已有实例在运行
-                lock_file_handle.close()
-                return True
-    except Exception as e:
-        print(f"单实例检查出错: {e}")
-        return False
-
-
 def job():
-    # 检查是否已有实例在运行
-    # if single():
-    #     print("程序已在运行中，请勿重复启动！")
-    #     return
-    
+    """
+    定时任务函数
+    """ 
     with ShanHaiJing("山海北荒卷") as app:
-        app = ShanHaiJing("山海北荒卷")
         app.run()
 
-    
-    
+
+# ==================== 主程序入口 ====================
+
 if __name__ == '__main__':
     # scheduler = BlockingScheduler()
     scheduler = BackgroundScheduler()
@@ -655,7 +855,7 @@ if __name__ == '__main__':
     }
     scheduler.configure(job_defaults=job_defaults)
     
-    scheduler.add_job(job, 'interval', seconds=60)  # 每60秒执行
+    scheduler.add_job(job, 'interval', seconds=300)  # 每300秒执行一次
     try:
         print('调度器开始运行...')
         scheduler.start()

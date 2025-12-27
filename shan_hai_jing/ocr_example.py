@@ -7,9 +7,15 @@ from pyautogui import screenshot
 
 # 跳过模型源检查，关闭所有额外功能
 os.environ['DISABLE_MODEL_SOURCE_CHECK'] = 'True'
-
+start_time = time.time()
 ocr = PaddleOCR(
-    lang='ch'
+    lang="ch",
+    text_detection_model_name="PP-OCRv5_server_det",
+    text_recognition_model_name="PP-OCRv5_server_rec",
+    use_doc_orientation_classify=False,
+    use_doc_unwarping=False,
+    use_textline_orientation=False,
+    device="gpu"
 )
 
 print("OCR初始化完成，可以开始识别了！")
@@ -65,7 +71,6 @@ def capture_and_recognize():
             # OCR识别
             screenshot_path = "snipaste_01.png"
             result = ocr.predict(screenshot_path)
-            
             # 提取文字
              # 提取文字和坐标信息
             if result and isinstance(result, list) and len(result) > 0:
@@ -198,6 +203,7 @@ def parse_beast_attributes(text_list):
 
 
 if __name__ == "__main__":
+    start_time = time.time()
     text_list = capture_and_recognize()
     if text_list:
         attributes = parse_beast_attributes(text_list)
@@ -210,3 +216,5 @@ if __name__ == "__main__":
         #     print("未能解析出异兽属性")
     else:
         print("OCR识别失败")
+    end_time = time.time()
+    print(f"OCR识别耗时: {end_time - start_time:.2f}秒")
