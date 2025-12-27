@@ -3,6 +3,15 @@ import lvgl as lv
 context = []
 widgets = {}
 
+style = lv.style_t()
+style.init()
+style.set_pad_all( 2 )
+style.set_pad_gap( 2 ) 
+style.set_radius( 5 )
+style.set_border_width( 0 )
+style.set_bg_color( lv.color_hex(0xF9EE19))
+
+
 def set_context( ctx ):
     global context
     context = ctx
@@ -19,16 +28,9 @@ def get_widgets():
     global widgets
     return widgets
 
-style = lv.style_t()
-style.init()
-style.set_pad_all( 2 )
-style.set_pad_gap( 2 ) 
-style.set_radius( 2 )
-style.set_border_width( 0 )
-style.set_bg_color( lv.color_hex(0x000000))
 
 class Cont:
-    def __init__( self, x=5, y=5, w=480-10, h=320-10 ):
+    def __init__( self, x=5, y=5, w=320, h=240):
         self.obj = lv.obj( context[-1] )
         self.obj.add_style( style, 0 )
         #self.obj.set_flex_flow( lv.FLEX_FLOW.COLUMN )
@@ -85,7 +87,7 @@ def add_button( name, w=40, h=20, radius=5, checkable=False ):
     btn.set_style_bg_color( lv.palette_lighten( lv.PALETTE.BLUE_GREY, 2 ), 0 )
     btn.set_style_bg_color( lv.palette_main( lv.PALETTE.GREEN ), 1 )
     if( checkable ):
-        btn_run.add_flag( lv.obj.FLAG.CHECKABLE )
+        btn.add_flag( lv.obj.FLAG.CHECKABLE )
     lbl = lv.label( btn )
     lbl.set_text( name.split("#")[0] )
     lbl.center()
@@ -103,9 +105,12 @@ def add_spinbox( name, w=100, h=40 ):
     widgets[ name ] = spinbox
     return spinbox
 
-def add_label( name, w=40, h=20 ):
+def add_label( name, text=None, w=40, h=20 ):
     lbl = lv.label( context[-1] )
-    lbl.set_text( name.split("#")[0] )
+    if text is None:
+        lbl.set_text( name.split("#")[0] )
+    else:
+        lbl.set_text( text )
     lbl.set_size( w, h )
     assert name not in widgets
     widgets[ name ] = lbl
@@ -118,5 +123,116 @@ def add_line( x=0, y=0, w=40, h=1, width=1 ):
     #assert name not in widgets
     #widgets[ name ] = line
     return line
+
+class WaveformDisplay:
+    def __init__(self, parent, width, height, color=lv.palette_main(lv.PALETTE.BLUE)):
+        self.parent = parent
+        self.width = width
+        self.height = height
+        self.color = color
+        self.data = []
+        self.scale = 1.0
+        self.offset = 0
+        
+        # 创建画布
+        self.canvas = lv.canvas(parent)
+        self.canvas.set_size(width, height)
+        
+        # 创建缓冲区
+        buf_size = width * height
+        self.buffer = bytearray(buf_size * lv.COLOR_FORMAT.NATIVE.size)
+        self.canvas.set_buffer(self.buffer, width, height, lv.COLOR_FORMAT.NATIVE)
+        
+        # 初始化画布
+        self.clear()
+    
+    def clear(self):
+        """清空画布"""
+        self.canvas.fill_bg(lv.color_hex(0x000000), lv.OPA.COVER)
+        
+        # 绘制坐标轴
+        self._draw_axes()
+    
+    def _draw_axes(self):
+        """绘制坐标轴"""
+        # 绘制中心线
+        line_x0 = 0
+        line_y0 = self.height // 2
+        line_x1 = self.width
+        line_y1 = self.height // 2
+        self.canvas.draw_line(line_x0, line_y0, line_x1, line_y1, lv.color_hex(0x333333), 1)
+        
+        # 绘制垂直刻度线
+        for i in range(0, self.width, 20):
+            self.canvas.draw_line(i, line_y0 - 5, i, line_y0 + 5, lv.color_hex(0x333333), 1)
+    
+    def set_data(self, data):
+        """设置波形数据"""
+        self.data = data
+    
+    def set_scale(self, scale):
+        """设置波形缩放比例"""
+        self.scale = scale
+    
+    def set_offset(self, offset):
+        """设置波形偏移"""
+        self.offset = offset
+    
+    def draw_waveform(self):
+        """绘制波形"""
+        self.clear()
+        
+        if not self.data or len(self.data) < 2:
+            return
+        
+        # 计算波形数据
+        points = []
+        data_len = len(self.data)
+        
+        # 只绘制可见范围内的数据点
+        for i in range(min(data_len, self.width)):
+            if i < data_len:
+                # 归一化数据到0-255范围
+                val = self.data[i]
+                # 映射到画布高度范围
+                y = int((val / 255) * self.height * self.scale + self.height // 2 - (self.height * self.scale) // 2 + self.offset)
+                # 确保y在画布范围内
+                y = max(0, min(y, self.height - 1))
+                points.append((i, y))
+        
+        # 绘制波形
+        if len(points) > 1:
+            for i in range(len(points) - 1):
+                x1, y1 = points[i]
+                x2, y2 = points[i + 1]
+                self.canvas.draw_line(x1, y1, x2, y2, self.color, 1)
+    
+    def get_widget(self):
+        """获取底层widget"""
+        return self.canvas
+    
+    def set_pos(self, x, y):
+        """设置位置"""
+        self.canvas.set_pos(x, y)
+    
+    def set_size(self, width, height):
+        """设置大小"""
+        self.width = width
+        self.height = height
+        self.canvas.set_size(width, height)
+        
+        # 重新创建缓冲区
+        buf_size = width * height
+        self.buffer = bytearray(buf_size * lv.COLOR_FORMAT.NATIVE.size)
+        self.canvas.set_buffer(self.buffer, width, height, lv.COLOR_FORMAT.NATIVE)
+        
+        self.clear()
+
+def add_waveform_display(name, width, height):
+    """添加波形显示组件"""
+    wf = WaveformDisplay(context[-1], width, height)
+    assert name not in widgets
+    widgets[name] = wf
+    return wf
 
 print("done")

@@ -69,7 +69,7 @@ def capture_and_recognize():
         try:
            
             # OCR识别
-            screenshot_path = "images/snipaste_01.png"
+            screenshot_path = "snipaste_attr.png"
             result = ocr.predict(screenshot_path)
             # 提取文字
              # 提取文字和坐标信息

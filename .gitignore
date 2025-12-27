@@ -39,3 +39,9 @@ jspm_packages/
 
 # Yarn Integrity file
 .yarn-integrity
+./shan_hai_jing/data/screenshots
+./screenshots
+.venv
+.vscode
+dist
+dist/

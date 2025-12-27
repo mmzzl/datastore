@@ -35,6 +35,13 @@ class EH11Encoder:
         self.button_pressed = False
         self.button_released = False
         
+        # 按键防抖相关
+        self.debounce_time = 50  # 防抖时间（毫秒）
+        self.last_button_time = 0
+        
+        # 调试输出控制
+        self.debug_enabled = True
+        
         # 回调函数
         self.rotation_callback = None
         self.button_callback = None
@@ -44,17 +51,16 @@ class EH11Encoder:
     
     def _init_interrupts(self):
         """初始化GPIO中断"""
-        # 尝试只使用A相中断来检测旋转
+        # 使用A相和B相中断来检测旋转
         self.pin_a.irq(trigger=machine.Pin.IRQ_RISING | machine.Pin.IRQ_FALLING, 
                        handler=self._encoder_isr)
-        # B相变化中断 - 暂时禁用
-        # self.pin_b.irq(trigger=machine.Pin.IRQ_RISING | machine.Pin.IRQ_FALLING, 
-        #                handler=self._encoder_isr)
-        # 按键中断 - 只检测下降沿（按下）
-        self.pin_btn.irq(trigger=machine.Pin.IRQ_FALLING, 
+        self.pin_b.irq(trigger=machine.Pin.IRQ_RISING | machine.Pin.IRQ_FALLING, 
+                       handler=self._encoder_isr)
+        # 按键中断 - 检测下降沿（按下）和上升沿（释放）
+        self.pin_btn.irq(trigger=machine.Pin.IRQ_RISING | machine.Pin.IRQ_FALLING, 
                         handler=self._button_isr)
         
-        print("编码器中断已初始化（仅A相中断）")
+        print("编码器中断已初始化（A相和B相中断）")
     
     def _encoder_isr(self, pin):
         """编码器中断服务程序"""
@@ -63,49 +69,66 @@ class EH11Encoder:
             current_a = self.pin_a.value()
             current_b = self.pin_b.value()
             
-            # 添加调试输出
-            print(f"Encoder ISR: A={current_a}, B={current_b}, last_A={self.last_a}, last_B={self.last_b}")
-            
-            # 检测旋转方向
-            if self.last_a != current_a:
+            # 使用更稳定的四倍频检测方法
+            # 检测A相变化
+            if pin == self.pin_a and self.last_a != current_a:
+                # 添加小延时防止抖动
+                time.sleep_ms(1)
+                
+                # 重新读取状态确认
+                current_a = self.pin_a.value()
+                current_b = self.pin_b.value()
+                
                 if current_a != current_b:
                     self.counter += 1  # 顺时针旋转
-                    print(f"顺时针旋转，计数器: {self.counter}")
+                    direction = 1
                 else:
                     self.counter -= 1  # 逆时针旋转
-                    print(f"逆时针旋转，计数器: {self.counter}")
+                    direction = -1
                     
                 # 如果有回调函数，调用它
                 if self.rotation_callback:
-                    direction = 1 if current_a != current_b else -1
                     self.rotation_callback(direction)
+                
+                # 调试输出
+                if self.debug_enabled:
+                    print(f"Encoder rotation: {direction}, counter: {self.counter}")
             
             # 更新上次状态
             self.last_a = current_a
             self.last_b = current_b
         except Exception as e:
-            print(f"Error in encoder ISR: {e}")
+            if self.debug_enabled:
+                print(f"Error in encoder ISR: {e}")
     
     def _button_isr(self, pin):
         """按键中断服务程序"""
+        current_time = time.ticks_ms()
+        
+        # 防抖处理
+        if time.ticks_diff(current_time, self.last_button_time) < self.debounce_time:
+            return
+        
         self.button_state = self.pin_btn.value()
+        self.last_button_time = current_time
         
         # 检测按键按下（下降沿）
         if self.last_button_state == 1 and self.button_state == 0:
             self.button_pressed = True
             if self.button_callback:
                 self.button_callback("pressed")
+            if self.debug_enabled:
+                print("Button pressed")
         
         # 检测按键释放（上升沿）
         elif self.last_button_state == 0 and self.button_state == 1:
             self.button_released = True
             if self.button_callback:
                 self.button_callback("released")
+            if self.debug_enabled:
+                print("Button released")
         
         self.last_button_state = self.button_state
-        
-        # 添加调试输出
-        print(f"Button ISR: state={self.button_state}, pressed={self.button_pressed}, released={self.button_released}")
     
     def set_rotation_callback(self, callback):
         """设置旋转回调函数"""
@@ -114,6 +137,14 @@ class EH11Encoder:
     def set_button_callback(self, callback):
         """设置按键回调函数"""
         self.button_callback = callback
+    
+    def set_debounce_time(self, debounce_ms):
+        """设置按键防抖时间（毫秒）"""
+        self.debounce_time = debounce_ms
+    
+    def set_debug(self, enabled):
+        """启用或禁用调试输出"""
+        self.debug_enabled = enabled
     
     def get_counter(self):
         """获取当前计数值"""
@@ -141,3 +172,13 @@ class EH11Encoder:
         self.button_released = False
         
         return events
+    
+    def is_connected(self):
+        """检查编码器是否正确连接"""
+        # 读取引脚状态
+        a_state = self.pin_a.value()
+        b_state = self.pin_b.value()
+        btn_state = self.pin_btn.value()
+        
+        # 检查引脚是否都处于上拉状态（未按下时为高电平）
+        return a_state == 1 and b_state == 1 and btn_state == 1

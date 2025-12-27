@@ -93,27 +93,55 @@ class Display_Driver:
 
     def init_encoder(self):
         """初始化编码器输入设备"""
+        # 检查编码器连接状态
+        if hasattr(self.encoder, 'is_connected'):
+            if not self.encoder.is_connected():
+                print("Warning: Encoder may not be properly connected")
+            else:
+                print("Encoder initialized successfully")
+        else:
+            print("Warning: is_connected method not found")
+            print("Available methods:", [method for method in dir(self.encoder) if not method.startswith('_')])
+        
         # 创建编码器输入设备
         self.indev_encoder = lv.indev_create()
         self.indev_encoder.set_type(lv.INDEV_TYPE.ENCODER)
         self.indev_encoder.set_read_cb(self.indev_encoder_read_cb)
         
+        # 创建全局焦点组并关联到编码器输入设备
+        self.global_group = lv.group_create()
+        self.indev_encoder.set_group(self.global_group)
+        print("Global focus group created and linked to encoder")
+        
         # 设置编码器回调
         self.encoder.set_rotation_callback(self._on_encoder_rotation)
         self.encoder.set_button_callback(self._on_encoder_button)
     
+    def add_obj_to_focus_group(self, obj):
+        """将对象添加到全局焦点组"""
+        if hasattr(self, 'global_group'):
+            self.global_group.add_obj(obj)
+            print(f"Object added to global focus group: {obj}")
+        else:
+            print("Warning: Global focus group not initialized")
+        
     def _on_encoder_rotation(self, direction):
         """编码器旋转回调"""
         self.encoder_events["rotation"] += direction
+        # 编码器类已经处理了调试输出，这里不需要重复输出
     
     def _on_encoder_button(self, event):
         """编码器按键回调"""
         if event == "pressed":
             self.encoder_events["button_pressed"] = True
-            print(f"Button pressed event received")
+            print("Button press event recorded")
+            # 强制LVGL处理输入事件
+            lv.timer_handler()
         elif event == "released":
             self.encoder_events["button_released"] = True
-            print(f"Button released event received")
+            print("Button release event recorded")
+            # 强制LVGL处理输入事件
+            lv.timer_handler()
     
     def indev_encoder_read_cb(self, indev_drv, data):
         """编码器输入设备读取回调"""
@@ -122,7 +150,22 @@ class Display_Driver:
         
         # 设置编码器值
         data.enc_diff = events["rotation"]
-        data.state = 0 if events["button_state"] == 1 else 1
+        
+        # 处理按钮状态
+        # 优先使用button_pressed和button_released事件
+        if self.encoder_events["button_pressed"]:
+            data.state = 0  # 0=按下
+            print("LVGL: Button pressed state sent")
+            # 清除标志
+            self.encoder_events["button_pressed"] = False
+        elif self.encoder_events["button_released"]:
+            data.state = 1  # 1=释放
+            print("LVGL: Button released state sent")
+            # 清除标志
+            self.encoder_events["button_released"] = False
+        else:
+            # 如果没有特殊事件，使用当前按钮状态
+            data.state = 0 if events["button_state"] == 0 else 1
         
         # 重置旋转计数
         if events["rotation"] != 0:

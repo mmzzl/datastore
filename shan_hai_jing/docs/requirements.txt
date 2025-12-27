@@ -2,7 +2,6 @@
 
 # 窗口管理
 pygetwindow>=0.0.9
-pywin32>=305
 
 # 自动化操作
 pyautogui>=0.9.54
@@ -12,7 +11,3 @@ apscheduler>=3.10.0
 
 # OCR文字识别
 paddleocr>=2.7.0
-
-# 图像处理
-Pillow>=10.0.0
-numpy>=1.24.0

@@ -1,331 +1,398 @@
 # -*- coding: utf-8 -*-
+"""
+山海北荒卷自动化脚本
+功能：自动孵蛋、识别异兽属性、智能收服
+"""
+
 import os
+import sys
 import time
 import datetime
-import logging
-import logging.handlers
-import pygetwindow as gw
-import pyautogui 
-import traceback
+import signal
+import traceback 
+import pyautogui
+from filelock import FileLock 
 from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.schedulers.background import BackgroundScheduler
-from paddleocr import PaddleOCR
 
-ocr = PaddleOCR(lang="ch", use_textline_orientation=False, cpu_threads=8, text_det_limit_side_len=640)
+# 导入自定义模块
+from config import (
+    WINDOW_KEYWORD, TARGET_ATTRIBUTES, STRATEGY,
+    SLOTS_FILE, CAPTURE_BUTTON, CONFIRM_BUTTON, SCHEDULER_INTERVAL,
+    CHARACTER_BUTTON, BACK_BUTTON, SELL_BUTTON_ALT,
+    UI_CHECK_WAIT_TIME, MAIN_LOOP_WAIT_TIME, IMAGES_DIR, AUTO_EGG_IMAGE, RELOGIN_BUTTON
+)
+from logger import setup_logger
+from window_manager import WindowManager
+from mouse_controller import MouseController
+from ui_checker import UIChecker
+from ocr_recognizer import OCRRecognizer
+from attribute_parser import AttributeParser
+from capture_strategy import CaptureStrategy
+from slot_manager import SlotManager
+from power_manager import PowerManager
+
 
 class ShanHaiJing:
-    def __init__(self, keyword="山海北荒卷"):
+    """
+    山海北荒卷自动化主类
+    """
+    
+    def __init__(self, keyword="山海北荒卷", skip_initial_ocr=True):
+        """
+        初始化山海北荒卷自动化脚本
+        Args:
+            keyword: 窗口标题关键词
+            skip_initial_ocr: 是否跳过初始OCR识别（用于复用缓存的属性）
+        """
         self.keyword = keyword
-        self.base_dir = os.path.dirname(os.path.abspath(__file__))
-        self.filtered_windows = self.filter_windows_by_title(self.keyword)
         
+        # 运行标志
+        self.running = True
+        
+        # 记录异兽属性
         self.previous_beast = None  # 记录之前的异兽属性
-        self.target_attribute = '暴击'  # 目标属性，可以修改为其他属性如'吸血'、'暴击'等
-        self.screenshot_dir = os.path.join(self.base_dir, "screenshots")
-        os.makedirs(self.screenshot_dir, exist_ok=True)
+        self.current_beast = None  # 记录当前异兽属性
         
-        # 配置日志
-        self.log_dir = os.path.join(self.base_dir, "logs")
-        os.makedirs(self.log_dir, exist_ok=True)
-        self.setup_logging()
+        # 初始化各个模块
+        self.logger = setup_logger()
+        self.window_manager = WindowManager(self.keyword, self.logger)
+        self.mouse_controller = MouseController(self.window_manager, self.logger)
+        self.ui_checker = UIChecker(self.window_manager, self.logger)
+        self.ocr_recognizer = OCRRecognizer(self.window_manager, self.logger)
+        self.attribute_parser = AttributeParser(self.logger)
+        self.capture_strategy = CaptureStrategy(self.attribute_parser, self.logger)
+        self.slot_manager = SlotManager(self.logger)
+        self.power_manager = PowerManager(self.logger)
         
-        if not self.filtered_windows:
-            print(f"未找到包含关键词: [{self.keyword}]的窗口")
+        # 收服策略配置
+        self.strategy = STRATEGY
+        self.target_attributes = TARGET_ATTRIBUTES
+        
+        # 激活窗口
+        if not self.window_manager.filtered_windows:
+            self.logger.error(f"未找到包含关键词: [{self.keyword}]的窗口")
             return
-        self.filtered_windows[0].activate()
-    
-    def setup_logging(self):
-        """
-        配置日志系统 - 按天分割日志文件
-        """
-        # 创建日志文件名（按日期）
-        log_filename = datetime.datetime.now().strftime("beast_capture_%Y%m%d.log")
-        log_filepath = os.path.join(self.log_dir, log_filename)
-        
-        # 创建logger
-        self.logger = logging.getLogger(__name__)
-        self.logger.setLevel(logging.INFO)
-        
-        # 日志格式
-        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-        
-        # 1. 文件处理器 - 使用TimedRotatingFileHandler按天分割日志
-        # when='midnight' 表示每天午夜分割
-        # interval=1 表示每天分割一次
-        # backupCount=30 表示保留30天的日志
-        file_handler = logging.handlers.TimedRotatingFileHandler(
-            log_filepath,
-            when='midnight',
-            interval=1,
-            backupCount=30,
-            encoding='utf-8'
-        )
-        file_handler.setFormatter(formatter)
-        file_handler.suffix = "%Y%m%d.log"  # 设置日志文件名后缀格式
-        
-        # 2. 控制台处理器
-        console_handler = logging.StreamHandler()
-        console_handler.setFormatter(formatter)
-        
-        # 添加处理器
-        self.logger.addHandler(file_handler)
-        self.logger.addHandler(console_handler)
-        
-        # 记录启动信息
-        self.logger.info("=" * 80)
-        self.logger.info(f"山海北荒卷自动化脚本启动 - 目标属性: {self.target_attribute}")
-        self.logger.info(f"日志文件: {log_filepath}")
-        self.logger.info("=" * 80)
-    
-    def get_active_window_region(self):
-        """
-        获取当前激活窗口的查找区域
-        
-        Returns:
-            tuple: 窗口区域坐标 (x, y, width, height)
-        """
-        active_window = self.filtered_windows[0]
-        try:
-            active_window.activate() 
-        except Exception as e:
-            print(f"激活窗口时出错: {e}")
-            return None
-        # 处理最小化窗口
-        if active_window.isMinimized:
-            active_window.restore()
-            time.sleep(0.5)
-        # 窗口查找区域：(x, y, width, height)
-        region = (
-            active_window.left,    # 查找区域左上角x
-            active_window.top,     # 查找区域左上角y
-            active_window.width,   # 查找区域宽度
-            active_window.height   # 查找区域高度
-        )
-        print(f"查找范围：当前激活窗口「{active_window.title}」")
-        print(f"窗口区域：(x={active_window.left}, y={active_window.top}, 宽={active_window.width}, 高={active_window.height})")
-        return region
-        
 
-    def filter_windows_by_title(self, keyword):
-        """
-        根据关键词过滤窗口列表
+        # 先激活窗口
+        if self.window_manager.activate_window():
+            self.logger.info("窗口已激活")
+        else:
+            self.logger.warning("窗口激活失败")
+            return 
         
-        Args:
-            keyword (str): 窗口标题中需要包含的关键词
-            
-        Returns:
-            list: 符合条件的窗口列表
-        """
-        all_windows = gw.getAllWindows()
-        print(f"\n包含关键词: [{keyword}]的窗口")
-        filtered_windows = [window for window in all_windows if keyword in window.title]
-        return filtered_windows
-
+        # 如果不是跳过OCR，则加载属性格子状态并识别当前异兽
+        if not skip_initial_ocr:
+            self.load_attribute_slots()
     
-    
-    def move_mouse_to_window_relative(self, relative_x, relative_y, smooth=True):
+    def load_attribute_slots(self):
         """
-        移动鼠标到当前激活窗口内的相对位置并点击
+        从文件加载属性格子状态，并通过OCR获取当前异兽属性
+        """
+        # 点击当前人物按钮
+        self.mouse_controller.move_mouse_to_window_relative(CHARACTER_BUTTON['x'], CHARACTER_BUTTON['y'])
+        time.sleep(UI_CHECK_WAIT_TIME)
         
-        Args:
-            relative_x (int): 窗口内的相对X坐标
-            relative_y (int): 窗口内的相对Y坐标
-            smooth (bool): 是否使用平滑移动
-        """
-        region = self.get_active_window_region()
+        # OCR识别当前异兽属性
+        text_list = self.ocr_recognizer.recognize_current_beast(save_screenshot=True)
         
-        # 确保坐标在窗口范围内
-        clamped_x = max(0, min(relative_x, region[2]))
-        clamped_y = max(0, min(relative_y, region[3]))
+        if text_list:
+            # 解析当前异兽属性
+            current_attribute = self._parse_current_beast(text_list)
+            if current_attribute:
+                self.current_beast = current_attribute
+                self.logger.info(f"【OCR识别】当前异兽属性: {current_attribute}")
         
-        # 计算绝对位置
-        absolute_x = region[0] + clamped_x
-        absolute_y = region[1] + clamped_y
-        self.logger.debug(f"移动鼠标：窗口内相对坐标 ({clamped_x}, {clamped_y}) → 屏幕绝对坐标 ({absolute_x}, {absolute_y})")
-        
-        # 移动鼠标并点击
-        duration = 1 if smooth else 0
-        pyautogui.moveTo(absolute_x, absolute_y, duration=duration)
-        self.logger.debug("鼠标移动完成！")
-        pyautogui.sleep(0.5)
-        pyautogui.click()
-        self.logger.debug(f"已点击窗口内坐标{clamped_x}, {clamped_y}")
+        # 点击返回按钮
+        self.mouse_controller.move_mouse_to_window_relative(BACK_BUTTON['x'], BACK_BUTTON['y'])
     
-    def click_auto_hatch_button(self):
+    def _parse_current_beast(self, text_list):
         """
-        点击自动孵蛋按钮
-        """
-        file_path = os.path.join(self.base_dir, "auto_egg.png")
-        if self.is_image_exist(file_path):
-            # 点击相关按钮执行自动孵蛋操作
-            self.logger.info("点击自动孵蛋按钮")
-            self.move_mouse_to_window_relative(259, 888)  # 第一个按钮位置
-            self.move_mouse_to_window_relative(243, 690)  # 第二个按钮位置
-    
-    def needs_to_capture(self):
-        """
-        判断是否需要收服
-        """
-        file_path = os.path.join(self.base_dir, "move_up.png")
-        retry_count = 2 
-        while retry_count:
-            if self.is_image_exist(file_path, confidence=0.9):
-                return True 
-            time.sleep(1)
-            retry_count -= 1
-        return False
-        
-    
-    def is_image_exist(self, image_path, confidence=0.8, only_active_window=True):
-        """
-        判断目标图片是否存在（支持仅在激活窗口内查找）
-        
-        Args:
-            image_path (str): 目标图片路径
-            confidence (float): 匹配精度（0-1，值越高越精准，建议 0.7-0.9）
-            only_active_window (bool): 是否仅在当前激活窗口内查找
-            
-        Returns:
-            tuple or None: 找到返回图片位置元组 (left, top, width, height)，未找到返回 None
-        """
-        # 1. 确定查找区域
-        region = self.get_active_window_region() if only_active_window else None
-
-        try:
-            # 2. 查找图片（grayscale=True 灰度查找，提高匹配成功率）
-            image_position = pyautogui.locateOnScreen(
-                image_path,
-                confidence=confidence,
-                grayscale=True,
-                region=region  # 限制查找范围（仅激活窗口）
-            )
-            # 3. 判断结果
-            if image_position:
-                # 计算图片中心点坐标（屏幕绝对坐标）
-                center_x, center_y = pyautogui.center(image_position)
-                # 计算图片在激活窗口内的相对坐标（如果有激活窗口）
-                if region:
-                    relative_x = center_x - region[0]
-                    relative_y = center_y - region[1]
-                    self.logger.debug(f"找到图片！")
-                    self.logger.debug(f"图片屏幕坐标：左上角({image_position.left}, {image_position.top}) → 中心点({center_x}, {center_y})")
-                    self.logger.debug(f"图片在窗口内相对坐标：({relative_x}, {relative_y})")
-                else:
-                    self.logger.debug(f"找到图片！")
-                    self.logger.debug(f"图片屏幕坐标：左上角({image_position.left}, {image_position.top}) → 中心点({center_x}, {center_y})")
-                return image_position
-            else:
-                self.logger.debug(f"未找到图片「{image_path}」（匹配精度：{confidence}）")
-                return None
-        except Exception as e:
-            # import traceback
-            # print(traceback.format_exc())
-            # print(f"{image_path}查找图片失败：{e}")
-            # print("提示:1. 检查图片路径是否正确；2. Linux/macOS需安装 opencv-python（pip install opencv-python）；3. 图片需清晰无多余背景")
-            return None
-    
-    def is_on_hatching_screen(self):
-        """
-        检查当前窗口是否在孵蛋界面
-        """
-        file_path = os.path.join(self.base_dir, "egg.png")
-        retry_count = 15
-        image_list = ['egg1.png', 'egg2.png', 'egg3.png', 'egg4.png']
-        while retry_count:
-            for image in image_list:
-                file_path = os.path.join(self.base_dir, image)
-                if self.is_image_exist(file_path):
-                    return True
-            time.sleep(1)
-            retry_count -= 1
-        return False
-
-    def check_confim_capture(self):
-        """
-        检查是否有确定按钮
-        """
-
-        file_path = os.path.join(self.base_dir, "confirm.png")
-        retry_count = 5
-        while retry_count:
-            if self.is_image_exist(file_path):
-                return True
-            time.sleep(1)
-            retry_count -= 1
-        return False
-    
-    def capture_and_recognize(self):
-        """
-        截图并使用OCR识别文字
-        Returns:
-            list: 识别到的文字列表（包含坐标和文字）
-        """
-        try:
-            # 获取窗口区域
-            window_region = self.get_active_window_region()
-            if not window_region:
-                return None
-            
-            # 计算截图区域（相对于窗口的固定坐标）
-            # 起点: (27, 199), 终点: (460, 783)
-            screenshot_region = (
-                window_region[0] + 27,      # x: 窗口左上角x + 27
-                window_region[1] + 199,     # y: 窗口左上角y + 199
-                460 - 27,                   # width: 433
-                783 - 199                   # height: 584
-            )
-            
-            # 截图
-            screenshot = pyautogui.screenshot(region=screenshot_region)
-            
-            # 保存截图
-            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            screenshot_path = os.path.join(self.screenshot_dir, f"beast_{timestamp}.png")
-            screenshot.save(screenshot_path)
-            self.logger.info(f"截图已保存到: {screenshot_path}")
-            
-            # OCR识别
-            result = ocr.predict(screenshot_path)
-            
-            # 提取文字和坐标信息
-            if result and isinstance(result, list) and len(result) > 0:
-                    if isinstance(result[0], dict):
-                        text_list = result[0].get('rec_texts', [])
-                    else:
-                        # 尝试直接从结果中提取文字
-                        text_list = []
-                        for item in result:
-                            if isinstance(item, list) and len(item) > 1:
-                                if item:
-                                    text_list.append(item[1][0])
-                    return text_list
-            return []
-        except Exception as e:
-            self.logger.error(f"OCR识别出错: {e}")
-            return []
-    
-    def parse_beast_attributes(self, text_list):
-        """
-        解析异兽属性
+        解析当前异兽属性（用于启动时识别）
         Args:
             text_list: OCR识别的文字列表
         Returns:
-            dict: 包含异兽属性的字典
+            dict: 异兽属性字典
         """
+        if not text_list:
+            return None
         
+        # 辅助函数：解析属性值
+        def parse_attribute_value(value_str):
+            """解析属性值，去除百分号和逗号，转换为数字"""
+            if not value_str:
+                return 0
+            value_str = value_str.replace('%', '').replace(',', '').replace('，', '')
+            try:
+                return float(value_str)
+            except:
+                return 0
+        
+        # 基础属性映射
+        basic_attr_map = {
+            '生命': 'hp',
+            '攻击': 'attack',
+            '防御': 'defense',
+            '速度': 'speed'
+        }
+        
+        # 特殊属性列表（按优先级排序）
+        special_attr_priority = ['暴击', '连击', '闪避', '吸血', '反击', '击晕']
+        
+        # 解析属性
+        current_attribute = {}
+        
+        for text in text_list:
+            if '：' in text or ':' in text:
+                if '：' in text:
+                    attr_name, attr_value = text.split('：', 1)
+                else:
+                    attr_name, attr_value = text.split(':', 1)
+                
+                attr_name = attr_name.strip()
+                attr_value = attr_value.strip()
+                
+                # 解析基础属性
+                if attr_name in basic_attr_map:
+                    current_attribute[basic_attr_map[attr_name]] = int(parse_attribute_value(attr_value))
+                
+                # 解析特殊属性（只记录优先级最高的一个）
+                elif attr_name in special_attr_priority and 'special_attribute' not in current_attribute:
+                    current_attribute['special_attribute'] = attr_name
+                    current_attribute['special_value'] = parse_attribute_value(attr_value)
+        
+        # 设置默认值
+        if 'hp' not in current_attribute:
+            current_attribute['hp'] = 0
+        if 'attack' not in current_attribute:
+            current_attribute['attack'] = 0
+        if 'defense' not in current_attribute:
+            current_attribute['defense'] = 0
+        if 'speed' not in current_attribute:
+            current_attribute['speed'] = 0
+        if 'special_attribute' not in current_attribute:
+            current_attribute['special_attribute'] = ''
+            current_attribute['special_value'] = 0
+        
+        return current_attribute
+    
+    def check_egg_screen(self):
+        """
+        检查孵蛋界面并执行收服决策
+        Returns:
+            bool: 是否成功处理
+        """
+        try:
+            # 检查是否在孵蛋界面
+            if self.ui_checker.is_on_hatching_screen():
+                self.logger.info("当前在孵蛋界面")
+                return False    
+            # 检查是否需要收服
+            self.mouse_controller.move_mouse_to_window_relative(269, 735)
+            time.sleep(UI_CHECK_WAIT_TIME)
+            # OCR识别异兽属性
+            text_list = self.ocr_recognizer.capture_and_recognize(save_screenshot=True)
+            self.logger.info(f"识别到数据：{text_list}")
+            if not text_list:
+                self.logger.warning("OCR识别失败，无法判断")
+                return False
+            
+            # 解析异兽属性（使用收服界面专用解析方法）
+            beast_list = self.parse_capture_screen_attributes(text_list)
+            if not beast_list or len(beast_list) < 2:
+                self.logger.warning("属性解析失败，无法判断")
+                return False
+            
+            # 判断是否收服
+            captured = self.should_capture(beast_list)
+            
+            if captured:
+                # 点击收服按钮
+                self.mouse_controller.click_capture_button()
+                
+                # 检查确定按钮
+                if self.ui_checker.check_confirm_capture():
+                    self.logger.info("点击确定按钮")
+                    self.mouse_controller.move_mouse_to_window_relative(CONFIRM_BUTTON['x'], CONFIRM_BUTTON['y'])
+                    
+                    # 更新当前异兽属性
+                    self.current_beast = beast_list[1]
+                    self.logger.info(f"已收服新异兽，更新当前人物属性: {self.current_beast}")
+                    
+                    # 更新属性格子
+                    old_special = beast_list[0].get('special_attribute')
+                    new_special = beast_list[1].get('special_attribute')
+                    self.slot_manager.update_attribute_slots(beast_list[1])
+                    
+                    self.logger.info("收服成功！")
+                else:
+                    self.logger.warning("未找到确定按钮")
+            else:
+                # 点击出售按钮
+                self.mouse_controller.move_mouse_to_window_relative(SELL_BUTTON_ALT['x'], SELL_BUTTON_ALT['y'])
+                self.logger.info("已出售异兽")
+                if self.ui_checker.check_confirm_capture():
+                    self.logger.info("点击确定按钮")
+                    self.mouse_controller.move_mouse_to_window_relative(CONFIRM_BUTTON['x'], CONFIRM_BUTTON['y'])
+            self.click_auto_hatch_button()
+            return True
+        except Exception as e:
+            self.logger.error(f"检查孵蛋界面出错: {e}")
+            traceback.print_exc()
+            return False
+
+    def parse_capture_screen_attributes(self, text_list):
+        """
+        解析收服界面异兽属性（属性名和值相邻，无冒号分隔）
+        Args:
+            text_list: OCR识别的文字列表
+        Returns:
+            list: 包含两个异兽属性的列表 [当前异兽, 新获异兽]
+        """
         if not text_list or len(text_list) < 10:
             self.logger.info(f"OCR识别结果太少，无法解析（只有{len(text_list) if text_list else 0}个文本片段）")
             return None
+        
+        try:
+            # 辅助函数：解析属性值（处理带方括号的名称）
+            def parse_attribute_value(text):
+                """解析属性值，处理可能的格式"""
+                text = text.strip()
+                # 移除百分号
+                text = text.replace('%', '')
+                # 移除逗号
+                text = text.replace(',', '').replace('，', '')
+                # 尝试转换为数字
+                try:
+                    return float(text) if '.' in text else int(text)
+                except:
+                    return text
+            
+            # 特殊属性优先级列表
+            special_attributes = ['暴击', '连击', '闪避', '吸血', '反击', '击晕']
+            
+            # 辅助函数：解析单个异兽
+            def parse_single_beast(text_list, start_idx, end_idx):
+                """解析单个异兽的属性"""
+                beast = {}
+                i = start_idx
+                
+                while i < end_idx:
+                    text = text_list[i].strip()
+                    
+                    # 检查是否是名称（通常带方括号）
+                    if text.startswith('[') and ']' in text or text.startswith('【'):
+                        beast['name'] = text
+                        i += 1
+                        continue
+                    
+                    # 检查是否是类型
+                    if text.endswith('系') or text in ['玄武系', '白虎系', '青龙系', '朱雀系', '麒麟系']:
+                        beast['type'] = text
+                        i += 1
+                        continue
+                    
+                    # 检查基础属性
+                    if text in ['生命', '攻击', '防御', '速度', '命']:
+                        if i + 1 < end_idx:
+                            value = parse_attribute_value(text_list[i + 1])
+                            if isinstance(value, (int, float)):
+                                if text == '生命' or text == '命':
+                                    beast['hp'] = int(value)
+                                elif text == '攻击':
+                                    beast['attack'] = int(value)
+                                elif text == '防御':
+                                    beast['defense'] = int(value)
+                                elif text == '速度':
+                                    beast['speed'] = int(value)
+                                i += 2
+                                continue
+                    
+                    # 检查特殊属性
+                    if text in special_attributes:
+                        if i + 1 < end_idx:
+                            value = parse_attribute_value(text_list[i + 1])
+                            if isinstance(value, (int, float)):
+                                beast['special_attribute'] = text
+                                beast['special_value'] = value
+                                i += 2
+                                continue
+                    
+                    i += 1
+                
+                return beast
+            
+            # 定位"当前异兽"和"新获异兽"标记
+            current_idx = -1
+            new_idx = -1
+            
+            for i, text in enumerate(text_list):
+                if '当前' in text:
+                    current_idx = i
+                elif '新获异兽' in text or '新异兽' in text:
+                    new_idx = i
+                    break
+            
+            if current_idx == -1:
+                self.logger.warning("未找到'当前异兽'标记")
+                return None
+            
+            if new_idx == -1:
+                self.logger.warning("未找到'新获异兽'标记")
+                return None
+            print(text_list)
+            # 解析当前异兽（从"当前异兽"之后到"新获异兽"之前）
+            current_beast = parse_single_beast(text_list, current_idx + 1, new_idx)
+            
+            # 解析新获异兽（从"新获异兽"之后到列表末尾）
+            new_beast = parse_single_beast(text_list, new_idx + 1, len(text_list))
+            
+            # 设置默认值
+            for beast in [current_beast, new_beast]:
+                if 'name' not in beast:
+                    beast['name'] = '未知'
+                if 'type' not in beast:
+                    beast['type'] = '普通'
+                if 'hp' not in beast:
+                    beast['hp'] = 0
+                if 'attack' not in beast:
+                    beast['attack'] = 0
+                if 'defense' not in beast:
+                    beast['defense'] = 0
+                if 'speed' not in beast:
+                    beast['speed'] = 0
+                if 'special_attribute' not in beast:
+                    beast['special_attribute'] = ''
+                    beast['special_value'] = 0
+            
+            self.logger.info(f"解析收服界面成功 - 当前异兽: {current_beast}, 新获异兽: {new_beast}")
+            return [current_beast, new_beast]
+            
+        except Exception as e:
+            self.logger.error(f"解析收服界面属性出错: {e}")
+            traceback.print_exc()
+            return None
+
+    def parse_beast_attributes(self, text_list):
+        """
+        解析异兽属性（基础属性界面，使用冒号分隔）
+        Args:
+            text_list: OCR识别的文字列表
+        Returns:
+            list: 包含两个异兽属性的列表 [旧异兽, 新异兽]
+        """
+        if not text_list or len(text_list) < 10:
+            self.logger.info(f"OCR识别结果太少，无法解析（只有{len(text_list) if text_list else 0}个文本片段）")
+            return None
+        
         try:
             # 辅助函数：根据关键词查找对应的数值
             def find_value_by_keyword(text_list, keyword, search_start=0, search_end=None):
                 """在指定范围内查找关键词后的数值"""
                 for i in range(search_start, len(text_list) if search_end is None else search_end):
                     if keyword in text_list[i]:
-                        # 查找关键词后面的数值
                         for j in range(i+1, min(i+5, len(text_list))):
                             try:
-                                # 尝试转换为数字
                                 value = text_list[j].replace(',', '').replace('，', '')
                                 if value.isdigit():
                                     return int(value)
@@ -333,93 +400,96 @@ class ShanHaiJing:
                                 continue
                 return None
             
-            # 辅助函数：根据Y坐标将文本分为上下两部分（旧异兽和新异兽）
-            def split_by_y_coordinate(text_list):
-                """根据Y坐标将OCR结果分为上下两部分"""
-                if not text_list:
-                    return [], []
-                count = len(text_list) // 2
-                return text_list[:count], text_list[count:]
-                # 计算所有文本的Y坐标中心点
-                
-            
             # 将OCR结果分为上下两部分
-            upper_part, lower_part = split_by_y_coordinate(text_list)
-            
-            print(f"上半部分（旧异兽）有{len(upper_part)}个文本片段")
-            print(f"下半部分（新异兽）有{len(lower_part)}个文本片段")
+            count = len(text_list) // 2
+            upper_part = text_list[:count]
+            lower_part = text_list[count:]
             
             # 解析旧异兽属性
-            old_attribute = {}
-            if upper_part:
-                # 名称通常是第一个文本
-                old_attribute['name'] = upper_part[0] if upper_part else ''
-                # 类型通常是第二个文本
-                old_attribute['type'] = upper_part[1] if len(upper_part) > 1 else ''
-                
-                # 使用关键词查找属性值
-                old_attribute['hp'] = find_value_by_keyword(upper_part, '生命') or 0
-                old_attribute['attack'] = find_value_by_keyword(upper_part, '攻击') or 0
-                old_attribute['defense'] = find_value_by_keyword(upper_part, '防御') or 0
-                old_attribute['speed'] = find_value_by_keyword(upper_part, '速度') or 0
-                
-                # 特殊属性和数值
-                special_keywords = ['闪避', '吸血', '暴击', '反击', '坚韧', '穿透', '命中', '格挡']
-                for keyword in special_keywords:
-                    if find_value_by_keyword(upper_part, keyword):
-                        old_attribute['special_attribute'] = keyword
-                        old_attribute['special_value'] = find_value_by_keyword(upper_part, keyword)
-                        break
-                
-                if 'special_attribute' not in old_attribute:
-                    old_attribute['special_attribute'] = ''
-                    old_attribute['special_value'] = '0'
+            old_beast = {}
+            for i, text in enumerate(upper_part):
+                if '：' in text or ':' in text:
+                    if '：' in text:
+                        attr_name, attr_value = text.split('：', 1)
+                    else:
+                        attr_name, attr_value = text.split(':', 1)
+                    
+                    attr_name = attr_name.strip()
+                    attr_value = attr_value.strip()
+                    
+                    if attr_name == '名称':
+                        old_beast['name'] = attr_value
+                    elif attr_name == '类型':
+                        old_beast['type'] = attr_value
+                    elif attr_name == '生命':
+                        old_beast['hp'] = int(attr_value.replace(',', '').replace('，', ''))
+                    elif attr_name == '攻击':
+                        old_beast['attack'] = int(attr_value.replace(',', '').replace('，', ''))
+                    elif attr_name == '防御':
+                        old_beast['defense'] = int(attr_value.replace(',', '').replace('，', ''))
+                    elif attr_name == '速度':
+                        old_beast['speed'] = int(attr_value.replace(',', '').replace('，', ''))
+                    elif attr_name in ['暴击', '连击', '闪避', '吸血', '反击', '击晕']:
+                        old_beast['special_attribute'] = attr_name
+                        old_beast['special_value'] = float(attr_value.replace('%', '').replace(',', '').replace('，', ''))
             
             # 解析新异兽属性
-            new_attribute = {}
-            if lower_part:
-                # 名称通常是第一个文本
-                new_attribute['name'] = lower_part[0] if lower_part else ''
-                # 类型通常是第二个文本
-                new_attribute['type'] = lower_part[1] if len(lower_part) > 1 else ''
-                
-                # 使用关键词查找属性值
-                new_attribute['hp'] = find_value_by_keyword(lower_part, '生命') or 0
-                new_attribute['attack'] = find_value_by_keyword(lower_part, '攻击') or 0
-                new_attribute['defense'] = find_value_by_keyword(lower_part, '防御') or 0
-                new_attribute['speed'] = find_value_by_keyword(lower_part, '速度') or 0
-                
-                # 特殊属性和数值
-                special_keywords = ['闪避', '吸血', '暴击', '反击', '连击', '击晕']
-                for keyword in special_keywords:
-                    if find_value_by_keyword(lower_part, keyword):
-                        new_attribute['special_attribute'] = keyword
-                        new_attribute['special_value'] = find_value_by_keyword(lower_part, keyword)
-                        break
-                
-                if 'special_attribute' not in new_attribute:
-                    new_attribute['special_attribute'] = ''
-                    new_attribute['special_value'] = '0'
+            new_beast = {}
+            for i, text in enumerate(lower_part):
+                if '：' in text or ':' in text:
+                    if '：' in text:
+                        attr_name, attr_value = text.split('：', 1)
+                    else:
+                        attr_name, attr_value = text.split(':', 1)
+                    
+                    attr_name = attr_name.strip()
+                    attr_value = attr_value.strip()
+                    
+                    if attr_name == '名称':
+                        new_beast['name'] = attr_value
+                    elif attr_name == '类型':
+                        new_beast['type'] = attr_value
+                    elif attr_name == '生命':
+                        new_beast['hp'] = int(attr_value.replace(',', '').replace('，', ''))
+                    elif attr_name == '攻击':
+                        new_beast['attack'] = int(attr_value.replace(',', '').replace('，', ''))
+                    elif attr_name == '防御':
+                        new_beast['defense'] = int(attr_value.replace(',', '').replace('，', ''))
+                    elif attr_name == '速度':
+                        new_beast['speed'] = int(attr_value.replace(',', '').replace('，', ''))
+                    elif attr_name in ['暴击', '连击', '闪避', '吸血', '反击', '击晕']:
+                        new_beast['special_attribute'] = attr_name
+                        new_beast['special_value'] = float(attr_value.replace('%', '').replace(',', '').replace('，', ''))
             
-            attributes = [old_attribute, new_attribute]
+            # 设置默认值
+            for beast in [old_beast, new_beast]:
+                if 'name' not in beast:
+                    beast['name'] = '未知'
+                if 'type' not in beast:
+                    beast['type'] = '普通'
+                if 'hp' not in beast:
+                    beast['hp'] = 0
+                if 'attack' not in beast:
+                    beast['attack'] = 0
+                if 'defense' not in beast:
+                    beast['defense'] = 0
+                if 'speed' not in beast:
+                    beast['speed'] = 0
+                if 'special_attribute' not in beast:
+                    beast['special_attribute'] = ''
+                    beast['special_value'] = 0
             
-            self.logger.info("解析结果:")
-            self.logger.info(f"  旧异兽: {old_attribute}")
-            self.logger.info(f"  新异兽: {new_attribute}")
-            
-            return attributes
-            
+            return [old_beast, new_beast]
         except Exception as e:
-            self.logger.info(f"解析异兽属性出错: {e}")
-            import traceback
-            self.logger.info(traceback.format_exc())
+            self.logger.error(f"解析异兽属性出错: {e}")
+            traceback.print_exc()
             return None
 
     def should_capture(self, beast_list):
         """
-        判断是否需要收服
+        判断是否需要收服（主入口）
         Args:
-            beast_list: 包含两个异兽属性的列表，beast_list[0]是旧属性，beast_list[1]是新属性
+            beast_list: 包含两个异兽属性的列表，beast_list[0]是当前异兽，beast_list[1]是新获异兽
         Returns:
             bool: 是否需要收服
         """
@@ -427,240 +497,124 @@ class ShanHaiJing:
             self.logger.warning("异兽属性列表为空或格式不正确，无法判断")
             return False
         
-        old_beast = beast_list[0]
+        current_beast = beast_list[0]
         new_beast = beast_list[1]
         
-        old_special = old_beast.get('special_attribute')
-        new_special = new_beast.get('special_attribute')
-        new_name = new_beast.get('name', '')
-        
-        # 记录旧异兽属性
-        self.logger.info("-" * 60)
-        self.logger.info("【旧异兽属性】")
-        self.logger.info(f"  名称: {old_beast.get('name')}")
-        self.logger.info(f"  类型: {old_beast.get('type')}")
-        self.logger.info(f"  生命: {old_beast.get('hp')}")
-        self.logger.info(f"  攻击: {old_beast.get('attack')}")
-        self.logger.info(f"  防御: {old_beast.get('defense')}")
-        self.logger.info(f"  速度: {old_beast.get('speed')}")
-        self.logger.info(f"  特殊属性: {old_special} ({old_beast.get('special_value')}%)")
-        
-        # 记录新异兽属性
-        self.logger.info("【新异兽属性】")
-        self.logger.info(f"  名称: {new_beast.get('name')}")
-        self.logger.info(f"  类型: {new_beast.get('type')}")
-        self.logger.info(f"  生命: {new_beast.get('hp')}")
-        self.logger.info(f"  攻击: {new_beast.get('attack')}")
-        self.logger.info(f"  防御: {new_beast.get('defense')}")
-        self.logger.info(f"  速度: {new_beast.get('speed')}")
-        self.logger.info(f"  特殊属性: {new_special} ({new_beast.get('special_value')}%)")
-        
-        # 规则1: 如果旧属性和新属性的特殊属性相同
-        if old_special == new_special:
-            self.logger.info("【判断规则1】新旧异兽特殊属性相同")
-            self.logger.info("【属性对比】")
-            hp_better = new_beast.get('hp', 0) > old_beast.get('hp', 0)
-            attack_better = new_beast.get('attack', 0) > old_beast.get('attack', 0)
-            defense_better = new_beast.get('defense', 0) > old_beast.get('defense', 0)
-            speed_better = new_beast.get('speed', 0) > old_beast.get('speed', 0)
-            
-            self.logger.info(f"  生命: {new_beast.get('hp')} vs {old_beast.get('hp')} - {'✓ 更好' if hp_better else '✗ 更差'}")
-            self.logger.info(f"  攻击: {new_beast.get('attack')} vs {old_beast.get('attack')} - {'✓ 更好' if attack_better else '✗ 更差'}")
-            self.logger.info(f"  防御: {new_beast.get('defense')} vs {old_beast.get('defense')} - {'✓ 更好' if defense_better else '✗ 更差'}")
-            self.logger.info(f"  速度: {new_beast.get('speed')} vs {old_beast.get('speed')} - {'✓ 更好' if speed_better else '✗ 更差'}")
-            
-            if hp_better or attack_better or defense_better or speed_better:
-                self.logger.info(f"✓ 判断结果: 新异兽至少有一项属性更好，需要收服")
-                self.logger.info("-" * 60)
-                return True
-            else:
-                self.logger.info(f"✗ 判断结果: 新异兽所有属性都不比旧的好，不收服")
-                self.logger.info("-" * 60)
-                return False
-        
-        # 规则2: 如果新异兽的特殊属性是目标属性，旧异兽不是目标属性
-        elif new_special == self.target_attribute and old_special != self.target_attribute:
-            self.logger.info("【判断规则2】新异兽是目标属性，旧异兽不是目标属性")
-            
-            # 检查新异兽名称是否包含"神兽"或"至尊神兽"
-            if '神兽' in new_name:
-                self.logger.info(f"✓ 判断结果: 新异兽名称包含'神兽'（{new_name}），收服")
-                self.logger.info("-" * 60)
-                return True
-            elif '至尊神兽' in new_name:
-                self.logger.info(f"✓ 判断结果: 新异兽名称包含'至尊神兽'（{new_name}），收服")
-                self.logger.info("-" * 60)
-                return True
-            elif '鸿蒙祖兽' in new_name:
-                self.logger.info(f"✓ 判断结果: 新异兽名称包含'鸿蒙祖兽'（{new_name}），收服")
-                self.logger.info("-" * 60)
-                return True
-            elif '混沌源兽' in new_name:
-                self.logger.info(f"✓ 判断结果: 新异兽名称包含'混沌源兽'（{new_name}），收服")
-                self.logger.info("-" * 60)
-                return True
-            else:
-                self.logger.info(f"✗ 判断结果: 新异兽名称不包含'神兽'（{new_name}），不收服")
-                self.logger.info("-" * 60)
-                return False
-        
-        # 其他情况不收服
-        else:
-            self.logger.info("【判断规则3】其他情况")
-            if new_special != self.target_attribute:
-                self.logger.info(f"✗ 判断结果: 新异兽不是目标属性（{self.target_attribute}），不收服")
-            else:
-                self.logger.info(f"✗ 判断结果: 旧异兽也是目标属性，不满足收服条件，不收服")
-            self.logger.info("-" * 60)
-            return False
-
-
+        # 使用收服策略模块判断
+        attribute_slots = self.slot_manager.get_attribute_slots()
+        return self.capture_strategy.should_capture(new_beast, current_beast, self.strategy, attribute_slots)
     
-    def check_egg_screen(self):
+    def stop(self):
+        """停止程序"""
+        self.running = False
+        self.logger.info("收到停止信号，正在退出...")
+        # 恢复电源管理
+        self.power_manager.restore_sleep()
+    
+    def click_auto_hatch_button(self):
         """
-        检查当前窗口是否在蛋界面并执行相应操作
+        检查是否没有孵蛋
         """
-        # 检查是否在孵蛋界面
-        if self.is_on_hatching_screen():
-            self.logger.info("当前在孵蛋界面")
-        else:
-            # 先点击自动孵蛋按钮
-            self.logger.info("自动孵蛋停止")
-            self.move_mouse_to_window_relative(272,754)
-            time.sleep(1)
-            # 截图并识别异兽属性
-            self.logger.info("开始OCR识别异兽属性...")
-            text_list = self.capture_and_recognize()
-            beast_list = self.parse_beast_attributes(text_list)
-            
-            # 判断是否需要收服
-            should_capture_beast = self.should_capture(beast_list)
-            
-            if should_capture_beast:
-                self.logger.info("执行收服操作")
-                self.move_mouse_to_window_relative(350, 748)  # 收服按钮位置
-                # 再点击出售按钮
-                self.move_mouse_to_window_relative(168, 748)  # 出售按钮位置
-                time.sleep(1)
-                # 判断是否出现确定按钮
-                if self.check_confim_capture():
-                    self.logger.info("点击确定按钮")
-                    self.move_mouse_to_window_relative(354, 599)
-            else:
-                self.logger.info("不收服，直接出售")
-                # 直接点击出售按钮
-                self.move_mouse_to_window_relative(168, 748)  # 出售按钮位置
+        try:
+            start_button = os.path.join(IMAGES_DIR, AUTO_EGG_IMAGE)
+            result = pyautogui.locateOnScreen(start_button, confidence=0.9)
+            if result:
+                self.mouse_controller.click_auto_hatch_button()
+                pyautogui.moveTo(1, 1)
+                print("点击自动孵蛋按钮")
+        except Exception as e:
+            pass
 
     def run(self):
         """
-        主循环 - 持续执行自动孵蛋和检查蛋界面的操作
+        执行一次孵蛋任务（不循环）
         """
-        try:
-            self.logger.info("开始运行山海北荒卷自动化脚本...")
-            time.sleep(2)
-            # while True:
-            if self.check_confim_capture():
-                self.logger.info("点击确认按钮")
-                self.move_mouse_to_window_relative(231, 608)  # 确认按钮位置
-                time.sleep(1)  # 循环间隔
-                
+        self.logger.info("开始自动孵蛋任务...")
+        lock = FileLock("auto_hatch.lock")
+        with lock:
+            try:
+                relogin_button = os.path.join(IMAGES_DIR, 'relogin_button.png')
+                result = pyautogui.locateOnScreen(relogin_button, confidence=0.8)
+                if result:
+                    self.mouse_controller.move_mouse_to_window_relative(255, 598)
+                    print("点击重新登录按钮")
+                    return 
+            except Exception as e:
+                pass
+            
             self.click_auto_hatch_button()
-            self.check_egg_screen()
-            time.sleep(1)  # 循环间隔
-        except KeyboardInterrupt:
-            self.logger.warning("程序被用户中断")
-        except Exception as error:
-            self.logger.error(f"程序运行出错：{error}d")
-            # 出错后尝试重新点击自动孵蛋按钮
-            print(traceback.format_exc())
-            self.click_auto_hatch_button()
-    
-    def __enter__(self):
-        return self 
-    
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.logger.info("上下文对象销毁")
-        for attr in list(vars(self)):
-            delattr(self, attr)
-        return False
+            
+            try: 
+                # 检查孵蛋界面
+                self.check_egg_screen()
+                self.logger.info("孵蛋任务完成")
+            except Exception as e:
+                self.logger.error(f"运行出错: {e}")
+                traceback.print_exc()
 
-def single():
-    """
-    检查当前进程是否正在运行（单实例检查）
-    使用文件锁机制实现跨平台的单实例检查
-    Returns:
-        bool: 如果进程正在运行返回True，否则返回False
-    """
-    import os
+
+# 全局应用实例
+app_instance = None
+scheduler_instance = None
+current_beast_cache = None  # 缓存当前异兽属性
+
+
+def signal_handler(signum, frame):
+    """信号处理器"""
+    print("\n收到中断信号，正在停止程序...")
+    global app_instance, scheduler_instance
     
-    # 锁文件路径
-    lock_file = os.path.join(os.path.dirname(__file__), '.shan_hai_jing.lock')
+    if app_instance:
+        app_instance.stop()
     
-    try:
-        # 尝试以独占模式打开锁文件
-        if os.name == 'nt':  # Windows系统
-            import msvcrt
-            lock_file_handle = open(lock_file, 'w')
-            try:
-                # 尝试获取文件锁（非阻塞模式）
-                msvcrt.locking(lock_file_handle.fileno(), msvcrt.LK_NBLCK, 1)
-                # 获取锁成功，写入当前进程ID
-                lock_file_handle.write(str(os.getpid()))
-                lock_file_handle.flush()
-                return False
-            except IOError:
-                # 获取锁失败，说明已有实例在运行
-                lock_file_handle.close()
-                return True
-        else:  # Unix/Linux/Mac系统
-            import fcntl
-            lock_file_handle = open(lock_file, 'w')
-            try:
-                # 尝试获取文件锁（独占锁 + 非阻塞模式）
-                fcntl.flock(lock_file_handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-                # 获取锁成功，写入当前进程ID
-                lock_file_handle.write(str(os.getpid()))
-                lock_file_handle.flush()
-                return False
-            except IOError:
-                # 获取锁失败，说明已有实例在运行
-                lock_file_handle.close()
-                return True
-    except Exception as e:
-        print(f"单实例检查出错: {e}")
-        return False
+    if scheduler_instance:
+        scheduler_instance.shutdown()
+        print("调度器已停止")
+    
+    sys.exit(0)
 
 
 def job():
-    # 检查是否已有实例在运行
-    # if single():
-    #     print("程序已在运行中，请勿重复启动！")
-    #     return
+    """
+    定时任务函数
+    """
+    global app_instance, current_beast_cache
     
-    with ShanHaiJing("山海北荒卷") as app:
-        app = ShanHaiJing("山海北荒卷")
-        app.run()
+    # 如果是第一次运行，创建新实例并获取基础属性
+    if app_instance is None:
+        app_instance = ShanHaiJing(skip_initial_ocr=True)
+        current_beast_cache = app_instance.current_beast
+        app_instance.logger.info("首次启动，已缓存当前异兽属性")
+        # 启用防锁屏
+        app_instance.power_manager.prevent_sleep()
+    else:
+        # 复用缓存的属性，避免重复OCR识别
+        app_instance = ShanHaiJing(skip_initial_ocr=True)
+        app_instance.current_beast = current_beast_cache
+        app_instance.logger.info(f"使用缓存的当前异兽属性: {current_beast_cache}")
+    
+    app_instance.run()
+    
+    # 执行完成后，更新缓存（可能在收服过程中更新了）
+    current_beast_cache = app_instance.current_beast
 
+
+if __name__ == "__main__":
+    # 注册信号处理器
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
     
+    # 使用后台调度器
+    scheduler_instance = BackgroundScheduler()
     
-if __name__ == '__main__':
-    # scheduler = BlockingScheduler()
-    scheduler = BackgroundScheduler()
+    # 每300秒执行一次
+    scheduler_instance.add_job(job, 'interval', seconds=SCHEDULER_INTERVAL)
     
-    # 配置调度器默认参数
-    job_defaults = {
-        'coalesce': True,  # 合并错过的任务
-        'max_instances': 1,  # 最多同时运行1个实例
-        'misfire_grace_time': 300  # 允许5分钟的延迟执行
-    }
-    scheduler.configure(job_defaults=job_defaults)
-    
-    scheduler.add_job(job, 'interval', seconds=60)  # 每60秒执行
     try:
-        print('调度器开始运行...')
-        scheduler.start()
+        scheduler_instance.start()
+        print("调度器已启动，按Ctrl+C退出")
         while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        scheduler.shutdown(wait=False)  # wait=False 表示不等待当前任务完成
-        print('调度器已停止')
+            time.sleep(MAIN_LOOP_WAIT_TIME)
+    except (KeyboardInterrupt, SystemExit):
+        scheduler_instance.shutdown()
+        print("调度器已停止")
