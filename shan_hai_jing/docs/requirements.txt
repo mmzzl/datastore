@@ -1,0 +1,13 @@
+# 山海北荒卷自动化脚本依赖包
+
+# 窗口管理
+pygetwindow>=0.0.9
+
+# 自动化操作
+pyautogui>=0.9.54
+
+# 任务调度
+apscheduler>=3.10.0
+
+# OCR文字识别
+paddleocr>=2.7.0
