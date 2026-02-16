@@ -40,3 +40,13 @@ eastmoney:
   enable_api: true
   timeout: 30s
   max_retries: 3
+
+# EastMoney Listed Company News Crawler Configuration
+ssgs:
+  enabled: true
+  base_url: "https://kuaixun.eastmoney.com/ssgs.html"
+  interval: 5m
+  output_dir: "./data/eastmoney/ssgs"
+  timeout: 300
+  max_retries: 3
+  max_news_items: 200

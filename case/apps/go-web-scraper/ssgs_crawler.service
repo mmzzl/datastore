@@ -1,0 +1,21 @@
+[Unit]
+Description=EastMoney Listed Company News Crawler
+After=network.target mongodb.service
+Wants=mongodb.service
+
+[Service]
+Type=simple
+User=crawler
+Group=crawler
+WorkingDirectory=/opt/go-web-scraper
+ExecStart=/opt/go-web-scraper/bin/ssgs_crawler
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/ssgs_crawler.log
+StandardError=append:/var/log/ssgs_crawler_error.log
+SyslogIdentifier=ssgs_crawler
+Environment=CONFIG_FILE=/opt/go-web-scraper/configs/config.yaml
+Environment=HEADLESS=true
+
+[Install]
+WantedBy=multi-user.target

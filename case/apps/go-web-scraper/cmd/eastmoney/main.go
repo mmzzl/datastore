@@ -14,6 +14,7 @@ import (
 
 	"go-web-scraper/internal/model"
 	"go-web-scraper/internal/storage"
+	"go-web-scraper/internal/utils"
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/chromedp/chromedp"
@@ -90,13 +91,20 @@ func NewCrawler(cfg *Config) (*Crawler, error) {
 }
 
 func (c *Crawler) fetchWithChrome(ctx context.Context) (string, error) {
-	opts := append(chromedp.DefaultExecAllocatorOptions[:],
+	opts := []chromedp.ExecAllocatorOption{
 		chromedp.Flag("headless", c.config.Headless),
 		chromedp.Flag("disable-gpu", true),
 		chromedp.Flag("no-sandbox", true),
 		chromedp.Flag("disable-dev-shm-usage", true),
 		chromedp.UserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"),
-	)
+	}
+
+	if chromePath := utils.GetChromePath(); chromePath != "" {
+		opts = append(opts, chromedp.ExecPath(chromePath))
+		log.Printf("Using Chrome at: %s", chromePath)
+	} else {
+		log.Printf("Warning: Chrome not found, using system default")
+	}
 
 	allocCtx, cancel := chromedp.NewExecAllocator(ctx, opts...)
 	defer cancel()

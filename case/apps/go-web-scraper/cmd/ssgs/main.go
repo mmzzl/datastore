@@ -14,6 +14,7 @@ import (
 
 	"go-web-scraper/internal/model"
 	"go-web-scraper/internal/storage"
+	"go-web-scraper/internal/utils"
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/chromedp/chromedp"
@@ -41,18 +42,23 @@ type YAMLConfig struct {
 			OutputDir string `yaml:"output_dir"`
 		} `yaml:"json"`
 	} `yaml:"storage"`
+	SSGS struct {
+		MaxNewsItems int `yaml:"max_news_items"`
+		Timeout     int  `yaml:"timeout"`
+	} `yaml:"ssgs"`
 }
 
 type Config struct {
-	Interval   time.Duration
-	OutputDir  string
-	MaxRetries int
-	Timeout    time.Duration
-	Headless   bool
-	MongoURI   string
-	MongoDB    string
-	MongoColl  string
-	UseMongoDB bool
+	Interval     time.Duration
+	OutputDir    string
+	MaxRetries   int
+	Timeout      time.Duration
+	Headless     bool
+	MongoURI     string
+	MongoDB      string
+	MongoColl    string
+	UseMongoDB   bool
+	MaxNewsItems int
 }
 
 type SSGSCrawler struct {
@@ -95,13 +101,20 @@ func NewSSGSCrawler(cfg *Config) (*SSGSCrawler, error) {
 }
 
 func (c *SSGSCrawler) fetchWithChrome(ctx context.Context) (string, error) {
-	opts := append(chromedp.DefaultExecAllocatorOptions[:],
+	opts := []chromedp.ExecAllocatorOption{
 		chromedp.Flag("headless", c.config.Headless),
 		chromedp.Flag("disable-gpu", true),
 		chromedp.Flag("no-sandbox", true),
 		chromedp.Flag("disable-dev-shm-usage", true),
 		chromedp.UserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"),
-	)
+	}
+
+	if chromePath := utils.GetChromePath(); chromePath != "" {
+		opts = append(opts, chromedp.ExecPath(chromePath))
+		log.Printf("Using Chrome at: %s", chromePath)
+	} else {
+		log.Printf("Warning: Chrome not found, using system default")
+	}
 
 	allocCtx, cancel := chromedp.NewExecAllocator(ctx, opts...)
 	defer cancel()
@@ -118,6 +131,21 @@ func (c *SSGSCrawler) fetchWithChrome(ctx context.Context) (string, error) {
 		chromedp.Sleep(5*time.Second),
 		chromedp.WaitReady(".news_item", chromedp.ByQuery),
 		chromedp.Sleep(2*time.Second),
+	)
+
+	if err != nil {
+		return "", fmt.Errorf("chromedp run failed: %w", err)
+	}
+
+	if c.config.MaxNewsItems > 50 {
+		log.Printf("Loading more news items (target: %d)...", c.config.MaxNewsItems)
+		err := c.loadMoreNews(timeoutCtx, c.config.MaxNewsItems)
+		if err != nil {
+			log.Printf("Warning: Failed to load more news: %v", err)
+		}
+	}
+
+	err = chromedp.Run(timeoutCtx,
 		chromedp.OuterHTML("html", &htmlContent),
 	)
 
@@ -126,6 +154,95 @@ func (c *SSGSCrawler) fetchWithChrome(ctx context.Context) (string, error) {
 	}
 
 	return htmlContent, nil
+}
+
+func (c *SSGSCrawler) loadMoreNews(ctx context.Context, targetCount int) error {
+	var currentCount int
+	maxAttempts := 20
+	attempt := 0
+
+	for attempt < maxAttempts {
+		attempt++
+
+		log.Printf("Checking for 'load more' button (attempt %d/%d)...", attempt, maxAttempts)
+
+		var hasButton bool
+		err := chromedp.Run(ctx,
+			chromedp.Evaluate(`
+				(function() {
+					const button1 = document.querySelector('.search_load_more');
+					const button2 = document.querySelector('.load_more');
+					const button = button1 || button2;
+					return button !== null;
+				})()
+			`, &hasButton),
+		)
+
+		if err != nil {
+			log.Printf("Warning: Failed to check button: %v", err)
+			break
+		}
+
+		if !hasButton {
+			log.Printf("No more 'load more' button found, current count: %d", currentCount)
+			break
+		}
+
+		log.Printf("Found 'load more' button, clicking...")
+
+		err = chromedp.Run(ctx,
+			chromedp.Evaluate(`
+				(function() {
+					const button1 = document.querySelector('.search_load_more');
+					const button2 = document.querySelector('.load_more');
+					const button = button1 || button2;
+					if (button) {
+						button.click();
+						return true;
+					}
+					return false;
+				})()
+			`, nil),
+			chromedp.Sleep(2*time.Second),
+			chromedp.Evaluate(`window.scrollTo(0, document.body.scrollHeight)`, nil),
+			chromedp.Sleep(3*time.Second),
+		)
+
+		if err != nil {
+			return fmt.Errorf("click button failed: %w", err)
+		}
+
+		var count int
+		err = chromedp.Run(ctx,
+			chromedp.Evaluate(`
+				(function() {
+					const items = document.querySelectorAll('.news_item');
+					return items.length;
+				})()
+			`, &count),
+		)
+
+		if err != nil {
+			return fmt.Errorf("count items failed: %w", err)
+		}
+
+		if count == currentCount {
+			log.Printf("No new items loaded, current count: %d", count)
+			break
+		}
+
+		currentCount = count
+		log.Printf("Loaded %d news items (attempt %d/%d)", currentCount, attempt, maxAttempts)
+
+		if currentCount >= targetCount {
+			log.Printf("Reached target count: %d", currentCount)
+			break
+		}
+
+		time.Sleep(2 * time.Second)
+	}
+
+	return nil
 }
 
 func (c *SSGSCrawler) parseNews(html string) []model.EastMoneyNews {
@@ -349,10 +466,20 @@ func main() {
 			if yamlConfig.Storage.JSON.OutputDir != "" {
 				cfg.OutputDir = yamlConfig.Storage.JSON.OutputDir + "/ssgs"
 			}
+			if yamlConfig.SSGS.MaxNewsItems > 0 {
+				cfg.MaxNewsItems = yamlConfig.SSGS.MaxNewsItems
+				log.Printf("Configured max_news_items: %d", cfg.MaxNewsItems)
+			}
+			if yamlConfig.SSGS.Timeout > 0 {
+				cfg.Timeout = time.Duration(yamlConfig.SSGS.Timeout) * time.Second
+				log.Printf("Configured timeout: %v", cfg.Timeout)
+			}
 			if cfg.MongoURI != "" {
 				cfg.UseMongoDB = true
 			}
 		}
+	} else {
+		log.Printf("Warning: Failed to read config file %s: %v", configFile, err)
 	}
 
 	crawler, err := NewSSGSCrawler(cfg)
