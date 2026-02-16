@@ -1,0 +1,40 @@
+.PHONY: all build eastmoney ssgs clean run-eastmoney run-ssgs
+
+VERSION=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+BUILD_TIME=$(shell date +%FT%T%z 2>/dev/null || echo "unknown")
+LDFLAGS=-ldflags "-s -w -X main.Version=${VERSION} -X main.BuildTime=${BUILD_TIME}"
+
+# Detect OS
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Linux)
+    BINARY_EXT :=
+else
+    BINARY_EXT := .exe
+endif
+
+all: build
+
+build: eastmoney ssgs
+
+eastmoney:
+	@echo "Building eastmoney crawler..."
+	cd cmd/eastmoney && go build ${LDFLAGS} -o ../../bin/eastmoney_crawler${BINARY_EXT} main.go
+	@echo "✓ eastmoney_crawler${BINARY_EXT} built successfully"
+
+ssgs:
+	@echo "Building ssgs crawler..."
+	cd cmd/ssgs && go build ${LDFLAGS} -o ../../bin/ssgs_crawler${BINARY_EXT} main.go
+	@echo "✓ ssgs_crawler${BINARY_EXT} built successfully"
+
+clean:
+	@echo "Cleaning build artifacts..."
+	rm -rf bin/
+	@echo "✓ Clean completed"
+
+run-eastmoney:
+	@echo "Running eastmoney crawler..."
+	./bin/eastmoney_crawler${BINARY_EXT}
+
+run-ssgs:
+	@echo "Running ssgs crawler..."
+	./bin/ssgs_crawler${BINARY_EXT}
