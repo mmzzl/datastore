@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"go-web-scraper/internal/api"
 	"go-web-scraper/internal/model"
 	"go-web-scraper/internal/storage"
 	"go-web-scraper/internal/utils"
@@ -57,6 +58,8 @@ type Crawler struct {
 	seenIDs  map[string]bool
 	mu       sync.RWMutex
 	stopChan chan struct{}
+	apiClient *api.FastNewsClient
+	stateManager *storage.CrawlStateManager
 }
 
 func NewCrawler(cfg *Config) (*Crawler, error) {
@@ -82,11 +85,21 @@ func NewCrawler(cfg *Config) (*Crawler, error) {
 		store = storage.NewDailyJSONStorage(cfg.OutputDir)
 	}
 
+	var stateManager *storage.CrawlStateManager
+	if cfg.UseMongoDB && cfg.MongoURI != "" {
+		stateManager, err = storage.NewCrawlStateManager(cfg.MongoURI, cfg.MongoDB)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create crawl state manager: %w", err)
+		}
+	}
+
 	return &Crawler{
 		config:   cfg,
 		storage:  store,
 		seenIDs:  make(map[string]bool),
 		stopChan: make(chan struct{}),
+		apiClient: api.NewFastNewsClient(),
+		stateManager: stateManager,
 	}, nil
 }
 
@@ -129,6 +142,42 @@ func (c *Crawler) fetchWithChrome(ctx context.Context) (string, error) {
 	}
 
 	return htmlContent, nil
+}
+
+func (c *Crawler) fetchWithAPI() ([]model.EastMoneyNews, error) {
+	maxCount := 200
+	
+	apiNews, err := c.apiClient.GetAllNews(maxCount)
+	if err != nil {
+		return nil, fmt.Errorf("API request failed: %w", err)
+	}
+
+	if len(apiNews) == 0 {
+		log.Printf("No news found")
+		return []model.EastMoneyNews{}, nil
+	}
+
+	var newsList []model.EastMoneyNews
+	for _, item := range apiNews {
+		title, content := c.apiClient.ExtractTitleAndContent(item.Summary)
+		if title == "" {
+			continue
+		}
+
+		news := model.EastMoneyNews{
+			ID:          item.Code,
+			Title:       title,
+			Content:     content,
+			PublishTime: item.ShowTime,
+			Source:      "东方财富快讯",
+			URL:         fmt.Sprintf("https://finance.eastmoney.com/a/%s.html", item.Code),
+			CreatedAt:   time.Now(),
+		}
+
+		newsList = append(newsList, news)
+	}
+
+	return newsList, nil
 }
 
 var timePattern = regexp.MustCompile(`^\s*(\d{1,2}:\d{2})\s*$`)
@@ -256,7 +305,7 @@ func (c *Crawler) parseTextFormat(doc *goquery.Document, today string) []model.E
 		}
 	}
 
-	if currentNews != nil && currentNews.Title != "" {
+	if currentNews != nil && currentNews.Title != "" && currentNews.Content != "" {
 		currentNews.ID = generateID(today, currentNews.PublishTime, currentNews.Title)
 		newsList = append(newsList, *currentNews)
 	}
@@ -289,12 +338,20 @@ func extractTitleAndContent(titleText, contentText string) (string, string) {
 
 func formatPublishTime(timeText, today string) string {
 	if timeText == "" {
-		return today + " " + time.Now().Format("15:04")
+		return ""
 	}
 
 	timeText = strings.TrimSpace(timeText)
+	
 	if len(timeText) == 5 && strings.Contains(timeText, ":") {
 		return today + " " + timeText
+	}
+
+	if strings.Contains(timeText, "月") && strings.Contains(timeText, "日") {
+		if strings.Contains(timeText, ":") {
+			return timeText
+		}
+		return timeText + " 00:00"
 	}
 
 	return timeText
@@ -313,17 +370,12 @@ func (c *Crawler) markSeen(id string) {
 }
 
 func (c *Crawler) crawlOnce() (int, error) {
-	ctx := context.Background()
-
-	html, err := c.fetchWithChrome(ctx)
+	newsList, err := c.fetchWithAPI()
 	if err != nil {
-		return 0, fmt.Errorf("fetch HTML failed: %w", err)
+		return 0, fmt.Errorf("fetch news failed: %w", err)
 	}
 
-	log.Printf("HTML fetched, size: %d bytes", len(html))
-
-	newsList := c.parseNews(html)
-	log.Printf("Parsed %d news items", len(newsList))
+	log.Printf("Fetched %d news items from API", len(newsList))
 
 	var newNews []interface{}
 	for _, news := range newsList {

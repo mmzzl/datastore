@@ -6,6 +6,7 @@ import (
 	"log"
 	"time"
 
+	"go-web-scraper/internal/model"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -74,23 +75,32 @@ func (m *MongoDBStorage) BatchSave(ctx context.Context, batch []interface{}) err
 	var skippedCount int
 
 	for _, item := range batch {
+		var id string
+		
 		if itemMap, ok := item.(map[string]interface{}); ok {
-			if id, exists := itemMap["id"].(string); exists {
-				filter := bson.M{"id": id}
-				count, err := m.collection.CountDocuments(ctx, filter)
-				if err != nil {
-					log.Printf("Failed to check document existence for id %s: %v", id, err)
-					documents = append(documents, item)
-				} else if count > 0 {
-					skippedCount++
-					log.Printf("Document with id %s already exists, skipping", id)
-				} else {
-					documents = append(documents, item)
-				}
+			if idValue, exists := itemMap["id"].(string); exists {
+				id = idValue
+			}
+		} else if news, ok := item.(model.EastMoneyNews); ok {
+			id = news.ID
+		} else if newsPtr, ok := item.(*model.EastMoneyNews); ok {
+			id = newsPtr.ID
+		}
+		
+		if id != "" {
+			filter := bson.M{"id": id}
+			count, err := m.collection.CountDocuments(ctx, filter)
+			if err != nil {
+				log.Printf("Failed to check document existence for id %s: %v", id, err)
+				documents = append(documents, item)
+			} else if count > 0 {
+				skippedCount++
+				log.Printf("Document with id %s already exists, skipping", id)
 			} else {
 				documents = append(documents, item)
 			}
 		} else {
+			log.Printf("Warning: item has no id, will be inserted")
 			documents = append(documents, item)
 		}
 	}
@@ -100,9 +110,11 @@ func (m *MongoDBStorage) BatchSave(ctx context.Context, batch []interface{}) err
 		if err != nil {
 			return fmt.Errorf("failed to insert documents: %w", err)
 		}
-		log.Printf("Inserted %d new documents, skipped %d existing documents", len(documents), skippedCount)
-	} else if skippedCount > 0 {
-		log.Printf("All %d documents already exist, skipped", skippedCount)
+		log.Printf("Inserted %d new documents", len(documents))
+	}
+
+	if skippedCount > 0 {
+		log.Printf("Skipped %d duplicate documents", skippedCount)
 	}
 
 	return nil
