@@ -106,7 +106,7 @@ class SpiderService:
                 # 创建并启动进程
                 logger.info("创建并启动调度器进程...")
                 self.scheduler_process = multiprocessing.Process(target=run_scheduler)
-                self.scheduler_process.daemon = True
+                self.scheduler_process.daemon = False  # 改为非守护进程，允许创建子进程
                 self.scheduler_process.start()
                 
                 # 等待一小段时间，确保进程已经启动
