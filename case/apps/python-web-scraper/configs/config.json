@@ -1,0 +1,29 @@
+{
+  "api": {
+    "base_url": "https://np-weblist.eastmoney.com",
+    "news_list_endpoint": "/comm/web/getFastNewsList",
+    "news_count_endpoint": "/comm/web/getFastNewsCount",
+    "default_params": {
+      "client": "web",
+      "biz": "web_724",
+      "fastColumn": "101",
+      "pageSize": "50"
+    }
+  },
+  "mongodb": {
+    "host": "121.37.47.63",
+    "port": 27017,
+    "username": "admin",
+    "password": "aa123aaqqA!",
+    "db": "eastmoney_news",
+    "collection": "news"
+  },
+  "spider": {
+    "name": "eastmoney_news",
+    "interval": 10,
+    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+  },
+  "storage": {
+    "progress_file": "progress.json"
+  }
+}
