@@ -1,0 +1,10 @@
+fastapi==0.109.0
+uvicorn==0.27.0
+baostock==0.8.8
+pymongo==4.6.1
+apscheduler==3.10.4
+requests==2.31.0
+pydantic==2.5.3
+python-dotenv==1.0.0
+pyyaml==6.0.1
+pydantic-settings==2.1.0

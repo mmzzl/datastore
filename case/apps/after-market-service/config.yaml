@@ -1,0 +1,21 @@
+database:
+  host: "localhost"
+  port: 27017
+  name: "after_market"
+
+news_api:
+  base_url: "http://life233.top"
+  username: "admin"
+  password: "admin"
+
+dingtalk:
+  webhook_url: ""
+  secret: ""
+
+scheduler:
+  time: "20:00"
+  timezone: "Asia/Shanghai"
+
+app:
+  host: "0.0.0.0"
+  port: 8080
