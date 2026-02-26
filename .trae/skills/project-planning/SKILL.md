@@ -9,7 +9,7 @@ This skill provides a structured approach to creating comprehensive project plan
 
 ## Overview
 
-Effective project planning is essential for successful software development. This skill combines requirement analysis techniques with detailed implementation planning to create roadmaps that ensure projects meet stakeholder needs while following best practices.
+Effective project planning is essential for successful software development. This skill combines requirement analysis techniques with detailed implementation planning, integrating existing skills including test-driven development (TDD), comprehensive testing, code review, and evaluation tools to create roadmaps that ensure projects meet stakeholder needs while following best practices.
 
 ## When to Use
 
@@ -61,9 +61,10 @@ Effective project planning is essential for successful software development. Thi
 - Estimate effort and time requirements
 
 #### Development Workflow
-- Implement test-driven development approach
-- Plan for code review and quality assurance
-- Define integration and deployment strategies
+- Implement test-driven development (TDD) approach with comprehensive test coverage
+- Plan for structured code review processes using existing review tools
+- Define integration and deployment strategies with automated testing
+- Incorporate evaluation and scoring tools for quality assessment
 
 #### Risk Management
 - Identify potential risks and challenges
@@ -73,14 +74,15 @@ Effective project planning is essential for successful software development. Thi
 ### 4. Testing and Quality Assurance
 
 #### Test Strategy
-- Define test types and coverage
-- Plan for unit, integration, and end-to-end tests
-- Establish test environments and data
+- Define test types and coverage using existing TDD practices
+- Plan for unit, integration, and end-to-end tests with comprehensive test suites
+- Establish test environments and data using existing testing tools
 
 #### Quality Assurance
-- Define code quality standards
-- Plan for code review processes
-- Establish performance and security testing
+- Define code quality standards with measurable metrics
+- Plan for code review processes using existing review tools
+- Establish performance and security testing protocols
+- Implement evaluation and scoring tools for continuous quality assessment
 
 ### 5. Project Monitoring and Control
 
@@ -211,7 +213,9 @@ python-web-scraper/
 - **Documentation:** Confluence, Google Docs
 - **Version Control:** Git, GitHub, GitLab
 - **CI/CD:** Jenkins, GitHub Actions, GitLab CI
-- **Testing:** pytest, unittest, Selenium
+- **Testing:** pytest, unittest, Selenium, existing TDD tools
+- **Code Review:** Existing review and evaluation tools
+- **Quality Assessment:** Scoring and evaluation tools
 
 ## Common Challenges
 

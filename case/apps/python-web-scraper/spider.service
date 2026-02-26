@@ -5,7 +5,7 @@ After=network.target
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/path/to/python-web-scraper
+WorkingDirectory=/home/fantom/datastore/case/apps/python-web-scraper
 ExecStart=/root/.pyenv/shims/python /home/fantom/datastore/case/apps/python-web-scraper/spider_service.py start
 ExecStop=/root/.pyenv/shims/python /home/fantom/datastore/case/apps/python-web-scraper/spider_service.py stop
 ExecReload=/root/.pyenv/shims/python //home/fantom/datastore/case/apps/python-web-scraper/spider_service.py restart

@@ -1,0 +1,30 @@
+# 应用配置
+app:
+  name: "News API"
+  version: "1.0.0"
+  description: "提供日、周、月新闻查询接口"
+
+# MongoDB配置
+mongodb:
+  host: "127.0.0.1"
+  port: 27017
+  username: "admin"
+  password: "aa123aaqqA!"
+  database: "eastmoney_news"
+  collection: "news"
+
+# JWT配置
+jwt:
+  secret_key: "bcb8b7160371aa0514fcba286c8c9e774eb854a76ab0c3dc9332c0b32cd3d936531d629db54d80edbab74008c4c33ea21f5a1ed99295282de4d5517ee51bd76f"
+  algorithm: "HS256"
+  access_token_expire_minutes: 30
+
+# 认证配置
+auth:
+  username: "admin"
+  password: "sip@1234"
+
+# 日志配置
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
