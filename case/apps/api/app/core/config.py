@@ -26,6 +26,18 @@ class Settings(BaseSettings):
     auth_username: str = "admin"
     auth_password: str = "admin"
     
+    # 盘后服务配置
+    after_market_mongodb_host: str = "localhost"
+    after_market_mongodb_port: int = 27017
+    after_market_mongodb_database: str = "after_market"
+    after_market_news_api_url: str = "http://life233.top"
+    after_market_news_api_username: str = "admin"
+    after_market_news_api_password: str = "admin"
+    after_market_dingtalk_webhook: str = ""
+    after_market_dingtalk_secret: str = ""
+    after_market_scheduler_time: str = "20:00"
+    after_market_scheduler_timezone: str = "Asia/Shanghai"
+    
     # 日志配置
     logging_level: str = "INFO"
     logging_format: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -58,7 +70,17 @@ def load_config() -> Settings:
             auth_username=config_data.get("auth", {}).get("username", "admin"),
             auth_password=config_data.get("auth", {}).get("password", "admin"),
             logging_level=config_data.get("logging", {}).get("level", "INFO"),
-            logging_format=config_data.get("logging", {}).get("format", "%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+            logging_format=config_data.get("logging", {}).get("format", "%(asctime)s - %(name)s - %(levelname)s - %(message)s"),
+            after_market_mongodb_host=config_data.get("after_market", {}).get("mongodb", {}).get("host", "localhost"),
+            after_market_mongodb_port=config_data.get("after_market", {}).get("mongodb", {}).get("port", 27017),
+            after_market_mongodb_database=config_data.get("after_market", {}).get("mongodb", {}).get("database", "after_market"),
+            after_market_news_api_url=config_data.get("after_market", {}).get("news_api_url", "http://life233.top"),
+            after_market_news_api_username=config_data.get("after_market", {}).get("news_api_username", "admin"),
+            after_market_news_api_password=config_data.get("after_market", {}).get("news_api_password", "admin"),
+            after_market_dingtalk_webhook=config_data.get("after_market", {}).get("dingtalk_webhook", ""),
+            after_market_dingtalk_secret=config_data.get("after_market", {}).get("dingtalk_secret", ""),
+            after_market_scheduler_time=config_data.get("after_market", {}).get("scheduler_time", "20:00"),
+            after_market_scheduler_timezone=config_data.get("after_market", {}).get("scheduler_timezone", "Asia/Shanghai"),
         )
     else:
         settings = Settings()

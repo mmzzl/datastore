@@ -28,3 +28,17 @@ auth:
 logging:
   level: "INFO"
   format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+# 盘后信息服务配置
+after_market:
+  mongodb:
+    host: "localhost"
+    port: 27017
+    database: "after_market"
+  news_api_url: "http://life233.top"
+  news_api_username: "admin"
+  news_api_password: "admin"
+  dingtalk_webhook: ""
+  dingtalk_secret: ""
+  scheduler_time: "20:00"
+  scheduler_timezone: "Asia/Shanghai"

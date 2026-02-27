@@ -4,3 +4,8 @@ pymongo
 python-jose[cryptography]
 pydantic-settings
 python-multipart
+baostock
+pandas
+requests
+apscheduler
+pyyaml
