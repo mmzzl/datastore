@@ -4,7 +4,7 @@ import logging
 
 from ...storage import MongoStorage
 from ...scheduler import AfterMarketJob
-from ....core.config import settings
+from ...core.config import settings
 
 logger = logging.getLogger(__name__)
 
