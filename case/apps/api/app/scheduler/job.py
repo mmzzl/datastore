@@ -2,7 +2,7 @@ from datetime import datetime, date, timedelta
 from typing import Dict, Any, List, Optional
 import logging
 
-from ..collector import BaoStockClient, NewsClient
+from ..collector import AkshareClient, NewsClient
 from ..storage import MongoStorage
 from ..notify import DingTalkNotifier
 
@@ -12,14 +12,14 @@ logger = logging.getLogger(__name__)
 class AfterMarketJob:
     def __init__(self, config: Dict[str, Any]):
         self.config = config
-        self.bs_client = None
+        self.ak_client = None
         self.news_client = None
         self.storage = None
         self.notifier = None
 
     def _ensure_clients(self):
-        if self.bs_client is None:
-            self.bs_client = BaoStockClient()
+        if self.ak_client is None:
+            self.ak_client = AkshareClient()
         
         if self.news_client is None:
             news_config = self.config.get("news_api", {})
@@ -88,20 +88,18 @@ class AfterMarketJob:
         finally:
             if self.storage:
                 self.storage.close()
-            if self.bs_client:
-                self.bs_client._logout()
 
     def _fetch_market_overview(self, date_str: str) -> Dict[str, Any]:
-        return self.bs_client.get_market_overview(date_str)
+        return self.ak_client.get_market_overview(date_str)
 
     def _fetch_stock_data(self, date_str: str) -> List[Dict[str, Any]]:
-        return self.bs_client.get_stock_data(date_str, limit=50)
+        return self.ak_client.get_stock_data(date_str, limit=50)
 
     def _fetch_capital_flow(self, date_str: str) -> Dict[str, Any]:
-        return self.bs_client.get_capital_flow(date_str)
+        return self.ak_client.get_capital_flow(date_str)
 
     def _fetch_sector_data(self, date_str: str) -> List[Dict[str, Any]]:
-        return self.bs_client.get_sector_data(date_str)
+        return self.ak_client.get_sector_data(date_str)
 
     def _fetch_news(self, date_str: str) -> List[Dict[str, Any]]:
         return self.news_client.get_all_news(date_str, limit=20)

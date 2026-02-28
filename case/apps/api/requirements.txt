@@ -4,7 +4,7 @@ pymongo
 python-jose[cryptography]
 pydantic-settings
 python-multipart
-baostock
+akshare
 pandas
 requests
 apscheduler
