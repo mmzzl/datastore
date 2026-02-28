@@ -41,6 +41,12 @@ class Settings(BaseSettings):
     logging_file: str = "logs/app.log"
     logging_backup_count: int = 30  # 保留30天日志
     
+    # LLM配置
+    llm_provider: str = "deepseek"
+    llm_api_key: str = ""
+    llm_model: str = "deepseek-chat"
+    llm_base_url: str = "https://api.deepseek.com"
+    
     class Config:
         env_file = ".env"
         case_sensitive = False
@@ -72,6 +78,10 @@ def load_config() -> Settings:
             logging_format=config_data.get("logging", {}).get("format", "%(asctime)s - %(name)s - %(levelname)s - %(message)s"),
             logging_file=config_data.get("logging", {}).get("file", "logs/app.log"),
             logging_backup_count=config_data.get("logging", {}).get("backup_count", 30),
+            llm_provider=config_data.get("llm", {}).get("provider", "deepseek"),
+            llm_api_key=config_data.get("llm", {}).get("api_key", ""),
+            llm_model=config_data.get("llm", {}).get("model", "deepseek-chat"),
+            llm_base_url=config_data.get("llm", {}).get("base_url", "https://api.deepseek.com"),
             after_market_news_api_url=config_data.get("after_market", {}).get("news_api_url", "http://life233.top"),
             after_market_news_api_username=config_data.get("after_market", {}).get("news_api_username", "admin"),
             after_market_news_api_password=config_data.get("after_market", {}).get("news_api_password", "admin"),

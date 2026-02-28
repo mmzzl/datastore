@@ -31,6 +31,13 @@ logging:
   file: "logs/app.log"
   backup_count: 30
 
+# LLM配置
+llm:
+  provider: "deepseek"
+  api_key: ""
+  model: "deepseek-chat"
+  base_url: "https://api.deepseek.com"
+
 # 盘后信息服务配置
 after_market:
   news_api_url: "http://life233.top"
