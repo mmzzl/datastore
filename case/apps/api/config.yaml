@@ -6,7 +6,7 @@ app:
 
 # MongoDB配置
 mongodb:
-  host: "127.0.0.1"
+  host: "121.37.47.63"
   port: 27017
   username: "admin"
   password: "aa123aaqqA!"
@@ -27,23 +27,23 @@ auth:
 # 日志配置
 logging:
   level: "INFO"
-  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(filename)s - %(funcName)s - %(lineno)d - %(message)s"
   file: "logs/app.log"
   backup_count: 30
 
 # LLM配置
 llm:
   provider: "deepseek"
-  api_key: ""
+  api_key: "sk-0534dba7771c44e1b89c7eb46c168dfd"
   model: "deepseek-chat"
   base_url: "https://api.deepseek.com"
 
 # 盘后信息服务配置
 after_market:
-  news_api_url: "http://life233.top"
+  news_api_url: "https://www.life233.top"
   news_api_username: "admin"
-  news_api_password: "admin"
-  dingtalk_webhook: ""
-  dingtalk_secret: ""
-  scheduler_time: "20:00"
+  news_api_password: "sip@1234"
+  dingtalk_webhook: "https://oapi.dingtalk.com/robot/send?access_token=7c358aa51936f007c951ac2cf9387e235d1e845b5cd639837e9a884d483c6657"
+  dingtalk_secret: "SEC1d98f39e4143ee506dc5cb059f8dc7f949f18576bde03f98d74595a2aa56f9dd"
+  scheduler_time: "10:55"
   scheduler_timezone: "Asia/Shanghai"

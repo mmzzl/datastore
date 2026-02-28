@@ -44,7 +44,9 @@ class AfterMarketJob:
             self.storage = MongoStorage(
                 db_config.get("host", "localhost"),
                 db_config.get("port", 27017),
-                db_config.get("name", "after_market")
+                db_config.get("name", "after_market"),
+                db_config.get("username"),
+                db_config.get("password")
             )
             self.storage.connect()
         

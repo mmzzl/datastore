@@ -8,17 +8,23 @@ logger = logging.getLogger(__name__)
 
 
 class MongoStorage:
-    def __init__(self, host: str, port: int, db_name: str):
+    def __init__(self, host: str, port: int, db_name: str, username: str = None, password: str = None):
         self.host = host
         self.port = port
         self.db_name = db_name
+        self.username = username
+        self.password = password
         self.client = None
         self.db = None
         self.collection = None
 
     def connect(self):
         try:
-            self.client = MongoClient(self.host, self.port)
+            if self.username and self.password:
+                connection_string = f"mongodb://{self.username}:{self.password}@{self.host}:{self.port}"
+                self.client = MongoClient(connection_string)
+            else:
+                self.client = MongoClient(self.host, self.port)
             self.db = self.client[self.db_name]
             self.collection = self.db["after_market"]
             self.client.admin.command('ping')

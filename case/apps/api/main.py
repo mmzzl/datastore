@@ -67,6 +67,8 @@ def run_scheduled_job():
                 "host": settings.mongodb_host,
                 "port": settings.mongodb_port,
                 "name": settings.mongodb_database,
+                "username": settings.mongodb_username,
+                "password": settings.mongodb_password,
             },
             "news_api": {
                 "base_url": settings.after_market_news_api_url,

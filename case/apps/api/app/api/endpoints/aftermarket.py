@@ -15,7 +15,9 @@ def get_storage() -> MongoStorage:
     storage = MongoStorage(
         settings.mongodb_host,
         settings.mongodb_port,
-        settings.mongodb_database
+        settings.mongodb_database,
+        settings.mongodb_username,
+        settings.mongodb_password
     )
     storage.connect()
     try:
@@ -73,6 +75,8 @@ def trigger_job(date: Optional[str] = None):
                 "host": settings.mongodb_host,
                 "port": settings.mongodb_port,
                 "name": settings.mongodb_database,
+                "username": settings.mongodb_username,
+                "password": settings.mongodb_password,
             },
             "news_api": {
                 "base_url": settings.after_market_news_api_url,

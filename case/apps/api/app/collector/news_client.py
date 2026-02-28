@@ -11,7 +11,8 @@ class NewsClient:
         resp = requests.post(
             f"{self.base_url}/api/auth/token",
             json={"username": username, "password": password},
-            timeout=10
+            timeout=10,
+            verify=False
         )
         resp.raise_for_status()
         return resp.json()["access_token"]
@@ -22,7 +23,8 @@ class NewsClient:
             f"{self.base_url}{endpoint}",
             params=params,
             headers=headers,
-            timeout=30
+            timeout=30,
+            verify=False
         )
         resp.raise_for_status()
         return resp.json()
