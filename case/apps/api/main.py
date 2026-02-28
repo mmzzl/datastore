@@ -5,11 +5,33 @@ from app.api.endpoints import auth, news, aftermarket
 from app.core.config import settings
 from app.core.error import setup_error_handlers
 import logging
+from logging.handlers import RotatingFileHandler
+import os
 
+# 确保日志目录存在
+log_file = settings.logging_file
+log_dir = os.path.dirname(log_file)
+if log_dir and not os.path.exists(log_dir):
+    os.makedirs(log_dir)
+
+# 配置日志
 logging.basicConfig(
     level=getattr(logging, settings.logging_level),
     format=settings.logging_format
 )
+
+# 添加文件日志处理器
+file_handler = RotatingFileHandler(
+    log_file,
+    maxBytes=settings.logging_max_bytes,
+    backupCount=settings.logging_backup_count,
+    encoding='utf-8'
+)
+file_handler.setLevel(getattr(logging, settings.logging_level))
+file_handler.setFormatter(logging.Formatter(settings.logging_format))
+
+# 添加到根logger
+logging.getLogger().addHandler(file_handler)
 
 scheduler = BackgroundScheduler()
 
