@@ -13,9 +13,9 @@ router = APIRouter(prefix="/after-market", tags=["盘后信息"])
 
 def get_storage() -> MongoStorage:
     storage = MongoStorage(
-        settings.after_market_mongodb_host,
-        settings.after_market_mongodb_port,
-        settings.after_market_mongodb_database
+        settings.mongodb_host,
+        settings.mongodb_port,
+        settings.mongodb_database
     )
     storage.connect()
     try:
@@ -70,9 +70,9 @@ def trigger_job(date: Optional[str] = None):
     try:
         config = {
             "database": {
-                "host": settings.after_market_mongodb_host,
-                "port": settings.after_market_mongodb_port,
-                "name": settings.after_market_mongodb_database,
+                "host": settings.mongodb_host,
+                "port": settings.mongodb_port,
+                "name": settings.mongodb_database,
             },
             "news_api": {
                 "base_url": settings.after_market_news_api_url,

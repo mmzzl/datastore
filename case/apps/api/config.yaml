@@ -33,10 +33,6 @@ logging:
 
 # 盘后信息服务配置
 after_market:
-  mongodb:
-    host: "localhost"
-    port: 27017
-    database: "after_market"
   news_api_url: "http://life233.top"
   news_api_username: "admin"
   news_api_password: "admin"

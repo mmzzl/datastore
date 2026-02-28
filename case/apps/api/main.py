@@ -64,9 +64,9 @@ def run_scheduled_job():
     try:
         config = {
             "database": {
-                "host": settings.after_market_mongodb_host,
-                "port": settings.after_market_mongodb_port,
-                "name": settings.after_market_mongodb_database,
+                "host": settings.mongodb_host,
+                "port": settings.mongodb_port,
+                "name": settings.mongodb_database,
             },
             "news_api": {
                 "base_url": settings.after_market_news_api_url,
