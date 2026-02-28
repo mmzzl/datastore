@@ -42,8 +42,7 @@ class Settings(BaseSettings):
     logging_level: str = "INFO"
     logging_format: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     logging_file: str = "logs/app.log"
-    logging_max_bytes: int = 10 * 1024 * 1024  # 10MB
-    logging_backup_count: int = 5
+    logging_backup_count: int = 30  # 保留30天日志
     
     class Config:
         env_file = ".env"
@@ -75,8 +74,7 @@ def load_config() -> Settings:
             logging_level=config_data.get("logging", {}).get("level", "INFO"),
             logging_format=config_data.get("logging", {}).get("format", "%(asctime)s - %(name)s - %(levelname)s - %(message)s"),
             logging_file=config_data.get("logging", {}).get("file", "logs/app.log"),
-            logging_max_bytes=config_data.get("logging", {}).get("max_bytes", 10 * 1024 * 1024),
-            logging_backup_count=config_data.get("logging", {}).get("backup_count", 5),
+            logging_backup_count=config_data.get("logging", {}).get("backup_count", 30),
             after_market_mongodb_host=config_data.get("after_market", {}).get("mongodb", {}).get("host", "localhost"),
             after_market_mongodb_port=config_data.get("after_market", {}).get("mongodb", {}).get("port", 27017),
             after_market_mongodb_database=config_data.get("after_market", {}).get("mongodb", {}).get("database", "after_market"),

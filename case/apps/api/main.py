@@ -5,8 +5,10 @@ from app.api.endpoints import auth, news, aftermarket
 from app.core.config import settings
 from app.core.error import setup_error_handlers
 import logging
-from logging.handlers import RotatingFileHandler
+from logging.handlers import TimedRotatingFileHandler
 import os
+
+from logging.handlers import TimedRotatingFileHandler
 
 # 确保日志目录存在
 log_file = settings.logging_file
@@ -20,15 +22,17 @@ logging.basicConfig(
     format=settings.logging_format
 )
 
-# 添加文件日志处理器
-file_handler = RotatingFileHandler(
+# 添加按日期分割的文件日志处理器
+file_handler = TimedRotatingFileHandler(
     log_file,
-    maxBytes=settings.logging_max_bytes,
+    when='midnight',
+    interval=1,
     backupCount=settings.logging_backup_count,
     encoding='utf-8'
 )
 file_handler.setLevel(getattr(logging, settings.logging_level))
 file_handler.setFormatter(logging.Formatter(settings.logging_format))
+file_handler.suffix = "%Y-%m-%d"
 
 # 添加到根logger
 logging.getLogger().addHandler(file_handler)
