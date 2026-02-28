@@ -2,7 +2,7 @@ from datetime import datetime, date, timedelta
 from typing import Dict, Any, List, Optional
 import logging
 
-from ..collector import AkshareClient, NewsClient
+from ..collector import AkshareClient, NewsClient, LLMClient
 from ..storage import MongoStorage
 from ..notify import DingTalkNotifier
 
@@ -14,6 +14,7 @@ class AfterMarketJob:
         self.config = config
         self.ak_client = None
         self.news_client = None
+        self.llm_client = None
         self.storage = None
         self.notifier = None
 
@@ -27,6 +28,15 @@ class AfterMarketJob:
                 news_config.get("base_url", "http://life233.top"),
                 news_config.get("username", "admin"),
                 news_config.get("password", "admin")
+            )
+        
+        if self.llm_client is None:
+            llm_config = self.config.get("llm", {})
+            self.llm_client = LLMClient(
+                llm_config.get("provider", "deepseek"),
+                llm_config.get("api_key", ""),
+                llm_config.get("model", "deepseek-chat"),
+                llm_config.get("base_url", "https://api.deepseek.com")
             )
         
         if self.storage is None:
@@ -62,7 +72,12 @@ class AfterMarketJob:
             capital_flow = self._fetch_capital_flow(date_str)
             sectors = self._fetch_sector_data(date_str)
             news = self._fetch_news(date_str)
-            recommendations = self._generate_recommendations(market_overview, sectors, news)
+            
+            # 使用LLM分析新闻
+            news_analysis = self._analyze_news(news)
+            
+            # 基于市场数据和新闻分析生成建议
+            recommendations = self._generate_recommendations(market_overview, sectors, news_analysis)
             
             data = {
                 "date": date_str,
@@ -71,6 +86,7 @@ class AfterMarketJob:
                 "capital_flow": capital_flow,
                 "sectors": sectors,
                 "news": news,
+                "news_analysis": news_analysis,
                 "recommendations": recommendations,
             }
             
@@ -103,6 +119,10 @@ class AfterMarketJob:
 
     def _fetch_news(self, date_str: str) -> List[Dict[str, Any]]:
         return self.news_client.get_all_news(date_str, limit=20)
+
+    def _analyze_news(self, news: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """使用LLM分析新闻"""
+        return self.llm_client.analyze_news(news)
 
     def _generate_recommendations(
         self, 

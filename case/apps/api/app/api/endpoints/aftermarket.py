@@ -79,6 +79,12 @@ def trigger_job(date: Optional[str] = None):
                 "username": settings.after_market_news_api_username,
                 "password": settings.after_market_news_api_password,
             },
+            "llm": {
+                "provider": settings.llm_provider,
+                "api_key": settings.llm_api_key,
+                "model": settings.llm_model,
+                "base_url": settings.llm_base_url,
+            },
             "dingtalk": {
                 "webhook_url": settings.after_market_dingtalk_webhook,
                 "secret": settings.after_market_dingtalk_secret,
