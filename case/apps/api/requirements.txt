@@ -1,11 +1,14 @@
 fastapi
 uvicorn
 pymongo
+numpy
 python-jose[cryptography]
 pydantic-settings
 python-multipart
 akshare
+tushare
 pandas
 requests
 apscheduler
 pyyaml
+baostock

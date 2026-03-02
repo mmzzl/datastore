@@ -47,6 +47,10 @@ class Settings(BaseSettings):
     llm_model: str = "deepseek-chat"
     llm_base_url: str = "https://api.deepseek.com"
     
+    # 数据源配置 (akshare 或 tushare)
+    data_source: str = "akshare"
+    tushare_token: str = ""
+    
     class Config:
         env_file = ".env"
         case_sensitive = False
@@ -82,6 +86,8 @@ def load_config() -> Settings:
             llm_api_key=config_data.get("llm", {}).get("api_key", ""),
             llm_model=config_data.get("llm", {}).get("model", "deepseek-chat"),
             llm_base_url=config_data.get("llm", {}).get("base_url", "https://api.deepseek.com"),
+            data_source=config_data.get("data_source", {}).get("provider", "akshare"),
+            tushare_token=config_data.get("data_source", {}).get("tushare_token", ""),
             after_market_news_api_url=config_data.get("after_market", {}).get("news_api_url", "http://life233.top"),
             after_market_news_api_username=config_data.get("after_market", {}).get("news_api_username", "admin"),
             after_market_news_api_password=config_data.get("after_market", {}).get("news_api_password", "admin"),

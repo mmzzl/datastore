@@ -78,6 +78,10 @@ def trigger_job(date: Optional[str] = None):
                 "username": settings.mongodb_username,
                 "password": settings.mongodb_password,
             },
+            "data_source": {
+                "provider": settings.data_source,
+                "tushare_token": settings.tushare_token,
+            },
             "news_api": {
                 "base_url": settings.after_market_news_api_url,
                 "username": settings.after_market_news_api_username,

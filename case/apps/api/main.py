@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from apscheduler.schedulers.background import BackgroundScheduler
-from app.api.endpoints import auth, news, aftermarket
+from app.api.endpoints import auth, news, aftermarket, stock
 from app.core.config import settings
 from app.core.error import setup_error_handlers
 import logging
@@ -58,6 +58,7 @@ setup_error_handlers(app)
 app.include_router(auth.router)
 app.include_router(news.router)
 app.include_router(aftermarket.router)
+app.include_router(stock.router)
 
 
 def run_scheduled_job():
@@ -70,20 +71,22 @@ def run_scheduled_job():
                 "username": settings.mongodb_username,
                 "password": settings.mongodb_password,
             },
-            "news_api": {
-                "base_url": settings.after_market_news_api_url,
-                "username": settings.after_market_news_api_username,
-                "password": settings.after_market_news_api_password,
+            "data_source": {
+                "provider": settings.data_source,
+                "tushare_token": settings.tushare_token,
+            },
+            "after_market": {
+                "news_api_url": settings.after_market_news_api_url,
+                "news_api_username": settings.after_market_news_api_username,
+                "news_api_password": settings.after_market_news_api_password,
+                "dingtalk_webhook": settings.after_market_dingtalk_webhook,
+                "dingtalk_secret": settings.after_market_dingtalk_secret,
             },
             "llm": {
                 "provider": settings.llm_provider,
                 "api_key": settings.llm_api_key,
                 "model": settings.llm_model,
                 "base_url": settings.llm_base_url,
-            },
-            "dingtalk": {
-                "webhook_url": settings.after_market_dingtalk_webhook,
-                "secret": settings.after_market_dingtalk_secret,
             },
         }
         from app.scheduler import AfterMarketJob

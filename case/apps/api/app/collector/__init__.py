@@ -1,5 +1,7 @@
-from .akshare_client import AkshareClient
+from .tushare_client import TushareClient
+from .baostock_client import BaostockClient
 from .news_client import NewsClient
 from .llm_client import LLMClient
+from .akshare_client import AkshareClient
 
-__all__ = ["AkshareClient", "NewsClient", "LLMClient"]
+__all__ = ["TushareClient", "BaostockClient", "NewsClient", "LLMClient"]

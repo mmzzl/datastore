@@ -50,7 +50,7 @@ ATTRIBUTE_WEIGHTS = {
 STRATEGY = 'focused'
 
 # 专注策略的目标属性（支持多个）
-TARGET_ATTRIBUTES = ['闪避', '击晕']
+TARGET_ATTRIBUTES = ['击晕']
 
 # 稀有异兽关键词
 RARE_BEAST_KEYWORDS = ['至尊神兽', '鸿蒙祖兽', '混沌源兽']

@@ -7,13 +7,16 @@ from datetime import datetime
 from typing import Dict, Any, Optional
 import logging
 
+from ..collector import AkshareClient
+
 logger = logging.getLogger(__name__)
 
 
 class DingTalkNotifier:
-    def __init__(self, webhook_url: str, secret: str = ""):
+    def __init__(self, webhook_url: str, secret: str = "", akshare_client=None):
         self.webhook_url = webhook_url
         self.secret = secret
+        self.akshare_client = akshare_client  # 接受外部传入的 AkshareClient
 
     def _sign(self, timestamp: int) -> str:
         if not self.secret:
@@ -25,6 +28,18 @@ class DingTalkNotifier:
         hmac_code = hmac.new(secret_enc, string_to_sign_enc, digestmod=hashlib.sha256).digest()
         sign = urllib.parse.quote_plus(base64.b64encode(hmac_code))
         return sign
+    
+    def _ensure_akshare_client(self):
+        """确保 AkshareClient 已初始化"""
+        if self.akshare_client is None:
+            try:
+                self.akshare_client = AkshareClient()
+                logger.info("AkshareClient initialized for DingTalk notifications")
+            except Exception as e:
+                logger.error(f"Failed to initialize AkshareClient: {e}")
+                self.akshare_client = None
+        else:
+            logger.debug("Using provided AkshareClient")
 
     def send(self, data: Dict[str, Any]) -> bool:
         if not self.webhook_url:
@@ -65,52 +80,61 @@ class DingTalkNotifier:
     def _build_message(self, data: Dict[str, Any]) -> str:
         date = data.get('date', '')
         
-        msg_parts = [f"## 📊 盘后信息 {date}\n"]
+        # 使用 AkshareClient 生成消息
+        self._ensure_akshare_client()
         
-        market = data.get('market_overview', {})
-        indices = market.get('indices', [])
-        if indices:
-            msg_parts.append("### 🔹 大盘指数\n")
-            for idx in indices:
-                name = idx.get('name', '')
-                close = idx.get('close', 0)
-                pct_chg = idx.get('pct_chg', 0)
-                trend_emoji = "📈" if pct_chg > 0 else "📉" if pct_chg < 0 else "➡️"
-                msg_parts.append(f"- {name}: {close:.2f} ({trend_emoji} {pct_chg:+.2f}%)\n")
+        if self.akshare_client is not None:
+            try:
+                akshare_msg = self.akshare_client.format_brief_for_dingtalk(date)
+                logger.info(f"AkshareClient message: {akshare_msg}")
+                if akshare_msg:
+                    logger.info(f"Using AkshareClient to format message for {date}")
+                    
+                    # 添加 deepseek 新闻分析（如果有）
+                    news_analysis = data.get('news_analysis', {})
+                    if news_analysis:
+                        msg_parts = [akshare_msg]
+                        msg_parts.append("\n### 🔹 新闻分析 (AI)\n")
+                        
+                        def format_analysis_value(value, indent="  "):
+                            """递归格式化分析值"""
+                            if isinstance(value, dict):
+                                result = []
+                                for k, v in value.items():
+                                    if isinstance(v, (list, dict)):
+                                        result.append(f"{indent}{k}:\n")
+                                        result.append(format_analysis_value(v, indent + "  "))
+                                    elif isinstance(v, str):
+                                        result.append(f"{indent}{v}\n")
+                                    else:
+                                        result.append(f"{indent}{k}: {v}\n")
+                                return "".join(result)
+                            elif isinstance(value, list):
+                                result = []
+                                for item in value:
+                                    if isinstance(item, dict):
+                                        result.append(format_analysis_value(item, indent))
+                                    else:
+                                        result.append(f"{indent}- {item}\n")
+                                return "".join(result)
+                            elif isinstance(value, str):
+                                lines = value.split('\n')
+                                result = []
+                                for line in lines:
+                                    if line.strip():
+                                        result.append(f"{indent}{line}\n")
+                                return "".join(result)
+                            else:
+                                return f"{indent}{value}\n"
+                        
+                        msg_parts.append(format_analysis_value(news_analysis))
+                        msg_parts.append(f"\n---\n*发布时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*")
+                        return "".join(msg_parts)
+                    
+                    return akshare_msg
+            except Exception as e:
+                logger.warning(f"Failed to use AkshareClient format: {e}")
         
-        stats = market.get('stats', {})
-        if stats:
-            msg_parts.append("\n### 🔹 市场统计\n")
-            msg_parts.append(f"- 上涨: {stats.get('up_count', 0)} 家\n")
-            msg_parts.append(f"- 下跌: {stats.get('down_count', 0)} 家\n")
-            msg_parts.append(f"- 涨停: {stats.get('limit_up', 0)} 家\n")
-            msg_parts.append(f"- 跌停: {stats.get('limit_down', 0)} 家\n")
-        
-        sectors = data.get('sectors', [])
-        if sectors:
-            msg_parts.append("\n### 🔹 板块热点 (Top 5)\n")
-            for sector in sectors[:5]:
-                name = sector.get('name', '')
-                pct_chg = sector.get('pct_chg', 0)
-                msg_parts.append(f"- {name}: {pct_chg:+.2f}%\n")
-        
-        news = data.get('news', [])
-        if news:
-            msg_parts.append(f"\n### 🔹 今日新闻 ({len(news)}条)\n")
-            for item in news[:3]:
-                title = item.get('title', '')[:50]
-                if len(title) >= 50:
-                    title += "..."
-                msg_parts.append(f"- {title}\n")
-        
-        rec = data.get('recommendations', {})
-        if rec:
-            msg_parts.append("\n### 🔹 明日操作建议\n")
-            market_rec = rec.get('market', {})
-            msg_parts.append(f"- **趋势**: {market_rec.get('trend', '震荡')}\n")
-            msg_parts.append(f"- **仓位**: {market_rec.get('position', '5成')}\n")
-            msg_parts.append(f"- **风险**: {market_rec.get('risk', '无')}\n")
-        
-        msg_parts.append(f"\n---\n*发布时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*")
-        
-        return "".join(msg_parts)
+        # 如果 AkshareClient 失败，返回空消息
+        logger.error("Failed to build message")
+        return f"## 📊 每日收盘简报 {date}\n\n消息生成失败，请检查日志。"
