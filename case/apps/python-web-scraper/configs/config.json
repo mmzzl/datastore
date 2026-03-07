@@ -52,5 +52,12 @@
     "run_time": "15:30",
     "batch_size": 50,
     "batch_delay": 10
+  },
+  "akshare_kline": {
+    "enabled": true,
+    "run_time": "15:30",
+    "batch_size": 50,
+    "default_days": 60,
+    "spot_csv_file": "stock_zh_a_spot.csv"
   }
 }

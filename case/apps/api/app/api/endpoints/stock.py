@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, Query
 from typing import Optional, List
 import logging
+import pandas as pd
 
 from ...storage import MongoStorage
 from ...core.config import settings
@@ -81,4 +82,56 @@ def get_stock_kline_by_date(
         raise
     except Exception as e:
         logger.error(f"获取K线数据失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/klines")
+def get_all_stocks_klines(
+    start_date: Optional[str] = Query(None, description="开始日期 YYYY-MM-DD"),
+    end_date: Optional[str] = Query(None, description="结束日期 YYYY-MM-DD"),
+    limit: Optional[int] = Query(None, ge=1, description="返回数量限制"),
+    storage: MongoStorage = Depends(get_storage)
+):
+    """获取所有股票的K线数据（用于计算技术指标）"""
+    try:
+        results = storage.get_all_klines(start_date, end_date, limit)
+        
+        # 转换为 DataFrame
+        if results:
+            df = pd.DataFrame(results)
+            
+            # 转换日期格式
+            if 'date' in df.columns:
+                df['date'] = pd.to_datetime(df['date'])
+            
+            # 转换数值类型
+            numeric_columns = ['open', 'close', 'high', 'low', 'volume', 'amount', 'pct_chg', 'amplitude', 'turnover']
+            for col in numeric_columns:
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors='coerce')
+            
+            # 统计信息
+            stats = {
+                "total_records": len(df),
+                "unique_stocks": df['code'].nunique() if 'code' in df.columns else 0,
+                "date_range": {
+                    "start": df['date'].min().strftime('%Y-%m-%d') if 'date' in df.columns and not df.empty else None,
+                    "end": df['date'].max().strftime('%Y-%m-%d') if 'date' in df.columns and not df.empty else None
+                },
+                "columns": list(df.columns)
+            }
+            
+            return {
+                "success": True,
+                "stats": stats,
+                "data": df.to_dict('records')
+            }
+        else:
+            return {
+                "success": False,
+                "message": "没有找到数据",
+                "data": []
+            }
+    except Exception as e:
+        logger.error(f"获取全部K线数据失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))

@@ -90,6 +90,9 @@ class SpiderService:
             logger.info(f"使用默认状态: {self.status.value}")
         self.status_lock = threading.Lock()
         self.scheduler_process = None
+        self.kline_process = None
+        self.kline_status = SpiderStatus.IDLE
+        self.kline_status_lock = threading.Lock()
         self.config = load_config()
         logger.info(f"爬虫管理服务初始化完成，当前状态: {self.status.value}")
     
@@ -250,6 +253,118 @@ class SpiderService:
         except Exception as e:
             logger.error(f"运行爬虫失败: {e}")
             return False
+    
+    def start_kline(self):
+        """启动K线爬虫"""
+        with self.kline_status_lock:
+            if self.kline_status == SpiderStatus.RUNNING:
+                logger.warning("K线爬虫已经在运行中")
+                return False
+            
+            try:
+                logger.info("开始启动K线爬虫...")
+                
+                # 导入需要的模块
+                from ..scheduler.scheduler import run_kline_spider
+                
+                # 创建并启动进程
+                logger.info("创建并启动K线爬虫进程...")
+                self.kline_process = multiprocessing.Process(target=run_kline_spider)
+                self.kline_process.daemon = False
+                self.kline_process.start()
+                
+                # 等待一小段时间，确保进程已经启动
+                time.sleep(1)
+                
+                # 检查进程是否还在运行
+                if self.kline_process.is_alive():
+                    logger.info(f"K线爬虫进程已启动，PID: {self.kline_process.pid}")
+                else:
+                    logger.error("K线爬虫进程启动后立即退出")
+                    return False
+                
+                # 更新状态
+                self.kline_status = SpiderStatus.RUNNING
+                logger.info("K线爬虫启动成功")
+                return True
+            except Exception as e:
+                logger.error(f"启动K线爬虫失败: {e}")
+                import traceback
+                traceback.print_exc()
+                self.kline_status = SpiderStatus.ERROR
+                return False
+    
+    def stop_kline(self):
+        """停止K线爬虫"""
+        with self.kline_status_lock:
+            if self.kline_status != SpiderStatus.RUNNING:
+                logger.warning(f"K线爬虫当前状态为 {self.kline_status.value}，无需停止")
+                return False
+            
+            try:
+                # 终止进程
+                if self.kline_process and self.kline_process.is_alive():
+                    logger.info(f"终止K线爬虫进程，PID: {self.kline_process.pid}")
+                    self.kline_process.terminate()
+                    self.kline_process.join(timeout=5)
+                
+                # 更新状态
+                self.kline_status = SpiderStatus.STOPPED
+                logger.info("K线爬虫停止成功")
+                return True
+            except Exception as e:
+                logger.error(f"停止K线爬虫失败: {e}")
+                self.kline_status = SpiderStatus.ERROR
+                return False
+    
+    def restart_kline(self):
+        """重启K线爬虫"""
+        logger.info("开始重启K线爬虫")
+        
+        # 停止服务
+        self.stop_kline()
+        
+        # 等待一段时间
+        time.sleep(2)
+        
+        # 启动服务
+        result = self.start_kline()
+        
+        if result:
+            logger.info("K线爬虫重启成功")
+        else:
+            logger.error("K线爬虫重启失败")
+        
+        return result
+    
+    def get_kline_status(self):
+        """获取K线爬虫状态"""
+        with self.kline_status_lock:
+            # 检查进程是否还在运行
+            if self.kline_process and self.kline_process.is_alive():
+                self.kline_status = SpiderStatus.RUNNING
+            elif self.kline_status == SpiderStatus.RUNNING:
+                self.kline_status = SpiderStatus.STOPPED
+            return self.kline_status.value
+    
+    def run_kline_once(self):
+        """运行一次K线爬虫"""
+        try:
+            logger.info("开始运行一次K线爬虫")
+            
+            # 导入需要的模块
+            from ..scheduler.scheduler import run_kline_spider
+            
+            # 在子进程中运行爬虫
+            p = multiprocessing.Process(target=run_kline_spider)
+            p.start()
+            p.join()
+            
+            logger.info("K线爬虫运行完成")
+            return True
+        except Exception as e:
+            logger.error(f"运行K线爬虫失败: {e}")
+            return False
 
 
 # 创建全局服务实例
@@ -267,7 +382,7 @@ def main():
     
     # 解析命令行参数
     if len(sys.argv) < 2:
-        print("用法: python spider_service.py [start|stop|restart|status|run_once]")
+        print("用法: python spider_service.py [start|stop|restart|status|run_once|start_kline|stop_kline|restart_kline|kline_status|run_kline_once]")
         return
     
     command = sys.argv[1]
@@ -289,8 +404,23 @@ def main():
     elif command == "run_once":
         result = spider_service.run_once()
         print(f"运行一次爬虫: {'成功' if result else '失败'}")
+    elif command == "start_kline":
+        result = spider_service.start_kline()
+        print(f"启动K线爬虫: {'成功' if result else '失败'}")
+    elif command == "stop_kline":
+        result = spider_service.stop_kline()
+        print(f"停止K线爬虫: {'成功' if result else '失败'}")
+    elif command == "restart_kline":
+        result = spider_service.restart_kline()
+        print(f"重启K线爬虫: {'成功' if result else '失败'}")
+    elif command == "kline_status":
+        status = spider_service.get_kline_status()
+        print(f"K线爬虫状态: {status}")
+    elif command == "run_kline_once":
+        result = spider_service.run_kline_once()
+        print(f"运行一次K线爬虫: {'成功' if result else '失败'}")
     else:
-        print("无效命令，请使用: start|stop|restart|status|run_once")
+        print("无效命令，请使用: start|stop|restart|status|run_once|start_kline|stop_kline|restart_kline|kline_status|run_kline_once")
 
 
 if __name__ == "__main__":

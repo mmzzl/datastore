@@ -4,6 +4,8 @@ import threading
 import multiprocessing
 import logging
 import os
+import baostock as bs
+from datetime import datetime, timedelta
 from scrapy.crawler import CrawlerProcess
 from scrapy.utils.project import get_project_settings
 from ..utils.config import load_config, save_progress, load_progress
@@ -11,6 +13,43 @@ from ..utils.config import load_config, save_progress, load_progress
 logger = logging.getLogger(__name__)
 
 KLINE_LOCK_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'kline_running.lock')
+
+
+def is_trading_day(date=None):
+    """判断指定日期是否为交易日"""
+    if date is None:
+        date = datetime.now()
+    else:
+        date = datetime.strptime(date, '%Y-%m-%d') if isinstance(date, str) else date
+    
+    try:
+        # 登录 baostock
+        lg = bs.login()
+        if lg.error_code != '0':
+            logger.error(f"baostock login failed: {lg.error_msg}")
+            return False
+        
+        # 获取交易日历
+        end_date = date.strftime("%Y-%m-%d")
+        start_date = (date - timedelta(days=7)).strftime("%Y-%m-%d")
+        
+        rs = bs.query_trade_dates(start_date=start_date, end_date=end_date)
+        bs.logout()
+        
+        if rs.error_code == '0' and len(rs.data) > 0:
+            # 检查日期是否在交易日历中
+            for trade_date in rs.data:
+                if trade_date[0] == end_date:
+                    logger.info(f"{end_date} 是交易日")
+                    return True
+            logger.info(f"{end_date} 不是交易日")
+            return False
+        else:
+            logger.error(f"获取交易日历失败: {rs.error_msg}")
+            return False
+    except Exception as e:
+        logger.error(f"判断交易日失败: {e}")
+        return False
 
 
 def run_spider(sort_end, req_trace, sort_start):
@@ -38,9 +77,9 @@ def run_kline_spider():
     atexit.register(unlock_kline)
     try:
         logger.info(f"子进程启动K线爬虫... 当前时间: {time.strftime('%Y-%m-%d %H:%M:%S')}")
-        from ..spider.eastmoney_kline_spider import EastMoneyKlineSpider
+        from ..spider.akshare_kline_spider import AkshareKlineSpider
         process = CrawlerProcess(get_project_settings())
-        process.crawl(EastMoneyKlineSpider)
+        process.crawl(AkshareKlineSpider)
         process.start()
         logger.info(f"子进程K线爬虫执行完成: {time.strftime('%Y-%m-%d %H:%M:%S')}")
     except Exception as e:
@@ -87,8 +126,8 @@ class NewsScheduler:
         self.config = load_config()
         self.interval = self.config['spider']['interval']
         self.running = False
-        self.kline_enabled = self.config.get('kline_spider', {}).get('enabled', True)
-        self.kline_run_time = self.config.get('kline_spider', {}).get('run_time', '15:30').strip()
+        self.kline_enabled = self.config.get('akshare_kline', {}).get('enabled', True)
+        self.kline_run_time = self.config.get('akshare_kline', {}).get('run_time', '23:00').strip()
 
     def start_crawler(self):
         """启动新闻爬虫"""
@@ -121,6 +160,12 @@ class NewsScheduler:
         """启动K线爬虫"""
         if is_kline_locked():
             logger.warning("K线爬虫正在运行中，跳过本次任务")
+            return
+        
+        # 判断当天是否为交易日
+        current_date = datetime.now().strftime('%Y-%m-%d')
+        if not is_trading_day(current_date):
+            logger.info(f"当前日期 {current_date} 不是交易日，跳过K线爬虫任务")
             return
         
         try:
@@ -160,8 +205,8 @@ class NewsScheduler:
                 kline_job = schedule.every().day.at(kline_time).do(self.start_kline_crawler)
                 logger.info(f"已设置K线爬虫定时任务，每天{kline_time}执行一次")
             except Exception as e:
-                logger.warning(f"K线爬虫定时任务设置失败: {e}，将使用默认时间15:30")
-                kline_job = schedule.every().day.at("15:30").do(self.start_kline_crawler)
+                logger.warning(f"K线爬虫定时任务设置失败: {e}，将使用默认时间23:00")
+                kline_job = schedule.every().day.at("23:00").do(self.start_kline_crawler)
         else:
             logger.info("K线爬虫已禁用")
         

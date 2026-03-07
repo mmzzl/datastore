@@ -156,3 +156,33 @@ class MongoStorage:
         except PyMongoError as e:
             logger.error(f"MongoDB kline query failed: {e}")
             raise
+
+    def get_all_klines(self, start_date: str = None, end_date: str = None, limit: int = None) -> List[Dict]:
+        """获取所有股票的 K 线数据"""
+        if self.kline_collection is None:
+            self.connect()
+        
+        try:
+            query = {}
+            if start_date:
+                query["date"] = {"$gte": start_date}
+            if end_date:
+                if "date" in query:
+                    query["date"]["$lte"] = end_date
+                else:
+                    query["date"] = {"$lte": end_date}
+            
+            cursor = self.kline_collection.find(query).sort("date", -1)
+            if limit:
+                cursor = cursor.limit(limit)
+            
+            results = []
+            for doc in cursor:
+                doc['_id'] = str(doc['_id'])
+                if doc.get('crawl_time'):
+                    doc['crawl_time'] = doc['crawl_time'].isoformat()
+                results.append(doc)
+            return results
+        except PyMongoError as e:
+            logger.error(f"MongoDB kline query failed: {e}")
+            raise

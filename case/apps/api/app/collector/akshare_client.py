@@ -7,6 +7,7 @@ import logging
 import time
 import requests
 import os
+from ..core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -31,133 +32,134 @@ class AkshareClient:
     def __init__(self):
         self.data = None
         self._indicators_calculated = False
+        self.historical_data = None
         self.stock_zh_a_spot_df = self.load_data()
     
     def load_data(self):
         """加载股票数据"""
         csv_file = 'stock_zh_a_daily.csv'
-        today_date = datetime.now().strftime('%Y-%m-%d')
-        
+        sp_csv_file = 'stock_zh_a_spot.csv'
+        # today_date = datetime.now().strftime('%Y-%m-%d')
+        today_date = '2026-03-06'
         try:
-            # 检查 CSV 文件是否存在
-            if os.path.exists(csv_file):
-                logger.info(f"从本地文件 {csv_file} 加载股票数据")
-                stock_zh_a_spot_df = pd.read_csv(csv_file)
+            # 从接口获取数据
+            logger.info(f"从接口获取股票数据...")
+            api_url = f"{settings.after_market_kline_api_url}/stock/kline/all/{today_date}?limit=10000"
+            
+            try:
+                response = requests.get(api_url, timeout=30, verify=False)
+                response.raise_for_status()
+                api_data = response.json()
                 
-                # 检查是否有当前交易日期的数据
-                if 'date' in stock_zh_a_spot_df.columns:
-                    latest_date = pd.to_datetime(stock_zh_a_spot_df['date']).max().strftime('%Y-%m-%d')
-                    logger.info(f"文件中最新数据日期: {latest_date}")
+                if 'data' not in api_data or not api_data['data']:
+                    logger.warning(f"接口返回数据为空")
+                    return pd.DataFrame()
+                
+                # 转换为 DataFrame
+                df = pd.DataFrame(api_data['data'])
+                logger.info(f"从接口获取到 {len(df)} 条数据")
+                
+                # 重命名列以匹配现有格式
+                column_mapping = {
+                    'code': 'symbol',
+                    'pct_chg': 'change_pct',
+                    'turnover': 'turnover_rate'
+                }
+                df = df.rename(columns=column_mapping)
+                
+                # 从 stock_zh_a_spot.csv 获取股票名称
+                if os.path.exists(sp_csv_file):
+                    logger.info(f"从 {sp_csv_file} 读取股票名称...")
+                    stock_list_df = pd.read_csv(sp_csv_file)
                     
-                    if latest_date >= today_date:
-                        logger.info(f"文件中已有最新数据，直接使用")
-                        self.data = stock_zh_a_spot_df
-                        return stock_zh_a_spot_df
+                    # 检查文件中是否有必要的列
+                    if 'symbol' in stock_list_df.columns and 'name' in stock_list_df.columns:
+                        # 创建股票代码到名称的映射
+                        symbol_name_map = dict(zip(stock_list_df['symbol'], stock_list_df['name']))
+                        
+                        # 添加股票名称
+                        df['name'] = df['symbol'].map(symbol_name_map)
+                        
+                        logger.info(f"成功添加股票名称，匹配到 {df['name'].notna().sum()} 只股票")
                     else:
-                        logger.info(f"文件中数据不是最新的，需要获取历史数据")
-                        return self._fetch_historical_data()
+                        logger.warning(f"{sp_csv_file} 文件格式不正确")
                 else:
-                    logger.warning(f"文件中没有 date 列，需要获取历史数据")
-                    return self._fetch_historical_data()
-            else:
-                logger.info(f"文件不存在，需要获取历史数据")
-                return self._fetch_historical_data()
+                    logger.warning(f"{sp_csv_file} 文件不存在")
+                
+                # 确保日期格式正确
+                if 'date' in df.columns:
+                    df['date'] = pd.to_datetime(df['date'])
+                
+                # 保存到文件
+                df.to_csv(csv_file, index=False)
+                logger.info(f"数据已保存到 {csv_file}")
+                
+                self.data = df
+                return df
+                
+            except requests.RequestException as e:
+                logger.error(f"从接口获取数据失败: {e}")
+                
+                # 如果接口失败，尝试从本地文件加载
+                if os.path.exists(csv_file):
+                    logger.info(f"从本地文件 {csv_file} 加载股票数据")
+                    self.data = pd.read_csv(csv_file)
+                    return self.data
+                else:
+                    logger.error(f"本地文件也不存在，无法加载数据")
+                    return pd.DataFrame()
                 
         except Exception as e:
             logger.error(f"加载股票数据失败: {e}")
             return pd.DataFrame()
     
-    def _fetch_historical_data(self):
-        """获取所有股票最近一个月的历史数据"""
-        csv_file = 'stock_zh_a_daily.csv'
-        sp_csv_file = 'stock_zh_a_spot.csv'
-        end_date = datetime.now().strftime('%Y%m%d')
-        start_date = (datetime.now() - timedelta(days=30)).strftime('%Y%m%d')
+    def load_historical_data(self, days: int = 60):
+        """加载历史数据用于计算技术指标"""
+        if self.historical_data is not None:
+            logger.info(f"使用缓存的历史数据，共 {len(self.historical_data)} 条")
+            return self.historical_data
+        
+        logger.info(f"从 API 获取历史数据（最近 {days} 天）...")
         
         try:
-            logger.info(f"开始获取历史数据，时间范围: {start_date} - {end_date}")
+            end_date = datetime.now().strftime('%Y-%m-%d')
+            start_date = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
             
-            # 从 stock_zh_a_spot.csv 文件中读取股票列表
-            logger.info(f"从 {sp_csv_file} 读取股票列表...")
-            if os.path.exists(sp_csv_file):
-                stock_list_df = pd.read_csv(sp_csv_file)
+            api_df = self.load_kline_data_from_api(start_date, end_date)
+            
+            if not api_df.empty:
+                self.historical_data = api_df
                 
-                # 检查文件中是否有必要的列
-                if 'symbol' in stock_list_df.columns and 'name' in stock_list_df.columns:
-                    logger.info(f"从文件中读取到 {len(stock_list_df)} 只股票")
-                    stock_list = stock_list_df[['symbol', 'name']].drop_duplicates()
-                else:
-                    logger.warning(f"{sp_csv_file} 文件格式不正确，使用 API 获取股票列表")
-                    stock_list_df = ak.stock_zh_a_spot_em()
-                    stock_list = stock_list_df[['代码', '名称']].rename(columns={'代码': 'symbol', '名称': 'name'})
+                # 统计每只股票的数据量
+                symbol_counts = api_df.groupby('symbol').size()
+                logger.info(f"成功获取历史数据，共 {len(api_df)} 条")
+                logger.info(f"股票数量: {len(symbol_counts)}")
+                logger.info(f"平均每只股票数据量: {len(api_df) / len(symbol_counts):.1f} 条")
+                
+                # 详细统计
+                count_ge_20 = (symbol_counts >= 20).sum()
+                count_ge_14 = (symbol_counts >= 14).sum()
+                count_lt_20 = (symbol_counts < 20).sum()
+                count_lt_14 = (symbol_counts < 14).sum()
+                
+                logger.info(f"数据量 >= 20的股票: {count_ge_20} 只")
+                logger.info(f"数据量 >= 14的股票: {count_ge_14} 只")
+                logger.info(f"数据量 < 20的股票: {count_lt_20} 只")
+                logger.info(f"数据量 < 14的股票: {count_lt_14} 只")
+                logger.info(f"数据量分布: 最小{symbol_counts.min()}条, 最大{symbol_counts.max()}条, 中位数{symbol_counts.median():.1f}条")
+                
+                # 显示部分股票的数据量
+                logger.info(f"前10只股票的数据量: {symbol_counts.nlargest(10).to_dict()}")
+                
+                return api_df
             else:
-                logger.warning(f"{sp_csv_file} 文件不存在，使用 API 获取股票列表")
-                stock_list_df = ak.stock_zh_a_spot_em()
-                stock_list = stock_list_df[['代码', '名称']].rename(columns={'代码': 'symbol', '名称': 'name'})
-            
-            all_data = []
-            for idx, row in stock_list.iterrows():
-                symbol = row['symbol']
-                name = row['name']
-                
-                try:
-                    # 转换股票代码格式
-                    ak_symbol = symbol.replace('.', '')
-                    
-                    logger.info(f"正在获取 {name}({symbol}) 的历史数据... ({idx+1}/{len(stock_list)})")
-                    
-                    # 获取历史数据
-                    historical_df = ak.stock_zh_a_daily(
-                        symbol=ak_symbol,
-                        start_date=start_date,
-                        end_date=end_date,
-                        adjust="qfq"
-                    )
-                    
-                    if not historical_df.empty:
-                        # 添加股票名称和代码
-                        historical_df['symbol'] = symbol
-                        historical_df['name'] = name
-                        
-                        # 计算涨跌幅
-                        historical_df['change_pct'] = historical_df['close'].pct_change() * 100
-                        
-                        all_data.append(historical_df)
-                    
-                except Exception as e:
-                    logger.warning(f"获取 {name}({symbol}) 历史数据失败: {e}")
-                    continue
-            
-            if all_data:
-                # 合并所有数据
-                result_df = pd.concat(all_data, ignore_index=True)
-                
-                # 转换日期格式
-                result_df['date'] = pd.to_datetime(result_df['date'])
-                
-                # 按日期和股票代码排序
-                result_df = result_df.sort_values(['symbol', 'date'])
-                
-                # 保存到文件
-                result_df.to_csv(csv_file, index=False)
-                logger.info(f"历史数据已保存到 {csv_file}，共 {len(result_df)} 条记录")
-                
-                self.data = result_df
-                return result_df
-            else:
-                logger.error("未能获取到任何历史数据")
+                logger.warning(f"获取历史数据失败")
                 return pd.DataFrame()
                 
         except Exception as e:
-            logger.error(f"获取历史数据失败: {e}")
+            logger.error(f"加载历史数据失败: {e}")
             return pd.DataFrame()
     
-    def refresh_data(self):
-        """刷新股票数据，强制从 API 获取"""
-        logger.info(f"强制刷新股票数据")
-        self._indicators_calculated = False
-        return self._fetch_historical_data()
-
     def calculate_change_pct(self, df: pd.DataFrame = None) -> pd.DataFrame:
         """计算涨跌幅"""
         if df is None:
@@ -172,7 +174,7 @@ class AkshareClient:
             self.calculate_change_pct(self.data)
             self.calculate_amplitude(self.data)
             self.calculate_ma(5, self.data)
-            self.calculate_ma(20, self.data)
+            self.calculate_ma(10, self.data)
             self.calculate_rsi(14, self.data)
             self._indicators_calculated = True
             print("指标计算完成")
@@ -203,6 +205,127 @@ class AkshareClient:
             industry_df = pd.DataFrame(rs.data, columns=rs.fields)
             return industry_df
         return pd.DataFrame()
+    
+    def load_kline_data_from_api(self, start_date: str = None, end_date: str = None) -> pd.DataFrame:
+        """从 API 接口加载 K 线数据"""
+        try:
+            import requests
+            
+            # 构建 API URL
+            base_url = settings.after_market_kline_api_url.rstrip('/')
+            api_url = f"{base_url}/stock/klines"
+            
+            # 构建请求参数
+            params = {}
+            if start_date:
+                params['start_date'] = start_date
+            if end_date:
+                params['end_date'] = end_date
+            
+            # 发送请求
+            logger.info(f"从 API 获取 K 线数据: {api_url}")
+            logger.info(f"请求参数: {params}")
+            logger.info(f"完整URL: {api_url}?{ '&'.join([f'{k}={v}' for k, v in params.items()])}")
+            
+            response = requests.get(api_url, params=params, timeout=300, verify=False)
+            logger.info(f"响应状态码: {response.status_code}")
+            response.raise_for_status()
+            
+            # 解析响应
+            result = response.json()
+            logger.info(f"响应内容: {str(result)[:200]}...")
+            
+            if result.get('success') and result.get('data'):
+                # 转换为 DataFrame
+                df = pd.DataFrame(result['data'])
+                
+                # 转换日期格式
+                if 'date' in df.columns:
+                    df['date'] = pd.to_datetime(df['date'])
+                
+                # 转换数值类型
+                numeric_columns = ['open', 'close', 'high', 'low', 'volume', 'amount', 'pct_chg', 'amplitude', 'turnover']
+                for col in numeric_columns:
+                    if col in df.columns:
+                        df[col] = pd.to_numeric(df[col], errors='coerce')
+                
+                # 添加 symbol 列（从 code 列转换）
+                if 'code' in df.columns and 'symbol' not in df.columns:
+                    df['symbol'] = df['code']
+                
+                logger.info(f"从 API 获取到 {len(df)} 条 K 线数据")
+                return df
+            else:
+                logger.warning(f"API 返回数据为空: {result.get('message', '未知错误')}")
+                return pd.DataFrame()
+                
+        except Exception as e:
+            logger.error(f"从 API 获取 K 线数据失败: {e}")
+            import traceback
+            logger.error(f"错误详情: {traceback.format_exc()}")
+            return pd.DataFrame()
+    
+    def get_stock_history_from_baostock(self, symbol: str, days: int = 60) -> pd.DataFrame:
+        """从 baostock 获取股票历史数据"""
+        try:
+            lg = bs.login()
+            if lg.error_code != '0':
+                logger.error(f"baostock login failed: {lg.error_msg}")
+                return pd.DataFrame()
+            
+            # 转换股票代码格式
+            # 处理各种可能的格式：SH600000, sh600000, 600000, SZ000001, sz000001, 000001
+            symbol_upper = symbol.upper()
+            
+            if symbol_upper.startswith('SH'):
+                bs_symbol = f"sh.{symbol_upper[2:]}"
+            elif symbol_upper.startswith('SZ'):
+                bs_symbol = f"sz.{symbol_upper[2:]}"
+            elif symbol_upper.startswith('BJ'):
+                bs_symbol = f"bj.{symbol_upper[2:]}"
+            else:
+                # 如果没有前缀，根据数字判断
+                if len(symbol) == 6:
+                    if symbol.startswith('6'):
+                        bs_symbol = f"sh.{symbol}"
+                    elif symbol.startswith('0') or symbol.startswith('3'):
+                        bs_symbol = f"sz.{symbol}"
+                    elif symbol.startswith('8') or symbol.startswith('4'):
+                        bs_symbol = f"bj.{symbol}"
+                    else:
+                        bs_symbol = symbol
+                else:
+                    bs_symbol = symbol
+            
+            logger.debug(f"转换股票代码: {symbol} -> {bs_symbol}")
+            
+            # 获取最近 N 天的数据
+            end_date = datetime.now().strftime("%Y-%m-%d")
+            start_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+            
+            rs = bs.query_history_k_data_plus(
+                code=bs_symbol,
+                fields="date,code,open,high,low,close,volume,amount",
+                start_date=start_date,
+                end_date=end_date,
+                frequency="d",
+                adjustflag="3"
+            )
+            bs.logout()
+            
+            if rs.error_code == '0' and len(rs.data) > 0:
+                df = pd.DataFrame(rs.data, columns=rs.fields)
+                df['symbol'] = symbol
+                df['date'] = pd.to_datetime(df['date'])
+                logger.info(f"从 baostock 获取到 {symbol} 的 {len(df)} 条历史数据")
+                return df
+            else:
+                logger.warning(f"baostock 返回数据为空: {rs.error_msg}, 股票代码: {bs_symbol}")
+                return pd.DataFrame()
+                
+        except Exception as e:
+            logger.error(f"从 baostock 获取历史数据失败: {e}")
+            return pd.DataFrame()
     
     def analyze_sector_performance(self, date: str = None, top_n: int = 20) -> Dict:
         """维度2: 板块热点与轮动"""
@@ -386,13 +509,21 @@ class AkshareClient:
             df = self.data
         if 'close' in df.columns and f'ma{window}' not in df.columns:
             # 检查是否有足够的数据来计算MA
-            if len(df) < window:
-                logger.warning(f"数据量不足（{len(df)} 条），无法计算 MA{window}，使用收盘价代替")
-                df[f'ma{window}'] = df['close']
+            # 按股票分组，检查每只股票是否有足够的数据
+            symbol_counts = df.groupby('symbol').size()
+            valid_symbols = symbol_counts[symbol_counts >= window].index
+            
+            logger.info(f"计算MA{window}: 总数据{len(df)}条, 股票数{len(symbol_counts)}只, 有效股票{len(valid_symbols)}只")
+            
+            if len(valid_symbols) == 0:
+                logger.warning(f"没有股票有足够的数据（{len(df)} 条），无法计算 MA{window}")
+                df[f'ma{window}'] = None
             else:
+                # 只为有足够数据的股票计算MA
                 df[f'ma{window}'] = df.groupby('symbol')['close'].transform(
-                    lambda x: x.rolling(window=window, min_periods=1).mean()
+                    lambda x: x.rolling(window=window, min_periods=window).mean() if len(x) >= window else None
                 )
+                logger.info(f"MA{window}计算完成，有效股票{len(valid_symbols)}只")
         return df
     
     def calculate_rsi(self, window: int = 14, df: pd.DataFrame = None) -> pd.DataFrame:
@@ -402,10 +533,13 @@ class AkshareClient:
         if 'close' not in df.columns or 'rsi' in df.columns:
             return df
         
-        # 检查是否有足够的数据来计算RSI
-        if len(df) < window:
-            logger.warning(f"数据量不足（{len(df)} 条），无法计算 RSI，使用默认值 50")
-            df['rsi'] = 50.0
+        # 按股票分组，检查每只股票是否有足够的数据
+        symbol_counts = df.groupby('symbol').size()
+        valid_symbols = symbol_counts[symbol_counts >= window].index
+        
+        if len(valid_symbols) == 0:
+            logger.warning(f"没有股票有足够的数据（{len(df)} 条），无法计算 RSI")
+            df['rsi'] = None
             return df
         
         def rsi_series(series, period=14):
@@ -415,7 +549,10 @@ class AkshareClient:
             rs = gain / loss
             return 100 - (100 / (1 + rs))
         
-        df['rsi'] = df.groupby('symbol')['close'].transform(rsi_series)
+        # 只为有足够数据的股票计算RSI
+        df['rsi'] = df.groupby('symbol')['close'].transform(
+            lambda x: rsi_series(x, period=window) if len(x) >= window else None
+        )
         return df
     
     def analyze_technical_signals(self, date: str = None, top_n: int = 20) -> Dict:
@@ -423,23 +560,82 @@ class AkshareClient:
         if date is None:
             date = self.get_latest_date()
         
-        self._ensure_indicators()
-        
-        # 匹配日期（支持 YYYY-MM-DD 或 YYYY-MM-DD HH:MM:SS 格式）
-        df_date = self.data[self.data['date'].astype(str).str[:10] == date].copy()
-        
-        if df_date.empty:
-            return {"error": "No data for this date"}
-        
-        # 去重：每个股票只保留一条记录
-        df_date = df_date.drop_duplicates(subset=['symbol'], keep='first')
+        logger.info(f"开始分析技术信号，日期: {date}")
+        logger.info(f"当前数据量: {len(self.data)} 条")
         
         # 检查是否有足够的历史数据来计算技术指标
-        if len(self.data) < 100000:
-            logger.warning(f"数据量不足（{len(self.data)} 条），技术指标可能不准确")
+        # 如果当前数据只有一天，需要加载历史数据
+        if len(self.data) < 6000:
+            logger.warning(f"当前数据量不足（{len(self.data)} 条），加载历史数据计算技术指标")
+            # 加载历史数据
+            api_df = self.load_historical_data()
+            if not api_df.empty:
+                # 只保留匹配日期及其之前的数据
+                api_df = api_df[api_df['date'].astype(str).str[:10] <= date].copy()
+                logger.info(f"过滤后历史数据，共 {len(api_df)} 条（日期 <= {date}）")
+                
+                # 显示日期范围
+                if not api_df.empty:
+                    min_date = api_df['date'].min()
+                    max_date = api_df['date'].max()
+                    logger.info(f"历史数据日期范围: {min_date} ~ {max_date}")
+                
+                # 计算技术指标
+                api_df = self.calculate_ma(5, api_df)
+                api_df = self.calculate_ma(10, api_df)
+                api_df = self.calculate_rsi(14, api_df)
+                
+                # 匹配指定日期的数据
+                df_date = api_df[api_df['date'].astype(str).str[:10] == date].copy()
+                df_date = df_date.drop_duplicates(subset=['symbol'], keep='first')
+                
+                logger.info(f"使用历史数据计算技术指标，匹配到 {len(df_date)} 条数据")
+                
+                # 检查技术指标列
+                if 'ma5' in df_date.columns:
+                    ma5_count = df_date['ma5'].notna().sum()
+                    logger.info(f"匹配数据中MA5非空: {ma5_count} 条")
+                if 'ma10' in df_date.columns:
+                    ma10_count = df_date['ma10'].notna().sum()
+                    logger.info(f"匹配数据中MA10非空: {ma10_count} 条")
+                if 'rsi' in df_date.columns:
+                    rsi_count = df_date['rsi'].notna().sum()
+                    logger.info(f"匹配数据中RSI非空: {rsi_count} 条")
+            else:
+                logger.error(f"历史数据为空，无法计算技术指标")
+                return {
+                    "date": date,
+                    "warning": "数据量不足，无法准确计算技术指标。获取历史数据失败。",
+                    "golden_cross_count": 0,
+                    "golden_cross": [],
+                    "overbought_count": 0,
+                    "overbought": [],
+                    "oversold_count": 0,
+                    "oversold": []
+                }
+        else:
+            logger.info(f"当前数据量充足（{len(self.data)} 条），使用当前数据计算技术指标")
+            # 使用当前数据
+            self._ensure_indicators()
+            
+            # 匹配日期（支持 YYYY-MM-DD 或 YYYY-MM-DD HH:MM:SS 格式）
+            df_date = self.data[self.data['date'].astype(str).str[:10] == date].copy()
+            
+            if df_date.empty:
+                logger.error(f"未找到日期 {date} 的数据")
+                return {"error": "No data for this date"}
+            
+            # 去重：每个股票只保留一条记录
+            df_date = df_date.drop_duplicates(subset=['symbol'], keep='first')
+            
+            logger.info(f"使用当前数据计算技术指标，匹配到 {len(df_date)} 条数据")
+        
+        # 检查是否有技术指标列
+        if 'ma5' not in df_date.columns or 'ma10' not in df_date.columns or 'rsi' not in df_date.columns:
+            logger.warning(f"技术指标列缺失，无法计算技术信号")
             return {
                 "date": date,
-                "warning": "数据量不足，无法准确计算技术指标。需要至少20个交易日的数据来计算MA和RSI指标。",
+                "warning": "技术指标计算失败，缺少必要的列（ma5, ma10, rsi）",
                 "golden_cross_count": 0,
                 "golden_cross": [],
                 "overbought_count": 0,
@@ -448,14 +644,32 @@ class AkshareClient:
                 "oversold": []
             }
         
-        # 金叉（MA5 > MA20）
-        golden_cross = df_date[df_date['ma5'] > df_date['ma20']][['symbol', 'close', 'ma5', 'ma20']]
+        # 过滤掉技术指标为None的股票
+        df_valid = df_date.dropna(subset=['ma5', 'ma10', 'rsi'])
+        
+        if df_valid.empty:
+            logger.warning(f"没有有效技术指标数据（原始数据: {len(df_date)} 条，有效数据: {len(df_valid)} 条）")
+            return {
+                "date": date,
+                "warning": f"没有足够的历史数据计算技术指标（有效数据: {len(df_valid)} 条）",
+                "golden_cross_count": 0,
+                "golden_cross": [],
+                "overbought_count": 0,
+                "overbought": [],
+                "oversold_count": 0,
+                "oversold": []
+            }
+        
+        # 金叉（MA5 > MA10）
+        golden_cross = df_valid[df_valid['ma5'] > df_valid['ma10']][['symbol', 'close', 'ma5', 'ma10']]
         
         # 超买（RSI > 80）
-        overbought = df_date[df_date['rsi'] > 80][['symbol', 'close', 'rsi']]
+        overbought = df_valid[df_valid['rsi'] > 80][['symbol', 'close', 'rsi']]
         
         # 超卖（RSI < 20）
-        oversold = df_date[df_date['rsi'] < 20][['symbol', 'close', 'rsi']]
+        oversold = df_valid[df_valid['rsi'] < 20][['symbol', 'close', 'rsi']]
+        
+        logger.info(f"技术信号统计: 金叉{len(golden_cross)}只, 超买{len(overbought)}只, 超卖{len(oversold)}只")
         
         return {
             "date": date,
@@ -466,12 +680,13 @@ class AkshareClient:
             "oversold_count": len(oversold),
             "oversold": oversold.head(top_n).to_dict('records')
         }
-    
+        
     def generate_daily_brief(self, date: str = None) -> Dict:
         """生成完整的每日简报"""
         if date is None:
             date = self.get_latest_date()
-        
+        logger.info("date: %s", date)
+        date = '2026-03-06'
         brief = {
             "date": date,
             "market_overview": self.analyze_market_overview(date),
@@ -479,13 +694,11 @@ class AkshareClient:
             "stock_performance": self.analyze_stock_performance(date),
             "technical_signals": self.analyze_technical_signals(date)
         }
-        
         return brief
     
     def format_brief_for_dingtalk(self, date: str = None) -> str:
         """格式化简报为钉钉机器人消息格式"""
         brief = self.generate_daily_brief(date)
-        logger.info("brief: %s", brief)
         # 加载需要的股票名称
         needed_symbols = set()
         
@@ -606,12 +819,12 @@ class AkshareClient:
                 lines.append(f"⚠️ {tech['warning']}")
                 lines.append("")
             else:
-                lines.append(f"**MA5金叉MA20: {tech['golden_cross_count']}只**")
+                lines.append(f"**MA5金叉MA10: {tech['golden_cross_count']}只**")
                 if tech['golden_cross']:
                     for stock in tech['golden_cross'][:3]:
                         symbol = stock['symbol']
                         name = stock_names.get(symbol, symbol)
-                        lines.append(f"  - {name}({symbol}): 收盘{stock['close']:.2f} | MA5:{stock['ma5']:.2f} | MA20:{stock['ma20']:.2f}")
+                        lines.append(f"  - {name}({symbol}): 收盘{stock['close']:.2f} | MA5:{stock['ma5']:.2f} | MA10:{stock['ma10']:.2f}")
                 
                 lines.append("")
                 lines.append(f"**超买(RSI>80): {tech['overbought_count']}只**")
@@ -628,11 +841,7 @@ class AkshareClient:
                         symbol = stock['symbol']
                         name = stock_names.get(symbol, symbol)
                         lines.append(f"  - {name}({symbol}): 收盘{stock['close']:.2f} | RSI:{stock['rsi']:.2f}")
-            lines.append("")
-        
-        lines.append("---")
-        lines.append("*数据来源：baostock | 生成时间：自动生成*")
-        
+            lines.append("") 
         return "\n".join(lines)
     
     def _load_stock_names_for_symbols(self, symbols: List[str]) -> Dict[str, str]:

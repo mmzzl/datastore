@@ -94,40 +94,99 @@ class DingTalkNotifier:
                     news_analysis = data.get('news_analysis', {})
                     if news_analysis:
                         msg_parts = [akshare_msg]
-                        msg_parts.append("\n### 🔹 新闻分析 (AI)\n")
+                        msg_parts.append("\n### 📰 新闻分析 (AI)\n")
                         
-                        def format_analysis_value(value, indent="  "):
-                            """递归格式化分析值"""
-                            if isinstance(value, dict):
-                                result = []
-                                for k, v in value.items():
-                                    if isinstance(v, (list, dict)):
-                                        result.append(f"{indent}{k}:\n")
-                                        result.append(format_analysis_value(v, indent + "  "))
-                                    elif isinstance(v, str):
-                                        result.append(f"{indent}{v}\n")
+                        # 格式化新闻分析
+                        if isinstance(news_analysis, dict):
+                            # 摘要 - 优先显示
+                            if 'summary' in news_analysis:
+                                msg_parts.append("#### 📝 市场摘要\n")
+                                summary = news_analysis['summary']
+                                msg_parts.append(f"{summary}\n\n")
+                            
+                            # 市场情绪
+                            if 'sentiment' in news_analysis:
+                                msg_parts.append("#### 📊 市场情绪\n")
+                                sentiment = news_analysis['sentiment']
+                                sentiment_emoji = {
+                                    "利好": "🟢",
+                                    "利空": "🔴",
+                                    "中性": "⚪",
+                                    "偏多": "🟢",
+                                    "偏空": "🔴",
+                                    "谨慎偏多": "🟡",
+                                    "谨慎偏空": "🟡"
+                                }
+                                emoji = sentiment_emoji.get(sentiment, "⚪")
+                                msg_parts.append(f"{emoji} **{sentiment}**\n\n")
+                            
+                            # 热门板块
+                            if 'hot_sectors' in news_analysis:
+                                msg_parts.append("#### 🔥 热门板块\n")
+                                hot_sectors = news_analysis['hot_sectors']
+                                if isinstance(hot_sectors, list):
+                                    for sector in hot_sectors:
+                                        msg_parts.append(f"- {sector}\n")
+                                else:
+                                    msg_parts.append(f"{hot_sectors}\n")
+                                msg_parts.append("\n")
+                            
+                            # 热门股票
+                            if 'hot_stocks' in news_analysis:
+                                msg_parts.append("#### 📈 热门股票\n")
+                                hot_stocks = news_analysis['hot_stocks']
+                                if isinstance(hot_stocks, list):
+                                    for stock in hot_stocks:
+                                        msg_parts.append(f"- {stock}\n")
+                                else:
+                                    msg_parts.append(f"{hot_stocks}\n")
+                                msg_parts.append("\n")
+                            
+                            # 明日策略
+                            if 'tomorrow_strategy' in news_analysis:
+                                msg_parts.append("#### 🎯 明日策略\n")
+                                strategy = news_analysis['tomorrow_strategy']
+                                if isinstance(strategy, dict):
+                                    if 'direction' in strategy:
+                                        msg_parts.append(f"**方向：** {strategy['direction']}\n")
+                                    if 'attention' in strategy:
+                                        msg_parts.append(f"**关注：** {strategy['attention']}\n")
+                                    if 'risk' in strategy:
+                                        msg_parts.append(f"**风险：** {strategy['risk']}\n")
+                                    if '利好' in strategy:
+                                        msg_parts.append(f"**利好板块：** {strategy['利好']}\n")
+                                    if '风险' in strategy:
+                                        msg_parts.append(f"**风险提示：** {strategy['风险']}\n")
+                                    msg_parts.append("\n")
+                                elif isinstance(strategy, str):
+                                    msg_parts.append(f"{strategy}\n\n")
+                            
+                            # 关键事件
+                            if 'key_events' in news_analysis:
+                                msg_parts.append("#### ⚡ 关键事件\n")
+                                key_events = news_analysis['key_events']
+                                if isinstance(key_events, list):
+                                    for event in key_events:
+                                        msg_parts.append(f"- {event}\n")
+                                else:
+                                    msg_parts.append(f"{key_events}\n")
+                                msg_parts.append("\n")
+                            
+                            # 其他字段（排除已处理的字段）
+                            processed_keys = ['summary', 'sentiment', 'hot_sectors', 'hot_stocks', 'tomorrow_strategy', 'key_events']
+                            for key, value in news_analysis.items():
+                                if key not in processed_keys:
+                                    msg_parts.append(f"#### {key}\n")
+                                    if isinstance(value, list):
+                                        for item in value:
+                                            msg_parts.append(f"- {item}\n")
+                                    elif isinstance(value, dict):
+                                        for k, v in value.items():
+                                            msg_parts.append(f"- {k}: {v}\n")
                                     else:
-                                        result.append(f"{indent}{k}: {v}\n")
-                                return "".join(result)
-                            elif isinstance(value, list):
-                                result = []
-                                for item in value:
-                                    if isinstance(item, dict):
-                                        result.append(format_analysis_value(item, indent))
-                                    else:
-                                        result.append(f"{indent}- {item}\n")
-                                return "".join(result)
-                            elif isinstance(value, str):
-                                lines = value.split('\n')
-                                result = []
-                                for line in lines:
-                                    if line.strip():
-                                        result.append(f"{indent}{line}\n")
-                                return "".join(result)
-                            else:
-                                return f"{indent}{value}\n"
+                                        msg_parts.append(f"{value}\n")
+                                    msg_parts.append("\n")
                         
-                        msg_parts.append(format_analysis_value(news_analysis))
                         msg_parts.append(f"\n---\n*发布时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*")
                         return "".join(msg_parts)
                     

@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     after_market_news_api_url: str = "http://life233.top"
     after_market_news_api_username: str = "admin"
     after_market_news_api_password: str = "admin"
+    after_market_kline_api_url: str = "http://life233.top"
     after_market_dingtalk_webhook: str = ""
     after_market_dingtalk_secret: str = ""
     after_market_scheduler_time: str = "20:00"
@@ -91,6 +92,7 @@ def load_config() -> Settings:
             after_market_news_api_url=config_data.get("after_market", {}).get("news_api_url", "http://life233.top"),
             after_market_news_api_username=config_data.get("after_market", {}).get("news_api_username", "admin"),
             after_market_news_api_password=config_data.get("after_market", {}).get("news_api_password", "admin"),
+            after_market_kline_api_url=config_data.get("after_market", {}).get("kline_api_url", "http://life233.top"),
             after_market_dingtalk_webhook=config_data.get("after_market", {}).get("dingtalk_webhook", ""),
             after_market_dingtalk_secret=config_data.get("after_market", {}).get("dingtalk_secret", ""),
             after_market_scheduler_time=config_data.get("after_market", {}).get("scheduler_time", "20:00"),
