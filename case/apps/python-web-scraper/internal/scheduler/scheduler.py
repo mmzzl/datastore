@@ -55,37 +55,84 @@ def is_trading_day(date=None):
 def run_spider(sort_end, req_trace, sort_start):
     """在子进程中运行新闻爬虫"""
     try:
+        # 设置环境变量，避免py_mini_racer的atexit注册问题
+        os.environ['PY_MINI_RACER_NO_CLEANUP'] = '1'
+        
         logger.info(f"子进程启动新闻爬虫... 当前时间: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+        
+        # 延迟导入，避免在主进程中加载
         from ..spider.eastmoney_spider import EastMoneyNewsSpider
-        process = CrawlerProcess(get_project_settings())
+        
+        # 获取Scrapy设置
+        settings = get_project_settings()
+        
+        # 禁用py_mini_racer的自动清理
+        settings.set('PY_MINI_RACER_NO_CLEANUP', True)
+        
+        process = CrawlerProcess(settings)
         process.crawl(EastMoneyNewsSpider, 
                       sort_end=sort_end,
                       req_trace=req_trace,
                       sort_start=sort_start)
         logger.debug(f"sort_end={sort_end}, req_trace={req_trace}, sort_start={sort_start}")
+        
+        # 启动爬虫
         process.start()
+        
         logger.info(f"子进程新闻爬虫执行完成: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+        
     except Exception as e:
         logger.error(f"子进程运行新闻爬虫失败: {e}")
         import traceback
         traceback.print_exc()
+    finally:
+        # 确保进程清理
+        try:
+            import gc
+            gc.collect()
+        except:
+            pass
 
 
 def run_kline_spider():
     """在子进程中运行K线爬虫"""
     import atexit
+    
+    # 设置环境变量，避免py_mini_racer的atexit注册问题
+    os.environ['PY_MINI_RACER_NO_CLEANUP'] = '1'
+    
+    # 注册清理函数
     atexit.register(unlock_kline)
+    
     try:
         logger.info(f"子进程启动K线爬虫... 当前时间: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+        
+        # 延迟导入，避免在主进程中加载
         from ..spider.akshare_kline_spider import AkshareKlineSpider
-        process = CrawlerProcess(get_project_settings())
+        
+        # 获取Scrapy设置
+        settings = get_project_settings()
+        
+        # 禁用py_mini_racer的自动清理
+        settings.set('PY_MINI_RACER_NO_CLEANUP', True)
+        
+        process = CrawlerProcess(settings)
         process.crawl(AkshareKlineSpider)
         process.start()
+        
         logger.info(f"子进程K线爬虫执行完成: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+        
     except Exception as e:
         logger.error(f"子进程运行K线爬虫失败: {e}")
         import traceback
         traceback.print_exc()
+    finally:
+        # 确保进程清理
+        try:
+            import gc
+            gc.collect()
+        except:
+            pass
 
 
 def is_kline_locked():
