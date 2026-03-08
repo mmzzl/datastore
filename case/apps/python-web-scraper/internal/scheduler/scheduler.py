@@ -54,10 +54,20 @@ def is_trading_day(date=None):
 
 def run_spider(sort_end, req_trace, sort_start):
     """在子进程中运行新闻爬虫"""
+    # 必须在函数开始就设置所有环境变量，在任何导入之前
+    import sys
+    import importlib
+    
+    # 设置环境变量，避免各种库的atexit注册问题
+    os.environ['PY_MINI_RACER_NO_CLEANUP'] = '1'
+    
+    # 修复Python 3.12的concurrent.futures问题
+    # 需要重新初始化threading模块的atexit状态
+    import threading
+    if hasattr(threading, '_exithandlers'):
+        threading._exithandlers = []
+    
     try:
-        # 设置环境变量，避免py_mini_racer的atexit注册问题
-        os.environ['PY_MINI_RACER_NO_CLEANUP'] = '1'
-        
         logger.info(f"子进程启动新闻爬虫... 当前时间: {time.strftime('%Y-%m-%d %H:%M:%S')}")
         
         # 延迟导入，避免在主进程中加载
@@ -68,6 +78,9 @@ def run_spider(sort_end, req_trace, sort_start):
         
         # 禁用py_mini_racer的自动清理
         settings.set('PY_MINI_RACER_NO_CLEANUP', True)
+        
+        # 设置Scrapy不使用线程池执行器
+        settings.set('REACTOR_THREADPOOL_MAXSIZE', 0)
         
         process = CrawlerProcess(settings)
         process.crawl(EastMoneyNewsSpider, 
@@ -96,10 +109,19 @@ def run_spider(sort_end, req_trace, sort_start):
 
 def run_kline_spider():
     """在子进程中运行K线爬虫"""
+    # 必须在函数开始就设置所有环境变量，在任何导入之前
+    import sys
+    import importlib
     import atexit
     
-    # 设置环境变量，避免py_mini_racer的atexit注册问题
+    # 设置环境变量，避免各种库的atexit注册问题
     os.environ['PY_MINI_RACER_NO_CLEANUP'] = '1'
+    
+    # 修复Python 3.12的concurrent.futures问题
+    # 需要重新初始化threading模块的atexit状态
+    import threading
+    if hasattr(threading, '_exithandlers'):
+        threading._exithandlers = []
     
     # 注册清理函数
     atexit.register(unlock_kline)
@@ -115,6 +137,9 @@ def run_kline_spider():
         
         # 禁用py_mini_racer的自动清理
         settings.set('PY_MINI_RACER_NO_CLEANUP', True)
+        
+        # 设置Scrapy不使用线程池执行器
+        settings.set('REACTOR_THREADPOOL_MAXSIZE', 0)
         
         process = CrawlerProcess(settings)
         process.crawl(AkshareKlineSpider)
