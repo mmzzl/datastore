@@ -1,13 +1,12 @@
+import sys
 import schedule
 import time
 import threading
-import multiprocessing
+import subprocess
 import logging
 import os
 import baostock as bs
 from datetime import datetime, timedelta
-from scrapy.crawler import CrawlerProcess
-from scrapy.utils.project import get_project_settings
 from ..utils.config import load_config, save_progress, load_progress
 
 logger = logging.getLogger(__name__)
@@ -53,111 +52,95 @@ def is_trading_day(date=None):
 
 
 def run_spider(sort_end, req_trace, sort_start):
-    """在子进程中运行新闻爬虫"""
-    # 必须在函数开始就设置所有环境变量，在任何导入之前
-    import sys
-    import importlib
-    
-    # 设置环境变量，避免各种库的atexit注册问题
-    os.environ['PY_MINI_RACER_NO_CLEANUP'] = '1'
-    
-    # 修复Python 3.12的concurrent.futures问题
-    # 需要重新初始化threading模块的atexit状态
-    import threading
-    if hasattr(threading, '_exithandlers'):
-        threading._exithandlers = []
-    
+    """使用subprocess运行新闻爬虫"""
     try:
-        logger.info(f"子进程启动新闻爬虫... 当前时间: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+        logger.info(f"启动新闻爬虫子进程... 当前时间: {time.strftime('%Y-%m-%d %H:%M:%S')}")
         
-        # 延迟导入，避免在主进程中加载
-        from ..spider.eastmoney_spider import EastMoneyNewsSpider
+        # 获取脚本路径
+        script_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        script_path = os.path.join(script_dir, 'run_news_spider.py')
         
-        # 获取Scrapy设置
-        settings = get_project_settings()
+        # 构建命令
+        cmd = [
+            sys.executable,
+            script_path,
+            sort_end or '',
+            req_trace or '',
+            sort_start or ''
+        ]
         
-        # 禁用py_mini_racer的自动清理
-        settings.set('PY_MINI_RACER_NO_CLEANUP', True)
+        logger.info("执行命令: %s", cmd)
         
-        # 设置Scrapy不使用线程池执行器
-        settings.set('REACTOR_THREADPOOL_MAXSIZE', 0)
+        # 运行子进程
+        result = subprocess.run(
+            cmd,
+            cwd=script_dir,
+            capture_output=True,
+            text=True,
+            timeout=3600  # 1小时超时
+        )
         
-        process = CrawlerProcess(settings)
-        process.crawl(EastMoneyNewsSpider, 
-                      sort_end=sort_end,
-                      req_trace=req_trace,
-                      sort_start=sort_start)
-        logger.debug(f"sort_end={sort_end}, req_trace={req_trace}, sort_start={sort_start}")
+        # 记录输出
+        if result.stdout:
+            logger.info("新闻爬虫输出:%s", result.stdout)
         
-        # 启动爬虫
-        process.start()
+        if result.stderr:
+            logger.warning(f"新闻爬虫错误输出:\n{result.stderr}")
         
-        logger.info(f"子进程新闻爬虫执行完成: {time.strftime('%Y-%m-%d %H:%M:%S')}")
-        
+        if result.returncode != 0:
+            logger.error(f"新闻爬虫异常退出，返回码: {result.returncode}")
+        else:
+            logger.info(f"新闻爬虫子进程执行完成: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+            
+    except subprocess.TimeoutExpired:
+        logger.error("新闻爬虫执行超时")
     except Exception as e:
-        logger.error(f"子进程运行新闻爬虫失败: {e}")
+        logger.error(f"启动新闻爬虫失败: {e}")
         import traceback
         traceback.print_exc()
-    finally:
-        # 确保进程清理
-        try:
-            import gc
-            gc.collect()
-        except:
-            pass
 
 
 def run_kline_spider():
-    """在子进程中运行K线爬虫"""
-    # 必须在函数开始就设置所有环境变量，在任何导入之前
-    import sys
-    import importlib
-    import atexit
-    
-    # 设置环境变量，避免各种库的atexit注册问题
-    os.environ['PY_MINI_RACER_NO_CLEANUP'] = '1'
-    
-    # 修复Python 3.12的concurrent.futures问题
-    # 需要重新初始化threading模块的atexit状态
-    import threading
-    if hasattr(threading, '_exithandlers'):
-        threading._exithandlers = []
-    
-    # 注册清理函数
-    atexit.register(unlock_kline)
-    
+    """使用subprocess运行K线爬虫"""
     try:
-        logger.info(f"子进程启动K线爬虫... 当前时间: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+        logger.info(f"启动K线爬虫子进程... 当前时间: {time.strftime('%Y-%m-%d %H:%M:%S')}")
         
-        # 延迟导入，避免在主进程中加载
-        from ..spider.akshare_kline_spider import AkshareKlineSpider
+        # 获取脚本路径
+        script_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        script_path = os.path.join(script_dir, 'run_kline_spider.py')
         
-        # 获取Scrapy设置
-        settings = get_project_settings()
+        # 构建命令
+        cmd = [sys.executable, script_path]
         
-        # 禁用py_mini_racer的自动清理
-        settings.set('PY_MINI_RACER_NO_CLEANUP', True)
+        logger.info(f"执行命令: {' '.join(cmd)}")
         
-        # 设置Scrapy不使用线程池执行器
-        settings.set('REACTOR_THREADPOOL_MAXSIZE', 0)
+        # 运行子进程
+        result = subprocess.run(
+            cmd,
+            cwd=script_dir,
+            capture_output=True,
+            text=True,
+            timeout=3600  # 1小时超时
+        )
         
-        process = CrawlerProcess(settings)
-        process.crawl(AkshareKlineSpider)
-        process.start()
+        # 记录输出
+        if result.stdout:
+            logger.info(f"K线爬虫输出:\n{result.stdout}")
         
-        logger.info(f"子进程K线爬虫执行完成: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+        if result.stderr:
+            logger.warning(f"K线爬虫错误输出:\n{result.stderr}")
         
+        if result.returncode != 0:
+            logger.error(f"K线爬虫异常退出，返回码: {result.returncode}")
+        else:
+            logger.info(f"K线爬虫子进程执行完成: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+            
+    except subprocess.TimeoutExpired:
+        logger.error("K线爬虫执行超时")
     except Exception as e:
-        logger.error(f"子进程运行K线爬虫失败: {e}")
+        logger.error(f"启动K线爬虫失败: {e}")
         import traceback
         traceback.print_exc()
-    finally:
-        # 确保进程清理
-        try:
-            import gc
-            gc.collect()
-        except:
-            pass
 
 
 def is_kline_locked():
@@ -211,13 +194,8 @@ class NewsScheduler:
             sort_start = progress.get('sort_start', '')
             logger.info(f"加载历史进度: sort_end='{sort_end}', req_trace='{req_trace}', sort_start='{sort_start}'")
             
-            p = multiprocessing.Process(target=run_spider, 
-                                      args=(sort_end, req_trace, sort_start))
-            p.start()
-            logger.info(f"子进程已启动，PID: {p.pid}")
-            
-            p.join()
-            logger.info(f"子进程已完成，返回码: {p.exitcode}")
+            # 使用subprocess运行爬虫
+            run_spider(sort_end, req_trace, sort_start)
             
             updated_progress = load_progress()
             logger.info(f"爬虫执行完成，最新进度: sort_end='{updated_progress.get('sort_end', '')}', req_trace='{updated_progress.get('req_trace', '')}'")
@@ -243,11 +221,10 @@ class NewsScheduler:
         try:
             logger.info(f"开始启动K线爬虫... 当前时间: {time.strftime('%Y-%m-%d %H:%M:%S')}")
             lock_kline()
-            p = multiprocessing.Process(target=run_kline_spider)
-            p.start()
-            logger.info(f"K线爬虫子进程已启动，PID: {p.pid}")
-            p.join()
-            logger.info(f"K线爬虫子进程已完成，返回码: {p.exitcode}")
+            
+            # 使用subprocess运行爬虫
+            run_kline_spider()
+            
         except Exception as e:
             logger.error(f"启动K线爬虫失败: {e}")
             import traceback

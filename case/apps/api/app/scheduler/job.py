@@ -108,7 +108,7 @@ class AfterMarketJob:
                 self.storage.close()
 
     def _fetch_news(self, date_str: str) -> List[Dict[str, Any]]:
-        return self.news_client.get_all_daily_news(date_str, limit=100)
+        return self.news_client.get_all_daily_news(date_str)
 
     def _analyze_news(self, news: List[Dict[str, Any]]) -> Dict[str, Any]:
         """使用LLM分析新闻"""
