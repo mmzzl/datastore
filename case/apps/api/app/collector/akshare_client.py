@@ -678,9 +678,11 @@ class AkshareClient:
         if df is None or df.empty:
             error_msg = f"无法获取日期 {date} 的股票数据"
             logger.error(error_msg)
+            logger.info(f"当前数据日期范围: {self.data['date'].min()} ~ {self.data['date'].max()}")
             return {"error": error_msg}
         
         logger.info(f"获取到股票数据: {len(df)} 条")
+        logger.info(f"股票数据日期范围: {df['date'].min()} ~ {df['date'].max()}")
         
         # 步骤2: 获取行业分类数据
         industry_df = self._get_industry_data_for_analysis()
