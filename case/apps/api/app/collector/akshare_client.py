@@ -258,7 +258,7 @@ class AkshareClient:
             mongo = MongoStorage(
                 host=app_settings.mongodb_host,
                 port=app_settings.mongodb_port,
-                db_name=app_settings.mongodb_db_name,
+                db_name=app_settings.mongodb_database,
                 username=app_settings.mongodb_username,
                 password=app_settings.mongodb_password
             )
@@ -486,7 +486,7 @@ class AkshareClient:
             mongo = MongoStorage(
                 host=app_settings.mongodb_host,
                 port=app_settings.mongodb_port,
-                db_name=app_settings.mongodb_db_name,
+                db_name=app_settings.mongodb_database,
                 username=app_settings.mongodb_username,
                 password=app_settings.mongodb_password
             )
