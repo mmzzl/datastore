@@ -1421,22 +1421,22 @@ class AkshareClient:
             logger.error(f"错误详情: {traceback.format_exc()}")
             stock_performance = {"error": str(e)}
         
-        try:
-            logger.info("开始生成技术信号...")
-            technical_signals = self.analyze_technical_signals(date)
-            logger.info(f"技术信号生成完成: {technical_signals.get('error', '成功')}")
-        except Exception as e:
-            logger.error(f"生成技术信号失败: {e}")
-            import traceback
-            logger.error(f"错误详情: {traceback.format_exc()}")
-            technical_signals = {"error": str(e)}
+        # try:
+        #     logger.info("开始生成技术信号...")
+        #     technical_signals = self.analyze_technical_signals(date)
+        #     logger.info(f"技术信号生成完成: {technical_signals.get('error', '成功')}")
+        # except Exception as e:
+        #     logger.error(f"生成技术信号失败: {e}")
+        #     import traceback
+        #     logger.error(f"错误详情: {traceback.format_exc()}")
+        #     technical_signals = {"error": str(e)}
         
         return {
             "date": date,
             "market_overview": market_overview,
             "sector_performance": sector_performance,
             "stock_performance": stock_performance,
-            "technical_signals": technical_signals
+            # "technical_signals": technical_signals
         }
     
     def format_brief_for_dingtalk(self, date: str = None) -> str:
