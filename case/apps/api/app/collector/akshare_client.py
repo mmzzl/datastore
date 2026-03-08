@@ -729,8 +729,10 @@ class AkshareClient:
     
     def _get_industry_data_for_analysis(self) -> Optional[pd.DataFrame]:
         """获取用于分析的行业数据"""
+        logger.info("开始获取行业数据...")
+        
         # 尝试从baostock获取
-        industry_df = self.get_industry_data()
+        industry_df = self.get_industry_data(use_cache=False)  # 不使用缓存，确保获取最新数据
         
         if industry_df.empty:
             logger.warning("baostock行业数据为空，尝试从CSV文件获取")
@@ -741,6 +743,7 @@ class AkshareClient:
                 logger.error("所有行业数据源均失败")
                 return None
         
+        logger.info(f"成功获取行业数据: {len(industry_df)} 条记录")
         return industry_df
     
     def _merge_stock_and_industry(self, df: pd.DataFrame, industry_df: pd.DataFrame) -> Optional[pd.DataFrame]:
