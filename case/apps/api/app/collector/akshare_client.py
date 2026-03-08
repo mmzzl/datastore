@@ -1381,6 +1381,14 @@ class AkshareClient:
         
         try:
             stock_info = {}
+            logger.info(f"开始加载股票信息，股票数量: {len(symbols)}, 日期: {date}")
+            
+            if self.data is not None and not self.data.empty:
+                logger.info(f"self.data数据量: {len(self.data)}")
+                logger.info(f"self.data日期列类型: {self.data['date'].dtype}")
+                logger.info(f"self.data日期示例: {self.data['date'].head(5).tolist()}")
+                logger.info(f"self.data股票代码示例: {self.data['symbol'].head(10).tolist()}")
+            
             for symbol in symbols:
                 if self.data is not None and not self.data.empty:
                     if date:
@@ -1411,6 +1419,7 @@ class AkshareClient:
                         'close': 0
                     }
             
+            logger.info(f"股票信息加载完成，成功: {len([s for s in stock_info if stock_info[s]['close'] != 0])}, 失败: {len([s for s in stock_info if stock_info[s]['close'] == 0])}")
             return stock_info
         except Exception as e:
             logger.error(f"加载股票名称失败: {e}")
