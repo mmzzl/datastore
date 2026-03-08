@@ -982,53 +982,6 @@ class AkshareClient:
         
         return "普跌"
     
-    def analyze_sector_performance(self, date: str = None, top_n: int = 20) -> Dict:
-        """维度2: 板块热点与轮动"""
-        date = date or self.get_latest_date()
-        
-        if not date:
-            return {"error": "无法获取日期"}
-        
-        df = self._filter_data_by_date(self.data, date)
-        
-        if df.empty:
-            return {"error": "No data for this date"}
-        
-        # 获取行业分类
-        industry_df = self.get_industry_data(date)
-        
-        if industry_df.empty:
-            return {"error": "Failed to get industry data"}
-        
-        # 转换股票代码格式
-        df['code'] = df['symbol'].apply(StockSymbolConverter.to_industry_format)
-        
-        # 合并数据
-        merged_df = pd.merge(df, industry_df[['code', 'industry']], on='code', how='left')
-        
-        # 过滤掉没有行业分类的股票
-        merged_df = merged_df[merged_df['industry'].notna() & (merged_df['industry'] != '')]
-        
-        if merged_df.empty:
-            return {"error": "No industry data available"}
-        
-        # 按行业分组统计
-        sector_stats = merged_df.groupby('industry').agg({
-            'change_pct': 'mean',
-            'symbol': 'count'
-        }).reset_index()
-        sector_stats.columns = ['industry', 'avg_change_pct', 'stock_count']
-        
-        # 排序
-        sector_stats = sector_stats.sort_values('avg_change_pct', ascending=False)
-        
-        return {
-            "date": date,
-            "total_sectors": len(sector_stats),
-            "top_gainers": sector_stats.head(top_n).to_dict('records'),
-            "top_losers": sector_stats.sort_values('avg_change_pct', ascending=True).head(top_n).to_dict('records')
-        }
-    
     def analyze_stock_performance(self, date: str = None, top_n: int = 20) -> Dict:
         """维度4: 个股表现与活跃度"""
         date = date or self.get_latest_date()
