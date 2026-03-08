@@ -1403,27 +1403,65 @@ class AkshareClient:
     
     def _add_sector_performance_section(self, lines: List[str], sector: Dict) -> None:
         """添加板块表现部分"""
+        # 检查是否有错误
         if 'error' in sector:
+            logger.warning(f"板块表现数据包含错误: {sector['error']}")
+            lines.append("### 🏢 板块热点与轮动")
+            lines.append("")
+            lines.append(f"⚠️ {sector['error']}")
+            lines.append("")
             return
+        
+        # 检查数据是否为空
+        top_gainers = sector.get('top_gainers', [])
+        top_losers = sector.get('top_losers', [])
+        
+        if not top_gainers and not top_losers:
+            logger.warning("板块表现数据为空")
+            lines.append("### 🏢 板块热点与轮动")
+            lines.append("")
+            lines.append("⚠️ 暂无板块数据")
+            lines.append("")
+            return
+        
+        logger.info(f"开始格式化板块数据: 涨幅榜{len(top_gainers)}个, 跌幅榜{len(top_losers)}个")
         
         lines.append("### 🏢 板块热点与轮动")
         lines.append("")
         lines.append(f"**行业板块数: {sector.get('total_sectors', 0)}**")
         lines.append("")
         
-        lines.append("**📈 涨幅榜 TOP5**")
-        for i, sec in enumerate(sector.get('top_gainers', [])[:5], 1):
-            pct = sec.get('avg_change_pct', 0)
-            emoji = "🟢" if pct > 0 else "🔴"
-            lines.append(f"{i}. {sec.get('industry', '未知')} {emoji} **{pct:.2f}%** ({int(sec.get('stock_count', 0))}只)")
+        # 涨幅榜
+        if top_gainers:
+            lines.append("**📈 涨幅榜 TOP5**")
+            for i, sec in enumerate(top_gainers[:5], 1):
+                pct = sec.get('avg_change_pct', 0)
+                emoji = "🟢" if pct > 0 else "🔴"
+                industry_name = sec.get('industry', '未知')
+                stock_count = int(sec.get('stock_count', 0))
+                lines.append(f"{i}. {industry_name} {emoji} **{pct:.2f}%** ({stock_count}只)")
+            lines.append("")
+        else:
+            lines.append("**📈 涨幅榜**")
+            lines.append("暂无数据")
+            lines.append("")
         
-        lines.append("")
-        lines.append("**📉 跌幅榜 TOP5**")
-        for i, sec in enumerate(sector.get('top_losers', [])[:5], 1):
-            pct = sec.get('avg_change_pct', 0)
-            emoji = "🔴" if pct < 0 else "🟢"
-            lines.append(f"{i}. {sec.get('industry', '未知')} {emoji} **{pct:.2f}%** ({int(sec.get('stock_count', 0))}只)")
-        lines.append("")
+        # 跌幅榜
+        if top_losers:
+            lines.append("**📉 跌幅榜 TOP5**")
+            for i, sec in enumerate(top_losers[:5], 1):
+                pct = sec.get('avg_change_pct', 0)
+                emoji = "🔴" if pct < 0 else "🟢"
+                industry_name = sec.get('industry', '未知')
+                stock_count = int(sec.get('stock_count', 0))
+                lines.append(f"{i}. {industry_name} {emoji} **{pct:.2f}%** ({stock_count}只)")
+            lines.append("")
+        else:
+            lines.append("**📉 跌幅榜**")
+            lines.append("暂无数据")
+            lines.append("")
+        
+        logger.info("板块数据格式化完成")
     
     def _add_stock_performance_section(self, lines: List[str], perf: Dict, stock_names: Dict[str, str]) -> None:
         """添加个股表现部分"""
