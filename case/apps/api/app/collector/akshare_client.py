@@ -210,13 +210,28 @@ class AkshareClient:
     
     @retry_on_failure(max_retries=3, delay=2)
     def load_data(self) -> pd.DataFrame:
-        """加载股票数据"""
+        """加载股票数据
+        
+        优先级：
+        1. 从MongoDB读取（最快）
+        2. 从API接口读取（实时性好）
+        3. 从本地文件读取（兜底）
+        """
         try:
-            logger.info("从接口获取股票数据...")
             today_date = self.config.default_date
-            # today_date = datetime.now().strftime("%Y-%m-%d")
-            api_url = f"{settings.after_market_kline_api_url}/stock/kline/all/{today_date}?limit=10000"
             
+            # 优先从MongoDB读取
+            df = self._load_data_from_mongodb(today_date)
+            if not df.empty:
+                df = self._add_stock_names(df)
+                df = self._ensure_date_format(df)
+                self.data = df
+                logger.info(f"从MongoDB成功加载 {len(df)} 条股票数据")
+                return df
+            
+            # MongoDB没有数据，从API接口读取
+            logger.info("从接口获取股票数据...")
+            api_url = f"{settings.after_market_kline_api_url}/stock/kline/all/{today_date}?limit=10000"
             df = self._fetch_data_from_api(api_url)
             
             if not df.empty:
@@ -224,15 +239,52 @@ class AkshareClient:
                 df = self._ensure_date_format(df)
                 self._save_data_to_file(df, self.config.csv_file)
                 self.data = df
-                logger.info(f"成功加载 {len(df)} 条股票数据")
+                logger.info(f"从接口成功加载 {len(df)} 条股票数据")
                 return df
             
-            # 如果API失败，尝试从本地文件加载
+            # API失败，从本地文件加载
             return self._load_data_from_file(self.config.csv_file)
             
         except Exception as e:
             logger.error(f"加载股票数据失败: {e}")
             return self._load_data_from_file(self.config.csv_file)
+    
+    def _load_data_from_mongodb(self, date: str) -> pd.DataFrame:
+        """从MongoDB读取股票数据"""
+        try:
+            from app.storage.mongo_client import MongoStorage
+            from app.core.config import settings as app_settings
+            
+            mongo = MongoStorage(
+                host=app_settings.mongodb_host,
+                port=app_settings.mongodb_port,
+                db_name=app_settings.mongodb_db_name,
+                username=app_settings.mongodb_username,
+                password=app_settings.mongodb_password
+            )
+            mongo.connect()
+            
+            # 从MongoDB读取指定日期的K线数据
+            kline_data = mongo.get_all_kline_by_date(date, limit=10000)
+            mongo.close()
+            
+            if not kline_data:
+                logger.warning(f"MongoDB中没有 {date} 的数据")
+                return pd.DataFrame()
+            
+            # 转换为DataFrame
+            df = pd.DataFrame(kline_data)
+            
+            # 重命名字段（如果需要）
+            if 'code' in df.columns and 'symbol' not in df.columns:
+                df['symbol'] = df['code']
+            
+            logger.info(f"从MongoDB获取到 {len(df)} 条数据")
+            return df
+            
+        except Exception as e:
+            logger.warning(f"从MongoDB读取数据失败: {e}")
+            return pd.DataFrame()
     
     def _fetch_data_from_api(self, api_url: str) -> pd.DataFrame:
         """从API获取数据"""
@@ -386,7 +438,7 @@ class AkshareClient:
             logger.info(f"请求参数: {params}")
             
             # 请求文件流
-            response = requests.get(api_url, params=params, timeout=300, verify=False, stream=True)
+            response = requests.get(api_url, params=params, timeout=3000, verify=False, stream=True)
             response.raise_for_status()
             
             # 根据Content-Type判断文件类型
