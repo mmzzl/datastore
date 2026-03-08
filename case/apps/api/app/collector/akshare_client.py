@@ -1331,21 +1331,45 @@ class AkshareClient:
         logger.info(f"生成每日简报，日期: {date}")
         
         # 生成各个维度的分析结果
-        logger.info("开始生成市场概览...")
-        market_overview = self.analyze_market_overview(date)
-        logger.info(f"市场概览生成完成: {market_overview.get('error', '成功')}")
+        try:
+            logger.info("开始生成市场概览...")
+            market_overview = self.analyze_market_overview(date)
+            logger.info(f"市场概览生成完成: {market_overview.get('error', '成功')}")
+        except Exception as e:
+            logger.error(f"生成市场概览失败: {e}")
+            import traceback
+            logger.error(f"错误详情: {traceback.format_exc()}")
+            market_overview = {"error": str(e)}
         
-        logger.info("开始生成板块表现...")
-        sector_performance = self.analyze_sector_performance(date)
-        logger.info(f"板块表现生成完成: {sector_performance.get('error', '成功')}")
+        try:
+            logger.info("开始生成板块表现...")
+            sector_performance = self.analyze_sector_performance(date)
+            logger.info(f"板块表现生成完成: {sector_performance.get('error', '成功')}")
+        except Exception as e:
+            logger.error(f"生成板块表现失败: {e}")
+            import traceback
+            logger.error(f"错误详情: {traceback.format_exc()}")
+            sector_performance = {"error": str(e)}
         
-        logger.info("开始生成个股表现...")
-        stock_performance = self.analyze_stock_performance(date)
-        logger.info(f"个股表现生成完成: {stock_performance.get('error', '成功')}")
+        try:
+            logger.info("开始生成个股表现...")
+            stock_performance = self.analyze_stock_performance(date)
+            logger.info(f"个股表现生成完成: {stock_performance.get('error', '成功')}")
+        except Exception as e:
+            logger.error(f"生成个股表现失败: {e}")
+            import traceback
+            logger.error(f"错误详情: {traceback.format_exc()}")
+            stock_performance = {"error": str(e)}
         
-        logger.info("开始生成技术信号...")
-        technical_signals = self.analyze_technical_signals(date)
-        logger.info(f"技术信号生成完成: {technical_signals.get('error', '成功')}")
+        try:
+            logger.info("开始生成技术信号...")
+            technical_signals = self.analyze_technical_signals(date)
+            logger.info(f"技术信号生成完成: {technical_signals.get('error', '成功')}")
+        except Exception as e:
+            logger.error(f"生成技术信号失败: {e}")
+            import traceback
+            logger.error(f"错误详情: {traceback.format_exc()}")
+            technical_signals = {"error": str(e)}
         
         return {
             "date": date,
