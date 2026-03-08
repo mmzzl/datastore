@@ -214,6 +214,7 @@ class AkshareClient:
         try:
             logger.info("从接口获取股票数据...")
             today_date = self.config.default_date
+            # today_date = datetime.now().strftime("%Y-%m-%d")
             api_url = f"{settings.after_market_kline_api_url}/stock/kline/all/{today_date}?limit=10000"
             
             df = self._fetch_data_from_api(api_url)
@@ -1339,9 +1340,8 @@ class AkshareClient:
         # 收集需要的股票代码
         needed_symbols = self._collect_needed_symbols(brief)
         
-        # 加载股票名称和收盘价
-        date = date or self.config.default_date
-        stock_info = self._load_stock_names_for_symbols(list(needed_symbols), date)
+        # 加载股票名称和收盘价（使用最新数据）
+        stock_info = self._load_stock_names_for_symbols(list(needed_symbols))
         
         # 生成格式化消息
         lines = self._build_dingtalk_message(brief, stock_info)
@@ -1371,7 +1371,7 @@ class AkshareClient:
         
         参数:
             symbols: 股票代码列表
-            date: 日期（YYYY-MM-DD格式），如果为None则使用最新数据
+            date: 日期（YYYY-MM-DD格式），已废弃，始终使用最新数据
         
         返回:
             字典，格式: {symbol: {'name': str, 'close': float}}
@@ -1381,7 +1381,7 @@ class AkshareClient:
         
         try:
             stock_info = {}
-            logger.info(f"开始加载股票信息，股票数量: {len(symbols)}, 日期: {date}")
+            logger.info(f"开始加载股票信息，股票数量: {len(symbols)}")
             
             if self.data is not None and not self.data.empty:
                 logger.info(f"self.data数据量: {len(self.data)}")
@@ -1391,12 +1391,8 @@ class AkshareClient:
             
             for symbol in symbols:
                 if self.data is not None and not self.data.empty:
-                    if date:
-                        # 获取指定日期的数据
-                        stock_row = self.data[(self.data['symbol'] == symbol) & (self.data['date'].astype(str).str[:10] == date)]
-                    else:
-                        # 获取最新数据
-                        stock_row = self.data[self.data['symbol'] == symbol]
+                    # 始终使用最新数据
+                    stock_row = self.data[self.data['symbol'] == symbol]
                     
                     if not stock_row.empty:
                         stock_info[symbol] = {
@@ -1405,9 +1401,8 @@ class AkshareClient:
                         }
                         logger.debug(f"成功加载股票信息: {symbol} -> {stock_row.iloc[0]['name']}, 收盘价: {stock_row.iloc[0]['close']}")
                     else:
-                        logger.warning(f"未找到股票数据: {symbol}, 日期: {date}")
+                        logger.warning(f"未找到股票数据: {symbol}")
                         logger.debug(f"当前数据中的股票代码示例: {self.data['symbol'].head(10).tolist()}")
-                        logger.debug(f"当前数据中的日期示例: {self.data['date'].head(10).tolist()}")
                         stock_info[symbol] = {
                             'name': symbol,
                             'close': 0
@@ -1606,7 +1601,7 @@ class AkshareClient:
             return
         
         lines.append(f"**MA5金叉MA10: {tech.get('golden_cross_count', 0)}只**")
-        for stock in tech.get('golden_cross', [])[:10]:
+        for stock in tech.get('golden_cross', [])[:5]:
             symbol = stock.get('symbol', '')
             name = stock_info.get(symbol, {}).get('name', symbol)
             close = stock_info.get(symbol, {}).get('close', stock.get('close', 0))
@@ -1614,7 +1609,7 @@ class AkshareClient:
         
         lines.append("")
         lines.append(f"**超买(RSI>80): {tech.get('overbought_count', 0)}只**")
-        for stock in tech.get('overbought', [])[:10]:
+        for stock in tech.get('overbought', [])[:5]:
             symbol = stock.get('symbol', '')
             name = stock_info.get(symbol, {}).get('name', symbol)
             close = stock_info.get(symbol, {}).get('close', stock.get('close', 0))
@@ -1622,7 +1617,7 @@ class AkshareClient:
         
         lines.append("")
         lines.append(f"**超卖(RSI<20): {tech.get('oversold_count', 0)}只**")
-        for stock in tech.get('oversold', [])[:10]:
+        for stock in tech.get('oversold', [])[:5]:
             symbol = stock.get('symbol', '')
             name = stock_info.get(symbol, {}).get('name', symbol)
             close = stock_info.get(symbol, {}).get('close', stock.get('close', 0))
