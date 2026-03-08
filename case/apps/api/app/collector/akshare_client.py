@@ -410,17 +410,26 @@ class AkshareClient:
     @retry_on_failure(max_retries=3, delay=2)
     def load_kline_data_from_api(self, start_date: str = None, end_date: str = None, format: str = None) -> pd.DataFrame:
         """
-        从 API 接口加载 K 线数据
+        从 MongoDB 加载 K 线数据（优先），失败时从 API 接口加载
         
         参数:
             start_date: 开始日期 (YYYY-MM-DD)
             end_date: 结束日期 (YYYY-MM-DD)
-            format: 导出格式 (csv/json/excel)，默认使用配置中的格式
+            format: 导出格式 (csv/json/excel)，已废弃，仅用于兼容
         
         返回:
             K线数据的DataFrame
         """
         try:
+            # 优先从MongoDB读取
+            df = self._load_kline_from_mongodb(start_date, end_date)
+            if not df.empty:
+                logger.info(f"从 MongoDB 获取到 {len(df)} 条 K 线数据")
+                return df
+            
+            # MongoDB没有数据，从API接口读取
+            logger.info("MongoDB中没有K线数据，从 API 获取...")
+            
             base_url = settings.after_market_kline_api_url.rstrip('/')
             api_url = f"{base_url}/stock/klines/export"
             
@@ -466,6 +475,43 @@ class AkshareClient:
             logger.error(f"从 API 获取 K 线数据失败: {e}")
             import traceback
             logger.error(f"错误详情: {traceback.format_exc()}")
+            return pd.DataFrame()
+    
+    def _load_kline_from_mongodb(self, start_date: str = None, end_date: str = None) -> pd.DataFrame:
+        """从MongoDB读取K线数据"""
+        try:
+            from app.storage.mongo_client import MongoStorage
+            from app.core.config import settings as app_settings
+            
+            mongo = MongoStorage(
+                host=app_settings.mongodb_host,
+                port=app_settings.mongodb_port,
+                db_name=app_settings.mongodb_db_name,
+                username=app_settings.mongodb_username,
+                password=app_settings.mongodb_password
+            )
+            mongo.connect()
+            
+            # 从MongoDB读取K线数据
+            kline_data = mongo.get_all_klines(start_date=start_date, end_date=end_date, limit=None)
+            mongo.close()
+            
+            if not kline_data:
+                logger.warning(f"MongoDB中没有K线数据")
+                return pd.DataFrame()
+            
+            # 转换为DataFrame
+            df = pd.DataFrame(kline_data)
+            
+            # 重命名字段（如果需要）
+            if 'code' in df.columns and 'symbol' not in df.columns:
+                df['symbol'] = df['code']
+            
+            logger.info(f"从MongoDB获取到 {len(df)} 条K线数据")
+            return df
+            
+        except Exception as e:
+            logger.warning(f"从MongoDB读取K线数据失败: {e}")
             return pd.DataFrame()
     
     def _parse_csv_response(self, response: requests.Response) -> pd.DataFrame:
