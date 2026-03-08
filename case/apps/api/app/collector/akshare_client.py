@@ -15,6 +15,10 @@ import time
 import requests
 import os
 from pathlib import Path
+import io
+import json
+import tempfile
+import zipfile
 
 from ..core.config import settings
 
@@ -32,6 +36,7 @@ class StockDataConfig:
     retry_delay: int = 2
     historical_data_days: int = 60
     technical_indicator_threshold: int = 6000
+    export_format: str = 'csv'  # 默认导出格式：csv/json/excel
 
 
 class DataCache:
@@ -350,11 +355,21 @@ class AkshareClient:
         logger.info(f"数据量分布: 最小{symbol_counts.min()}条, 最大{symbol_counts.max()}条, 中位数{symbol_counts.median():.1f}条")
     
     @retry_on_failure(max_retries=3, delay=2)
-    def load_kline_data_from_api(self, start_date: str = None, end_date: str = None) -> pd.DataFrame:
-        """从 API 接口加载 K 线数据"""
+    def load_kline_data_from_api(self, start_date: str = None, end_date: str = None, format: str = None) -> pd.DataFrame:
+        """
+        从 API 接口加载 K 线数据
+        
+        参数:
+            start_date: 开始日期 (YYYY-MM-DD)
+            end_date: 结束日期 (YYYY-MM-DD)
+            format: 导出格式 (csv/json/excel)，默认使用配置中的格式
+        
+        返回:
+            K线数据的DataFrame
+        """
         try:
             base_url = settings.after_market_kline_api_url.rstrip('/')
-            api_url = f"{base_url}/stock/klines"
+            api_url = f"{base_url}/stock/klines/export"
             
             params = {}
             if start_date:
@@ -362,29 +377,115 @@ class AkshareClient:
             if end_date:
                 params['end_date'] = end_date
             
+            # 使用指定格式或默认格式
+            export_format = format or self.config.export_format
+            params['format'] = export_format
+            
             logger.info(f"从 API 获取 K 线数据: {api_url}")
             logger.info(f"请求参数: {params}")
             
-            response = requests.get(api_url, params=params, timeout=300, verify=False)
+            # 请求文件流
+            response = requests.get(api_url, params=params, timeout=300, verify=False, stream=True)
             response.raise_for_status()
             
-            result = response.json()
+            # 根据Content-Type判断文件类型
+            content_type = response.headers.get('Content-Type', '')
             
-            if result.get('success') and result.get('data'):
-                df = self._process_kline_data(result['data'])
+            # 解析不同格式的文件
+            if 'csv' in content_type or export_format == 'csv':
+                df = self._parse_csv_response(response)
+            elif 'json' in content_type or export_format == 'json':
+                df = self._parse_json_response(response)
+            elif 'excel' in content_type or 'sheet' in content_type or export_format == 'excel':
+                df = self._parse_excel_response(response)
+            else:
+                logger.warning(f"未知的响应格式: {content_type}")
+                return pd.DataFrame()
+            
+            if not df.empty:
                 logger.info(f"从 API 获取到 {len(df)} 条 K 线数据")
                 return df
             else:
-                logger.warning(f"API 返回数据为空: {result.get('message', '未知错误')}")
+                logger.warning("解析后的数据为空")
                 return pd.DataFrame()
                 
         except Exception as e:
             logger.error(f"从 API 获取 K 线数据失败: {e}")
+            import traceback
+            logger.error(f"错误详情: {traceback.format_exc()}")
             return pd.DataFrame()
     
-    def _process_kline_data(self, data: List[Dict]) -> pd.DataFrame:
-        """处理K线数据"""
-        df = pd.DataFrame(data)
+    def _parse_csv_response(self, response: requests.Response) -> pd.DataFrame:
+        """解析CSV格式响应"""
+        try:
+            # 读取CSV内容
+            content = response.content.decode('utf-8-sig')
+            df = pd.read_csv(io.StringIO(content))
+            return self._process_kline_data(df)
+        except Exception as e:
+            logger.error(f"解析CSV响应失败: {e}")
+            return pd.DataFrame()
+    
+    def _parse_json_response(self, response: requests.Response) -> pd.DataFrame:
+        """解析JSON格式响应"""
+        try:
+            content = response.content.decode('utf-8')
+            data = json.loads(content)
+            
+            # 如果是数组，直接转换为DataFrame
+            if isinstance(data, list):
+                return self._process_kline_data(data)
+            # 如果是对象，检查data字段
+            elif isinstance(data, dict) and 'data' in data:
+                return self._process_kline_data(data['data'])
+            else:
+                logger.warning(f"JSON响应格式不符合预期")
+                return pd.DataFrame()
+        except Exception as e:
+            logger.error(f"解析JSON响应失败: {e}")
+            return pd.DataFrame()
+    
+    def _parse_excel_response(self, response: requests.Response) -> pd.DataFrame:
+        """解析Excel格式响应"""
+        try:
+            # 将响应内容保存到临时文件
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as tmp_file:
+                tmp_file.write(response.content)
+                tmp_file_path = tmp_file.name
+            
+            try:
+                # 读取Excel文件
+                df = pd.read_excel(tmp_file_path, engine='openpyxl')
+                return self._process_kline_data(df)
+            finally:
+                # 删除临时文件
+                if os.path.exists(tmp_file_path):
+                    os.unlink(tmp_file_path)
+        except Exception as e:
+            logger.error(f"解析Excel响应失败: {e}")
+            return pd.DataFrame()
+    
+    def _process_kline_data(self, data: Union[List[Dict], pd.DataFrame]) -> pd.DataFrame:
+        """
+        处理K线数据
+        
+        参数:
+            data: 数据，可以是字典列表或DataFrame
+        
+        返回:
+            处理后的DataFrame
+        """
+        # 如果是列表，转换为DataFrame
+        if isinstance(data, list):
+            df = pd.DataFrame(data)
+        elif isinstance(data, pd.DataFrame):
+            df = data.copy()
+        else:
+            logger.warning(f"不支持的数据类型: {type(data)}")
+            return pd.DataFrame()
+        
+        if df.empty:
+            return df
         
         # 转换日期格式
         if 'date' in df.columns:
@@ -396,7 +497,7 @@ class AkshareClient:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce')
         
-        # 添加 symbol 列
+        # 添加 symbol 列（从 code 列转换）
         if 'code' in df.columns and 'symbol' not in df.columns:
             df['symbol'] = df['code']
         
