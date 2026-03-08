@@ -541,23 +541,334 @@ class AkshareClient:
             return None
         return str(self.data['date'].max())[:10]
     
-    def get_industry_data(self, date: str = None) -> pd.DataFrame:
-        """获取行业分类数据"""
+    def get_industry_data(self, date: str = None, use_cache: bool = True) -> pd.DataFrame:
+        """
+        获取行业分类数据
+        
+        参数:
+            date: 日期（暂未使用，预留参数）
+            use_cache: 是否使用缓存
+        
+        返回:
+            行业分类DataFrame
+        """
+        cache_key = 'industry_data'
+        
+        # 尝试从缓存获取
+        if use_cache and self.cache.has(cache_key):
+            logger.info("从缓存获取行业数据")
+            return self.cache.get(cache_key)
+        
         try:
+            logger.info("开始从baostock获取行业分类数据...")
+            
+            # 登录baostock
             lg = bs.login()
             if lg.error_code != '0':
                 logger.error(f"baostock login failed: {lg.error_msg}")
                 return pd.DataFrame()
             
+            # 查询行业分类
+            logger.info("查询行业分类...")
             rs = bs.query_stock_industry()
+            
+            # 登出
             bs.logout()
             
-            if rs.error_code == '0' and len(rs.data) > 0:
-                return pd.DataFrame(rs.data, columns=rs.fields)
-            return pd.DataFrame()
+            # 检查返回结果
+            if rs.error_code != '0':
+                logger.error(f"查询行业分类失败: {rs.error_msg}")
+                return pd.DataFrame()
+            
+            if len(rs.data) == 0:
+                logger.warning("baostock返回的行业数据为空")
+                return pd.DataFrame()
+            
+            # 转换为DataFrame
+            industry_df = pd.DataFrame(rs.data, columns=rs.fields)
+            logger.info(f"成功获取行业数据: {len(industry_df)} 条记录")
+            
+            # 数据清洗
+            if 'code' in industry_df.columns:
+                logger.info(f"行业数据包含 {industry_df['code'].nunique()} 个唯一股票代码")
+            
+            if 'industry' in industry_df.columns:
+                logger.info(f"行业数据包含 {industry_df['industry'].nunique()} 个唯一行业")
+                logger.info(f"行业分类: {industry_df['industry'].unique()[:10].tolist()}")
+            
+            # 保存到缓存
+            if use_cache:
+                self.cache.set(cache_key, industry_df)
+                logger.info("行业数据已缓存")
+            
+            return industry_df
+            
         except Exception as e:
             logger.error(f"获取行业数据失败: {e}")
+            import traceback
+            logger.error(f"错误详情: {traceback.format_exc()}")
             return pd.DataFrame()
+    
+    def get_industry_data_from_csv(self, csv_file: str = None) -> pd.DataFrame:
+        """
+        从CSV文件获取行业数据（备用数据源）
+        
+        参数:
+            csv_file: CSV文件路径
+        
+        返回:
+            行业分类DataFrame
+        """
+        csv_file = csv_file or self.config.spot_csv_file
+        
+        if not os.path.exists(csv_file):
+            logger.warning(f"CSV文件不存在: {csv_file}")
+            return pd.DataFrame()
+        
+        try:
+            logger.info(f"从CSV文件获取行业数据: {csv_file}")
+            df = pd.read_csv(csv_file)
+            
+            # 检查必要的列
+            if 'symbol' not in df.columns:
+                logger.error(f"CSV文件缺少symbol列: {csv_file}")
+                return pd.DataFrame()
+            
+            if 'name' not in df.columns:
+                logger.error(f"CSV文件缺少name列: {csv_file}")
+                return pd.DataFrame()
+            
+            # 如果有industry列，直接使用
+            if 'industry' in df.columns:
+                logger.info(f"CSV文件包含industry列，直接使用")
+                return df[['symbol', 'name', 'industry']].drop_duplicates(subset=['symbol'])
+            
+            # 否则，尝试从name中提取行业信息
+            logger.info(f"CSV文件不包含industry列，尝试从name中提取")
+            # 这里可以实现行业名称匹配逻辑
+            # 暂时返回空数据
+            return pd.DataFrame()
+            
+        except Exception as e:
+            logger.error(f"从CSV文件获取行业数据失败: {e}")
+            return pd.DataFrame()
+    
+    def analyze_sector_performance(self, date: str = None, top_n: int = 20) -> Dict:
+        """
+        维度2: 板块热点与轮动
+        
+        参数:
+            date: 分析日期（YYYY-MM-DD格式）
+            top_n: 返回的板块数量
+        
+        返回:
+            板块表现分析结果，包括涨幅榜和跌幅榜
+        """
+        date = date or self.get_latest_date()
+        
+        if not date:
+            return {"error": "无法获取日期"}
+        
+        logger.info(f"开始分析板块表现，日期: {date}")
+        logger.info(f"当前数据量: {len(self.data) if self.data is not None else 0} 条")
+        
+        # 步骤1: 获取股票数据
+        df = self._get_stock_data_for_sector_analysis(date)
+        
+        if df is None or df.empty:
+            error_msg = f"无法获取日期 {date} 的股票数据"
+            logger.error(error_msg)
+            return {"error": error_msg}
+        
+        logger.info(f"获取到股票数据: {len(df)} 条")
+        
+        # 步骤2: 获取行业分类数据
+        industry_df = self._get_industry_data_for_analysis()
+        
+        if industry_df is None or industry_df.empty:
+            error_msg = "无法获取行业分类数据"
+            logger.error(error_msg)
+            return {"error": error_msg}
+        
+        logger.info(f"获取到行业数据: {len(industry_df)} 条记录")
+        
+        # 步骤3: 匹配股票和行业
+        merged_df = self._merge_stock_and_industry(df, industry_df)
+        
+        if merged_df is None or merged_df.empty:
+            error_msg = "无法匹配股票和行业分类"
+            logger.error(error_msg)
+            return {"error": error_msg}
+        
+        logger.info(f"成功匹配股票和行业: {len(merged_df)} 条记录")
+        
+        # 步骤4: 计算板块统计
+        sector_stats = self._calculate_sector_stats(merged_df, top_n)
+        
+        logger.info(f"板块分析完成: 总板块数 {sector_stats['total_sectors']}")
+        
+        return sector_stats
+    
+    def _get_stock_data_for_sector_analysis(self, date: str) -> Optional[pd.DataFrame]:
+        """获取用于板块分析的股票数据"""
+        if self.data is None or self.data.empty:
+            logger.warning("当前数据为空")
+            return None
+        
+        # 过滤指定日期的数据
+        df = self._filter_data_by_date(self.data, date)
+        
+        if df.empty:
+            logger.warning(f"没有日期 {date} 的数据")
+            return None
+        
+        # 去重：每个股票只保留一条记录
+        df = df.drop_duplicates(subset=['symbol'], keep='first')
+        
+        return df
+    
+    def _get_industry_data_for_analysis(self) -> Optional[pd.DataFrame]:
+        """获取用于分析的行业数据"""
+        # 尝试从baostock获取
+        industry_df = self.get_industry_data()
+        
+        if industry_df.empty:
+            logger.warning("baostock行业数据为空，尝试从CSV文件获取")
+            # 尝试从CSV文件获取
+            industry_df = self.get_industry_data_from_csv()
+            
+            if industry_df.empty:
+                logger.error("所有行业数据源均失败")
+                return None
+        
+        return industry_df
+    
+    def _merge_stock_and_industry(self, df: pd.DataFrame, industry_df: pd.DataFrame) -> Optional[pd.DataFrame]:
+        """合并股票数据和行业分类"""
+        try:
+            logger.info("开始匹配股票和行业分类...")
+            
+            # 转换股票代码格式
+            df = df.copy()
+            df['code'] = df['symbol'].apply(self._convert_symbol_for_industry)
+            
+            logger.info(f"股票代码转换完成")
+            logger.info(f"股票数据列: {list(df.columns)}")
+            logger.info(f"行业数据列: {list(industry_df.columns)}")
+            
+            # 检查是否有共同的列
+            common_cols = set(df.columns) & set(industry_df.columns)
+            logger.info(f"共同列: {list(common_cols)}")
+            
+            if 'code' not in common_cols:
+                logger.error("没有共同的列用于合并（缺少code列）")
+                return None
+            
+            # 合并数据
+            merged_df = pd.merge(df, industry_df, on='code', how='left')
+            
+            logger.info(f"合并后数据量: {len(merged_df)} 条")
+            
+            # 检查行业列
+            if 'industry' not in merged_df.columns:
+                logger.error("合并后数据缺少industry列")
+                return None
+            
+            # 统计行业匹配情况
+            matched_count = merged_df['industry'].notna().sum()
+            total_count = len(merged_df)
+            logger.info(f"行业匹配情况: {matched_count}/{total_count} ({matched_count/total_count*100:.1f}%)")
+            
+            # 过滤掉没有行业分类的股票
+            merged_df = merged_df[merged_df['industry'].notna() & (merged_df['industry'] != '')]
+            
+            if merged_df.empty:
+                logger.error("过滤后没有有效数据")
+                return None
+            
+            logger.info(f"过滤后有效数据: {len(merged_df)} 条")
+            
+            return merged_df
+            
+        except Exception as e:
+            logger.error(f"合并股票和行业数据失败: {e}")
+            import traceback
+            logger.error(f"错误详情: {traceback.format_exc()}")
+            return None
+    
+    def _convert_symbol_for_industry(self, symbol: str) -> str:
+        """转换股票代码为行业数据格式"""
+        try:
+            if pd.isna(symbol):
+                return symbol
+            
+            symbol_str = str(symbol)
+            
+            # 处理各种可能的格式
+            if symbol_str.startswith('SH'):
+                return f"sh.{symbol_str[2:].lower()}"
+            elif symbol_str.startswith('SZ'):
+                return f"sz.{symbol_str[2:].lower()}"
+            elif symbol_str.startswith('BJ'):
+                return f"bj.{symbol_str[2:].lower()}"
+            else:
+                # 如果没有前缀，根据数字判断
+                if len(symbol_str) == 6:
+                    if symbol_str.startswith('6'):
+                        return f"sh.{symbol_str}"
+                    elif symbol_str.startswith('0') or symbol_str.startswith('3'):
+                        return f"sz.{symbol_str}"
+                    elif symbol_str.startswith('8') or symbol_str.startswith('4'):
+                        return f"bj.{symbol_str}"
+                    else:
+                        return symbol_str
+                else:
+                    return symbol_str
+                    
+        except Exception as e:
+            logger.warning(f"转换股票代码 {symbol} 失败: {e}")
+            return symbol
+    
+    def _calculate_sector_stats(self, merged_df: pd.DataFrame, top_n: int) -> Dict:
+        """计算板块统计数据"""
+        try:
+            logger.info("开始计算板块统计...")
+            
+            # 按行业分组统计
+            sector_stats = merged_df.groupby('industry').agg({
+                'change_pct': 'mean',
+                'symbol': 'count'
+            }).reset_index()
+            
+            sector_stats.columns = ['industry', 'avg_change_pct', 'stock_count']
+            
+            logger.info(f"统计完成: {len(sector_stats)} 个板块")
+            
+            # 排序
+            sector_stats = sector_stats.sort_values('avg_change_pct', ascending=False)
+            
+            # 涨幅榜
+            top_gainers = sector_stats.head(top_n)
+            logger.info(f"涨幅榜TOP{top_n}: {top_gainers['industry'].tolist()[:5]}")
+            
+            # 跌幅榜
+            top_losers = sector_stats.sort_values('avg_change_pct', ascending=True).head(top_n)
+            logger.info(f"跌幅榜TOP{top_n}: {top_losers['industry'].tolist()[:5]}")
+            
+            return {
+                "date": str(merged_df['date'].iloc[0])[:10] if 'date' in merged_df.columns else "",
+                "total_sectors": len(sector_stats),
+                "top_gainers": top_gainers.to_dict('records'),
+                "top_losers": top_losers.to_dict('records')
+            }
+            
+        except Exception as e:
+            logger.error(f"计算板块统计失败: {e}")
+            import traceback
+            logger.error(f"错误详情: {traceback.format_exc()}")
+            return {
+                "error": f"计算板块统计失败: {e}"
+            }
     
     def get_stock_history_from_baostock(self, symbol: str, days: int = 60) -> pd.DataFrame:
         """从 baostock 获取股票历史数据"""
