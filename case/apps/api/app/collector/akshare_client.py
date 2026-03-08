@@ -275,9 +275,13 @@ class AkshareClient:
             # 转换为DataFrame
             df = pd.DataFrame(kline_data)
             
-            # 重命名字段（如果需要）
-            if 'code' in df.columns and 'symbol' not in df.columns:
-                df['symbol'] = df['code']
+            # 重命名字段（与API接口保持一致）
+            column_mapping = {
+                'code': 'symbol',
+                'pct_chg': 'change_pct',
+                'turnover': 'turnover_rate'
+            }
+            df = df.rename(columns=column_mapping)
             
             logger.info(f"从MongoDB获取到 {len(df)} 条数据")
             return df
@@ -503,9 +507,13 @@ class AkshareClient:
             # 转换为DataFrame
             df = pd.DataFrame(kline_data)
             
-            # 重命名字段（如果需要）
-            if 'code' in df.columns and 'symbol' not in df.columns:
-                df['symbol'] = df['code']
+            # 重命名字段（与API接口保持一致）
+            column_mapping = {
+                'code': 'symbol',
+                'pct_chg': 'change_pct',
+                'turnover': 'turnover_rate'
+            }
+            df = df.rename(columns=column_mapping)
             
             logger.info(f"从MongoDB获取到 {len(df)} 条K线数据")
             return df
