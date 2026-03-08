@@ -46,7 +46,7 @@ after_market:
   kline_api_url: "https://www.life233.top"
   dingtalk_webhook: "https://oapi.dingtalk.com/robot/send?access_token=7c358aa51936f007c951ac2cf9387e235d1e845b5cd639837e9a884d483c6657"
   dingtalk_secret: "SEC1d98f39e4143ee506dc5cb059f8dc7f949f18576bde03f98d74595a2aa56f9dd"
-  scheduler_time: "20:25"
+  scheduler_time: "08:50"
   scheduler_timezone: "Asia/Shanghai"
 
 # 数据源配置 (akshare 或 tushare)
