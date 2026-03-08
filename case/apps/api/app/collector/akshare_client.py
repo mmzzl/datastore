@@ -1330,12 +1330,29 @@ class AkshareClient:
         
         logger.info(f"生成每日简报，日期: {date}")
         
+        # 生成各个维度的分析结果
+        logger.info("开始生成市场概览...")
+        market_overview = self.analyze_market_overview(date)
+        logger.info(f"市场概览生成完成: {market_overview.get('error', '成功')}")
+        
+        logger.info("开始生成板块表现...")
+        sector_performance = self.analyze_sector_performance(date)
+        logger.info(f"板块表现生成完成: {sector_performance.get('error', '成功')}")
+        
+        logger.info("开始生成个股表现...")
+        stock_performance = self.analyze_stock_performance(date)
+        logger.info(f"个股表现生成完成: {stock_performance.get('error', '成功')}")
+        
+        logger.info("开始生成技术信号...")
+        technical_signals = self.analyze_technical_signals(date)
+        logger.info(f"技术信号生成完成: {technical_signals.get('error', '成功')}")
+        
         return {
             "date": date,
-            "market_overview": self.analyze_market_overview(date),
-            "sector_performance": self.analyze_sector_performance(date),
-            "stock_performance": self.analyze_stock_performance(date),
-            "technical_signals": self.analyze_technical_signals(date)
+            "market_overview": market_overview,
+            "sector_performance": sector_performance,
+            "stock_performance": stock_performance,
+            "technical_signals": technical_signals
         }
     
     def format_brief_for_dingtalk(self, date: str = None) -> str:
