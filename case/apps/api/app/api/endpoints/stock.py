@@ -38,7 +38,7 @@ class QueryConfig:
     MAX_PAGE_SIZE = 1000
     
     # 单次查询最大记录数
-    MAX_SINGLE_QUERY_RECORDS = 5000
+    MAX_SINGLE_QUERY_RECORDS = 10000
     
     # 流式查询每批大小
     STREAM_BATCH_SIZE = 1000

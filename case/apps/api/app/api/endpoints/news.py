@@ -44,7 +44,7 @@ def format_date_for_mongo(dt):
 @router.get("/daily", response_model=NewsListResponse)
 def get_daily_news(
     date: Optional[str] = Query(None, description="查询日期，格式：YYYY-MM-DD"),
-    limit: int = Query(10, ge=1, le=1000, description="返回数量限制"),
+    limit: int = Query(10, ge=1, le=100, description="返回数量限制"),
     offset: int = Query(0, ge=0, description="分页偏移量"),
     current_user = Depends(get_current_user)
 ):
