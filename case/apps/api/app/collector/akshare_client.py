@@ -1339,11 +1339,12 @@ class AkshareClient:
         # 收集需要的股票代码
         needed_symbols = self._collect_needed_symbols(brief)
         
-        # 加载股票名称
-        stock_names = self._load_stock_names_for_symbols(list(needed_symbols))
+        # 加载股票名称和收盘价
+        date = date or self.config.default_date
+        stock_info = self._load_stock_names_for_symbols(list(needed_symbols), date)
         
         # 生成格式化消息
-        lines = self._build_dingtalk_message(brief, stock_names)
+        lines = self._build_dingtalk_message(brief, stock_info)
         
         return "\n".join(lines)
     
@@ -1365,30 +1366,58 @@ class AkshareClient:
         
         return needed_symbols
     
-    def _load_stock_names_for_symbols(self, symbols: List[str]) -> Dict[str, str]:
-        """加载股票代码对应的名称"""
+    def _load_stock_names_for_symbols(self, symbols: List[str], date: str = None) -> Dict[str, Dict]:
+        """加载股票代码对应的名称和收盘价
+        
+        参数:
+            symbols: 股票代码列表
+            date: 日期（YYYY-MM-DD格式），如果为None则使用最新数据
+        
+        返回:
+            字典，格式: {symbol: {'name': str, 'close': float}}
+        """
         if not symbols:
             return {}
         
         try:
-            stock_names = {}
+            stock_info = {}
             for symbol in symbols:
                 if self.data is not None and not self.data.empty:
-                    stock_row = self.data[self.data['symbol'] == symbol]
-                    if not stock_row.empty:
-                        stock_names[symbol] = stock_row.iloc[0]['name']
+                    if date:
+                        # 获取指定日期的数据
+                        stock_row = self.data[(self.data['symbol'] == symbol) & (self.data['date'].astype(str).str[:10] == date)]
                     else:
-                        stock_names[symbol] = symbol
+                        # 获取最新数据
+                        stock_row = self.data[self.data['symbol'] == symbol]
+                    
+                    if not stock_row.empty:
+                        stock_info[symbol] = {
+                            'name': stock_row.iloc[0]['name'],
+                            'close': stock_row.iloc[0]['close']
+                        }
+                    else:
+                        stock_info[symbol] = {
+                            'name': symbol,
+                            'close': 0
+                        }
                 else:
-                    stock_names[symbol] = symbol
+                    stock_info[symbol] = {
+                        'name': symbol,
+                        'close': 0
+                    }
             
-            return stock_names
+            return stock_info
         except Exception as e:
             logger.error(f"加载股票名称失败: {e}")
-            return {symbol: symbol for symbol in symbols}
+            return {symbol: {'name': symbol, 'close': 0} for symbol in symbols}
     
-    def _build_dingtalk_message(self, brief: Dict, stock_names: Dict[str, str]) -> List[str]:
-        """构建钉钉消息"""
+    def _build_dingtalk_message(self, brief: Dict, stock_info: Dict[str, Dict]) -> List[str]:
+        """构建钉钉消息
+        
+        参数:
+            brief: 每日简报数据
+            stock_info: 股票信息字典，格式: {symbol: {'name': str, 'close': float}}
+        """
         lines = []
         lines.append(f"## 📊 每日收盘简报 - {brief['date']}")
         lines.append("")
@@ -1400,10 +1429,10 @@ class AkshareClient:
         self._add_sector_performance_section(lines, brief.get('sector_performance', {}))
         
         # 维度4: 个股表现与活跃度
-        self._add_stock_performance_section(lines, brief.get('stock_performance', {}), stock_names)
+        self._add_stock_performance_section(lines, brief.get('stock_performance', {}), stock_info)
         
         # 维度6: 技术信号与趋势
-        self._add_technical_signals_section(lines, brief.get('technical_signals', {}), stock_names)
+        self._add_technical_signals_section(lines, brief.get('technical_signals', {}), stock_info)
         
         return lines
     
@@ -1497,8 +1526,14 @@ class AkshareClient:
         
         logger.info("板块数据格式化完成")
     
-    def _add_stock_performance_section(self, lines: List[str], perf: Dict, stock_names: Dict[str, str]) -> None:
-        """添加个股表现部分"""
+    def _add_stock_performance_section(self, lines: List[str], perf: Dict, stock_info: Dict[str, Dict]) -> None:
+        """添加个股表现部分
+        
+        参数:
+            lines: 消息行列表
+            perf: 个股表现数据
+            stock_info: 股票信息字典，格式: {symbol: {'name': str, 'close': float}}
+        """
         if 'error' in perf:
             return
         
@@ -1511,7 +1546,7 @@ class AkshareClient:
             pct = stock.get('change_pct', 0)
             emoji = "🟢" if pct > 0 else "🔴"
             symbol = stock.get('symbol', '')
-            name = stock_names.get(symbol, symbol)
+            name = stock_info.get(symbol, {}).get('name', symbol)
             lines.append(f"{i}. {name}({symbol}) {emoji} **{pct:.2f}%** | 振幅: {stock.get('amplitude', 0):.2f}%")
         
         # 跌幅榜
@@ -1521,7 +1556,7 @@ class AkshareClient:
             pct = stock.get('change_pct', 0)
             emoji = "🔴" if pct < 0 else "🟢"
             symbol = stock.get('symbol', '')
-            name = stock_names.get(symbol, symbol)
+            name = stock_info.get(symbol, {}).get('name', symbol)
             lines.append(f"{i}. {name}({symbol}) {emoji} **{pct:.2f}%** | 振幅: {stock.get('amplitude', 0):.2f}%")
         
         # 振幅榜
@@ -1531,12 +1566,18 @@ class AkshareClient:
             pct = stock.get('change_pct', 0)
             emoji = "🟢" if pct > 0 else "🔴"
             symbol = stock.get('symbol', '')
-            name = stock_names.get(symbol, symbol)
+            name = stock_info.get(symbol, {}).get('name', symbol)
             lines.append(f"{i}. {name}({symbol}) 振幅: **{stock.get('amplitude', 0):.2f}%** | 涨跌: {emoji} {pct:.2f}%")
         lines.append("")
     
-    def _add_technical_signals_section(self, lines: List[str], tech: Dict, stock_names: Dict[str, str]) -> None:
-        """添加技术信号部分"""
+    def _add_technical_signals_section(self, lines: List[str], tech: Dict, stock_info: Dict[str, Dict]) -> None:
+        """添加技术信号部分
+        
+        参数:
+            lines: 消息行列表
+            tech: 技术信号数据
+            stock_info: 股票信息字典，格式: {symbol: {'name': str, 'close': float}}
+        """
         if 'error' in tech:
             return
         
@@ -1549,22 +1590,25 @@ class AkshareClient:
             return
         
         lines.append(f"**MA5金叉MA10: {tech.get('golden_cross_count', 0)}只**")
-        for stock in tech.get('golden_cross', [])[:3]:
+        for stock in tech.get('golden_cross', [])[:10]:
             symbol = stock.get('symbol', '')
-            name = stock_names.get(symbol, symbol)
-            lines.append(f"  - {name}({symbol}): 收盘{stock.get('close', 0):.2f} | MA5:{stock.get('ma5', 0):.2f} | MA10:{stock.get('ma10', 0):.2f}")
+            name = stock_info.get(symbol, {}).get('name', symbol)
+            close = stock_info.get(symbol, {}).get('close', stock.get('close', 0))
+            lines.append(f"  - {name}({symbol}): 收盘{close:.2f} | MA5:{stock.get('ma5', 0):.2f} | MA10:{stock.get('ma10', 0):.2f}")
         
         lines.append("")
         lines.append(f"**超买(RSI>80): {tech.get('overbought_count', 0)}只**")
-        for stock in tech.get('overbought', [])[:3]:
+        for stock in tech.get('overbought', [])[:10]:
             symbol = stock.get('symbol', '')
-            name = stock_names.get(symbol, symbol)
-            lines.append(f"  - {name}({symbol}): 收盘{stock.get('close', 0):.2f} | RSI:{stock.get('rsi', 0):.2f}")
+            name = stock_info.get(symbol, {}).get('name', symbol)
+            close = stock_info.get(symbol, {}).get('close', stock.get('close', 0))
+            lines.append(f"  - {name}({symbol}): 收盘{close:.2f} | RSI:{stock.get('rsi', 0):.2f}")
         
         lines.append("")
         lines.append(f"**超卖(RSI<20): {tech.get('oversold_count', 0)}只**")
-        for stock in tech.get('oversold', [])[:3]:
+        for stock in tech.get('oversold', [])[:10]:
             symbol = stock.get('symbol', '')
-            name = stock_names.get(symbol, symbol)
-            lines.append(f"  - {name}({symbol}): 收盘{stock.get('close', 0):.2f} | RSI:{stock.get('rsi', 0):.2f}")
+            name = stock_info.get(symbol, {}).get('name', symbol)
+            close = stock_info.get(symbol, {}).get('close', stock.get('close', 0))
+            lines.append(f"  - {name}({symbol}): 收盘{close:.2f} | RSI:{stock.get('rsi', 0):.2f}")
         lines.append("")
