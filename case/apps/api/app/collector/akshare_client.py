@@ -1395,12 +1395,17 @@ class AkshareClient:
                             'name': stock_row.iloc[0]['name'],
                             'close': stock_row.iloc[0]['close']
                         }
+                        logger.debug(f"成功加载股票信息: {symbol} -> {stock_row.iloc[0]['name']}, 收盘价: {stock_row.iloc[0]['close']}")
                     else:
+                        logger.warning(f"未找到股票数据: {symbol}, 日期: {date}")
+                        logger.debug(f"当前数据中的股票代码示例: {self.data['symbol'].head(10).tolist()}")
+                        logger.debug(f"当前数据中的日期示例: {self.data['date'].head(10).tolist()}")
                         stock_info[symbol] = {
                             'name': symbol,
                             'close': 0
                         }
                 else:
+                    logger.warning(f"self.data为空或None")
                     stock_info[symbol] = {
                         'name': symbol,
                         'close': 0
@@ -1409,6 +1414,8 @@ class AkshareClient:
             return stock_info
         except Exception as e:
             logger.error(f"加载股票名称失败: {e}")
+            import traceback
+            logger.error(f"错误详情: {traceback.format_exc()}")
             return {symbol: {'name': symbol, 'close': 0} for symbol in symbols}
     
     def _build_dingtalk_message(self, brief: Dict, stock_info: Dict[str, Dict]) -> List[str]:
