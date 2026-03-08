@@ -60,16 +60,19 @@ def run_spider(sort_end, req_trace, sort_start):
         script_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
         script_path = os.path.join(script_dir, 'run_news_spider.py')
         
+        # 获取Python解释器路径
+        python_exe = sys.executable if isinstance(sys.executable, str) else 'python3'
+        
         # 构建命令
         cmd = [
-            sys.executable,
+            python_exe,
             script_path,
-            sort_end or '',
-            req_trace or '',
-            sort_start or ''
+            str(sort_end) if sort_end else '',
+            str(req_trace) if req_trace else '',
+            str(sort_start) if sort_start else ''
         ]
         
-        logger.info("执行命令: %s", cmd)
+        logger.info("执行命令: %s", ' '.join(cmd))
         
         # 运行子进程
         result = subprocess.run(
@@ -109,10 +112,13 @@ def run_kline_spider():
         script_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
         script_path = os.path.join(script_dir, 'run_kline_spider.py')
         
-        # 构建命令
-        cmd = [sys.executable, script_path]
+        # 获取Python解释器路径
+        python_exe = sys.executable if isinstance(sys.executable, str) else 'python3'
         
-        logger.info(f"执行命令: {' '.join(cmd)}")
+        # 构建命令
+        cmd = [python_exe, script_path]
+        
+        logger.info("执行命令: %s", ' '.join(cmd))
         
         # 运行子进程
         result = subprocess.run(
@@ -125,7 +131,7 @@ def run_kline_spider():
         
         # 记录输出
         if result.stdout:
-            logger.info(f"K线爬虫输出:\n{result.stdout}")
+            logger.info("K线爬虫输出:%s", result.stdout)
         
         if result.stderr:
             logger.warning(f"K线爬虫错误输出:\n{result.stderr}")
