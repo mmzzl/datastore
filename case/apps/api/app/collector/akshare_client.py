@@ -747,6 +747,7 @@ class AkshareClient:
         """合并股票数据和行业分类"""
         try:
             logger.info("开始匹配股票和行业分类...")
+            logger.info(f"股票数据: {len(df)} 条, 行业数据: {len(industry_df)} 条")
             
             # 转换股票代码格式
             df = df.copy()
@@ -764,6 +765,10 @@ class AkshareClient:
                 logger.error("没有共同的列用于合并（缺少code列）")
                 return None
             
+            # 显示一些示例代码
+            logger.info(f"股票代码示例: {df['code'].head(5).tolist()}")
+            logger.info(f"行业代码示例: {industry_df['code'].head(5).tolist()}")
+            
             # 合并数据
             merged_df = pd.merge(df, industry_df, on='code', how='left')
             
@@ -779,6 +784,11 @@ class AkshareClient:
             total_count = len(merged_df)
             logger.info(f"行业匹配情况: {matched_count}/{total_count} ({matched_count/total_count*100:.1f}%)")
             
+            # 显示未匹配的股票代码
+            if matched_count < total_count:
+                unmatched = merged_df[merged_df['industry'].isna()]['code'].head(10).tolist()
+                logger.warning(f"未匹配的股票代码示例: {unmatched}")
+            
             # 过滤掉没有行业分类的股票
             merged_df = merged_df[merged_df['industry'].notna() & (merged_df['industry'] != '')]
             
@@ -787,6 +797,11 @@ class AkshareClient:
                 return None
             
             logger.info(f"过滤后有效数据: {len(merged_df)} 条")
+            
+            # 显示行业分布
+            if 'industry' in merged_df.columns:
+                industry_counts = merged_df['industry'].value_counts()
+                logger.info(f"行业分布: {industry_counts.head(10).to_dict()}")
             
             return merged_df
             
@@ -1182,9 +1197,29 @@ class AkshareClient:
                     non_null_count = api_df[col].notna().sum()
                     logger.info(f"{col} 非空: {non_null_count} 条")
             
-            # 匹配指定日期的数据
-            df_date = self._filter_data_by_date(api_df, date)
-            logger.info(f"匹配到指定日期 {date} 的数据: {len(df_date)} 条")
+            # 过滤出有效技术指标的数据
+            api_df_valid = api_df.dropna(subset=['ma5', 'ma10', 'rsi'])
+            
+            if api_df_valid.empty:
+                logger.error(f"没有有效技术指标数据")
+                return None
+            
+            logger.info(f"有效技术指标数据: {len(api_df_valid)} 条")
+            
+            # 从有效数据中获取最新日期的数据（每个股票的最新一条）
+            api_df_valid = api_df_valid.sort_values('date')
+            df_date = api_df_valid.groupby('symbol').last().reset_index()
+            
+            logger.info(f"获取到每只股票的最新有效数据: {len(df_date)} 条")
+            
+            # 如果指定了日期，尝试匹配该日期
+            if date:
+                df_date_specific = api_df_valid[api_df_valid['date'].astype(str).str[:10] == date]
+                if not df_date_specific.empty:
+                    logger.info(f"找到指定日期 {date} 的有效数据: {len(df_date_specific)} 条")
+                    df_date = df_date_specific
+                else:
+                    logger.warning(f"未找到指定日期 {date} 的有效数据，使用最新有效数据")
             
             return df_date
             
