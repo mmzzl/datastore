@@ -722,78 +722,221 @@ class AkshareClient:
         }
     
     def analyze_technical_signals(self, date: str = None, top_n: int = 20) -> Dict:
-        """维度6: 技术信号与趋势"""
+        """
+        维度6: 技术信号与趋势
+        
+        参数:
+            date: 分析日期（YYYY-MM-DD格式）
+            top_n: 返回的股票数量
+        
+        返回:
+            技术信号分析结果，包括金叉、超买、超卖等信号
+        """
         date = date or self.get_latest_date()
         
         if not date:
             return {"error": "无法获取日期"}
         
         logger.info(f"开始分析技术信号，日期: {date}")
+        logger.info(f"当前数据量: {len(self.data) if self.data is not None else 0} 条")
         
-        # 检查数据量，决定是否需要加载历史数据
-        if len(self.data) < self.config.technical_indicator_threshold:
-            logger.warning(f"当前数据量不足（{len(self.data)} 条），加载历史数据计算技术指标")
-            df = self._load_and_calculate_historical_indicators(date)
-        else:
-            logger.info(f"当前数据量充足（{len(self.data)} 条），使用当前数据计算技术指标")
-            df = self._calculate_current_data_indicators(date)
+        # 步骤1: 尝试使用当前数据
+        df = self._try_use_current_data(date)
         
+        # 步骤2: 如果当前数据不足，尝试加载历史数据
         if df is None or df.empty:
-            return self._get_empty_technical_signals(date, "数据量不足或加载失败")
+            logger.warning("当前数据不足，尝试加载历史数据")
+            df = self._load_and_calculate_historical_indicators(date)
         
-        # 检查技术指标列
-        if not all(col in df.columns for col in ['ma5', 'ma10', 'rsi']):
-            return self._get_empty_technical_signals(date, "技术指标计算失败，缺少必要的列")
+        # 步骤3: 如果历史数据也失败，尝试使用baostock
+        if df is None or df.empty:
+            logger.warning("API历史数据加载失败，尝试使用baostock")
+            df = self._load_from_baostock_and_calculate(date)
         
-        # 过滤有效数据
+        # 步骤4: 检查数据有效性
+        if df is None or df.empty:
+            error_msg = "所有数据源均失败，无法计算技术指标"
+            logger.error(error_msg)
+            return self._get_empty_technical_signals(date, error_msg)
+        
+        # 步骤5: 验证必要的列
+        required_columns = ['symbol', 'date', 'close', 'ma5', 'ma10', 'rsi']
+        missing_columns = [col for col in required_columns if col not in df.columns]
+        if missing_columns:
+            error_msg = f"缺少必要的列: {missing_columns}"
+            logger.error(error_msg)
+            logger.info(f"当前列: {list(df.columns)}")
+            return self._get_empty_technical_signals(date, error_msg)
+        
+        # 步骤6: 过滤有效数据
         df_valid = df.dropna(subset=['ma5', 'ma10', 'rsi'])
         
         if df_valid.empty:
-            return self._get_empty_technical_signals(date, f"没有有效技术指标数据（有效数据: {len(df_valid)} 条）")
+            error_msg = f"没有有效技术指标数据（原始数据: {len(df)} 条）"
+            logger.error(error_msg)
+            logger.info(f"数据统计:")
+            logger.info(f"  - ma5非空: {df['ma5'].notna().sum()} 条")
+            logger.info(f"  - ma10非空: {df['ma10'].notna().sum()} 条")
+            logger.info(f"  - rsi非空: {df['rsi'].notna().sum()} 条")
+            return self._get_empty_technical_signals(date, error_msg)
         
-        # 计算技术信号
+        logger.info(f"有效技术指标数据: {len(df_valid)} 条")
+        
+        # 步骤7: 计算技术信号
         signals = self._calculate_technical_signals(df_valid, top_n)
         
         logger.info(f"技术信号统计: 金叉{signals['golden_cross_count']}只, 超买{signals['overbought_count']}只, 超卖{signals['oversold_count']}只")
         
         return signals
     
-    def _load_and_calculate_historical_indicators(self, date: str) -> Optional[pd.DataFrame]:
-        """加载历史数据并计算指标"""
-        api_df = self.load_historical_data()
-        
-        if api_df.empty:
+    def _try_use_current_data(self, date: str) -> Optional[pd.DataFrame]:
+        """尝试使用当前数据计算技术指标"""
+        if self.data is None or self.data.empty:
+            logger.warning("当前数据为空")
             return None
         
-        # 过滤日期
-        api_df = api_df[api_df['date'].astype(str).str[:10] <= date].copy()
-        logger.info(f"过滤后历史数据，共 {len(api_df)} 条（日期 <= {date}）")
+        # 检查数据量是否足够
+        if len(self.data) < self.config.technical_indicator_threshold:
+            logger.warning(f"当前数据量不足（{len(self.data)} 条），需要至少 {self.config.technical_indicator_threshold} 条")
+            return None
         
-        if not api_df.empty:
-            min_date = api_df['date'].min()
-            max_date = api_df['date'].max()
-            logger.info(f"历史数据日期范围: {min_date} ~ {max_date}")
+        logger.info(f"当前数据量充足（{len(self.data)} 条），尝试使用当前数据")
         
-        # 计算技术指标
-        api_df = TechnicalIndicators.calculate_all(api_df)
-        
-        # 匹配指定日期的数据
-        df_date = self._filter_data_by_date(api_df, date)
-        logger.info(f"使用历史数据计算技术指标，匹配到 {len(df_date)} 条数据")
-        
-        return df_date
-    
-    def _calculate_current_data_indicators(self, date: str) -> Optional[pd.DataFrame]:
-        """使用当前数据计算指标"""
-        self._ensure_indicators_calculated()
+        # 过滤指定日期的数据
         df_date = self._filter_data_by_date(self.data, date)
         
         if df_date.empty:
-            logger.error(f"未找到日期 {date} 的数据")
+            logger.warning(f"当前数据中没有日期 {date} 的数据")
             return None
         
-        logger.info(f"使用当前数据计算技术指标，匹配到 {len(df_date)} 条数据")
-        return df_date
+        # 尝试计算技术指标
+        try:
+            self._ensure_indicators_calculated()
+            df_date = self._filter_data_by_date(self.data, date)
+            logger.info(f"使用当前数据计算技术指标，匹配到 {len(df_date)} 条数据")
+            return df_date
+        except Exception as e:
+            logger.warning(f"使用当前数据计算技术指标失败: {e}")
+            return None
+    
+    def _load_and_calculate_historical_indicators(self, date: str) -> Optional[pd.DataFrame]:
+        """加载历史数据并计算指标"""
+        logger.info("开始加载历史数据...")
+        
+        try:
+            # 加载历史数据
+            api_df = self.load_historical_data()
+            
+            if api_df.empty:
+                logger.error("API历史数据为空")
+                return None
+            
+            logger.info(f"从API获取到历史数据: {len(api_df)} 条")
+            
+            # 统计每只股票的数据量
+            symbol_counts = api_df.groupby('symbol').size()
+            logger.info(f"股票数量: {len(symbol_counts)}")
+            logger.info(f"每只股票数据量: 最小{symbol_counts.min()}条, 最大{symbol_counts.max()}条, 平均{symbol_counts.mean():.1f}条")
+            
+            # 检查是否有足够的数据计算技术指标
+            min_required_days = 20  # MA10需要至少10天，但为了更好的RSI计算，建议20天
+            valid_symbols = symbol_counts[symbol_counts >= min_required_days]
+            
+            if len(valid_symbols) == 0:
+                logger.error(f"没有股票有足够的数据（需要至少{min_required_days}天）")
+                return None
+            
+            logger.info(f"有足够数据的股票: {len(valid_symbols)} 只")
+            
+            # 只保留有足够数据的股票
+            api_df = api_df[api_df['symbol'].isin(valid_symbols.index)]
+            
+            # 过滤日期
+            api_df = api_df[api_df['date'].astype(str).str[:10] <= date].copy()
+            logger.info(f"过滤后历史数据，共 {len(api_df)} 条（日期 <= {date}）")
+            
+            if not api_df.empty:
+                min_date = api_df['date'].min()
+                max_date = api_df['date'].max()
+                logger.info(f"历史数据日期范围: {min_date} ~ {max_date}")
+            
+            # 计算技术指标
+            logger.info("开始计算技术指标...")
+            api_df = TechnicalIndicators.calculate_all(api_df)
+            
+            # 检查技术指标列
+            indicator_columns = ['ma5', 'ma10', 'rsi']
+            for col in indicator_columns:
+                if col in api_df.columns:
+                    non_null_count = api_df[col].notna().sum()
+                    logger.info(f"{col} 非空: {non_null_count} 条")
+            
+            # 匹配指定日期的数据
+            df_date = self._filter_data_by_date(api_df, date)
+            logger.info(f"匹配到指定日期 {date} 的数据: {len(df_date)} 条")
+            
+            return df_date
+            
+        except Exception as e:
+            logger.error(f"加载和计算历史数据失败: {e}")
+            import traceback
+            logger.error(f"错误详情: {traceback.format_exc()}")
+            return None
+    
+    def _load_from_baostock_and_calculate(self, date: str) -> Optional[pd.DataFrame]:
+        """从baostock加载数据并计算指标"""
+        logger.info("开始从baostock加载数据...")
+        
+        try:
+            # 获取所有股票代码
+            if self.data is None or self.data.empty:
+                logger.error("无法获取股票代码列表")
+                return None
+            
+            symbols = self.data['symbol'].unique()[:50]  # 限制为前50只股票进行测试
+            logger.info(f"准备为 {len(symbols)} 只股票从baostock加载数据")
+            
+            all_data = []
+            
+            # 为每只股票加载数据
+            for symbol in symbols:
+                try:
+                    stock_data = self.get_stock_history_from_baostock(symbol, days=60)
+                    if not stock_data.empty:
+                        all_data.append(stock_data)
+                        logger.debug(f"成功加载 {symbol} 的数据: {len(stock_data)} 条")
+                    else:
+                        logger.warning(f"无法加载 {symbol} 的数据")
+                except Exception as e:
+                    logger.warning(f"加载 {symbol} 数据失败: {e}")
+            
+            if not all_data:
+                logger.error("没有成功加载任何股票的数据")
+                return None
+            
+            # 合并所有数据
+            api_df = pd.concat(all_data, ignore_index=True)
+            logger.info(f"从baostock加载到总数据: {len(api_df)} 条")
+            
+            # 统计每只股票的数据量
+            symbol_counts = api_df.groupby('symbol').size()
+            logger.info(f"股票数量: {len(symbol_counts)}")
+            
+            # 计算技术指标
+            logger.info("开始计算技术指标...")
+            api_df = TechnicalIndicators.calculate_all(api_df)
+            
+            # 匹配指定日期的数据
+            df_date = self._filter_data_by_date(api_df, date)
+            logger.info(f"匹配到指定日期 {date} 的数据: {len(df_date)} 条")
+            
+            return df_date
+            
+        except Exception as e:
+            logger.error(f"从baostock加载数据失败: {e}")
+            import traceback
+            logger.error(f"错误详情: {traceback.format_exc()}")
+            return None
     
     def _calculate_technical_signals(self, df: pd.DataFrame, top_n: int) -> Dict:
         """计算技术信号"""
