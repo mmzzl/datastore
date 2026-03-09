@@ -256,11 +256,16 @@ class NewsScheduler:
         
         if self.kline_enabled:
             kline_time = self.kline_run_time.strip()
+            logger.info(f"K线爬虫已启用，运行时间: {kline_time}")
             try:
                 kline_job = schedule.every().day.at(kline_time).do(self.start_kline_crawler)
                 logger.info(f"已设置K线爬虫定时任务，每天{kline_time}执行一次")
+                logger.debug(f"K线定时任务详情: {kline_job}")
             except Exception as e:
-                logger.warning(f"K线爬虫定时任务设置失败: {e}，将使用默认时间23:00")
+                logger.error(f"K线爬虫定时任务设置失败: {e}")
+                import traceback
+                logger.error(f"错误详情: {traceback.format_exc()}")
+                logger.info("将使用默认时间23:00")
                 kline_job = schedule.every().day.at("23:00").do(self.start_kline_crawler)
         else:
             logger.info("K线爬虫已禁用")
