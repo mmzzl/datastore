@@ -7,6 +7,7 @@ import logging
 import os
 import baostock as bs
 from datetime import datetime, timedelta
+from multiprocessing import Process
 from ..utils.config import load_config, save_progress, load_progress
 
 logger = logging.getLogger(__name__)
@@ -51,12 +52,13 @@ def is_trading_day(date=None):
         return False
 
 
-def run_spider(sort_end, req_trace, sort_start):
-    """使用Scrapy API运行新闻爬虫"""
+def _run_spider_in_process(sort_end, req_trace, sort_start):
+    """
+    在子进程中运行新闻爬虫
+    这个函数会在独立的子进程中被调用
+    """
     try:
-        logger.info(f"启动新闻爬虫... 当前时间: {time.strftime('%Y-%m-%d %H:%M:%S')}")
-        
-        # 延迟导入，避免循环依赖
+        # 在子进程中重新导入和初始化
         from scrapy.crawler import CrawlerProcess
         from scrapy.utils.project import get_project_settings
         from ..spider.eastmoney_spider import EastMoneyNewsSpider
@@ -74,9 +76,29 @@ def run_spider(sort_end, req_trace, sort_start):
                       req_trace=req_trace,
                       sort_start=sort_start)
         
-        logger.info("开始执行新闻爬虫")
+        print("开始执行新闻爬虫")
         process.start()
-        logger.info(f"新闻爬虫执行完成: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"新闻爬虫执行完成: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+            
+    except Exception as e:
+        print(f"启动新闻爬虫失败: {e}")
+        import traceback
+        traceback.print_exc()
+
+
+def run_spider(sort_end, req_trace, sort_start):
+    """使用多进程运行新闻爬虫，避免 ReactorNotRestartable 错误"""
+    try:
+        logger.info(f"启动新闻爬虫... 当前时间: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+        
+        # 创建子进程运行爬虫
+        p = Process(target=_run_spider_in_process, args=(sort_end, req_trace, sort_start))
+        p.start()
+        
+        # 等待子进程完成
+        p.join()
+        
+        logger.info(f"新闻爬虫进程已结束: {time.strftime('%Y-%m-%d %H:%M:%S')}")
             
     except Exception as e:
         logger.error(f"启动新闻爬虫失败: {e}")
@@ -84,12 +106,13 @@ def run_spider(sort_end, req_trace, sort_start):
         traceback.print_exc()
 
 
-def run_kline_spider():
-    """使用Scrapy API运行K线爬虫"""
+def _run_kline_spider_in_process():
+    """
+    在子进程中运行K线爬虫
+    这个函数会在独立的子进程中被调用
+    """
     try:
-        logger.info(f"启动K线爬虫... 当前时间: {time.strftime('%Y-%m-%d %H:%M:%S')}")
-        
-        # 延迟导入，避免循环依赖
+        # 在子进程中重新导入和初始化
         from scrapy.crawler import CrawlerProcess
         from scrapy.utils.project import get_project_settings
         from ..spider.akshare_kline_spider import AkshareKlineSpider
@@ -104,9 +127,29 @@ def run_kline_spider():
         process = CrawlerProcess(settings)
         process.crawl(AkshareKlineSpider)
         
-        logger.info("开始执行K线爬虫")
+        print("开始执行K线爬虫")
         process.start()
-        logger.info(f"K线爬虫执行完成: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"K线爬虫执行完成: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+        
+    except Exception as e:
+        print(f"启动K线爬虫失败: {e}")
+        import traceback
+        traceback.print_exc()
+
+
+def run_kline_spider():
+    """使用多进程运行K线爬虫，避免 ReactorNotRestartable 错误"""
+    try:
+        logger.info(f"启动K线爬虫... 当前时间: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+        
+        # 创建子进程运行爬虫
+        p = Process(target=_run_kline_spider_in_process)
+        p.start()
+        
+        # 等待子进程完成
+        p.join()
+        
+        logger.info(f"K线爬虫进程已结束: {time.strftime('%Y-%m-%d %H:%M:%S')}")
         
         # 解锁K线爬虫
         unlock_kline()
