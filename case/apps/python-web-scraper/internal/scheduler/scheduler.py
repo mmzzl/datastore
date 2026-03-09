@@ -104,7 +104,7 @@ def run_spider(sort_end, req_trace, sort_start):
 
 
 def run_kline_spider():
-    """使用subprocess运行K线爬虫"""
+    """使用subprocess异步运行K线爬虫"""
     try:
         logger.info(f"启动K线爬虫子进程... 当前时间: {time.strftime('%Y-%m-%d %H:%M:%S')}")
         
@@ -120,33 +120,55 @@ def run_kline_spider():
         
         logger.info("执行命令: %s", ' '.join(cmd))
         
-        # 运行子进程
-        result = subprocess.run(
+        # 使用Popen异步运行子进程，不阻塞主线程
+        process = subprocess.Popen(
             cmd,
             cwd=script_dir,
-            capture_output=True,
-            text=True,
-            timeout=3600  # 1小时超时
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
         )
         
-        # 记录输出
-        if result.stdout:
-            logger.info("K线爬虫输出:%s", result.stdout)
+        logger.info(f"K线爬虫子进程已启动，PID: {process.pid}")
         
-        if result.stderr:
-            logger.warning(f"K线爬虫错误输出:\n{result.stderr}")
+        # 创建一个线程来监控子进程的输出
+        def monitor_process():
+            try:
+                stdout, stderr = process.communicate(timeout=3600)  # 1小时超时
+                
+                # 记录输出
+                if stdout:
+                    logger.info("K线爬虫输出:%s", stdout)
+                
+                if stderr:
+                    logger.warning(f"K线爬虫错误输出:\n{stderr}")
+                
+                if process.returncode != 0:
+                    logger.error(f"K线爬虫异常退出，返回码: {process.returncode}")
+                else:
+                    logger.info(f"K线爬虫子进程执行完成: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+                
+                # 解锁K线爬虫
+                unlock_kline()
+                
+            except subprocess.TimeoutExpired:
+                logger.error("K线爬虫执行超时")
+                process.kill()
+                unlock_kline()
+            except Exception as e:
+                logger.error(f"监控K线爬虫失败: {e}")
+                unlock_kline()
         
-        if result.returncode != 0:
-            logger.error(f"K线爬虫异常退出，返回码: {result.returncode}")
-        else:
-            logger.info(f"K线爬虫子进程执行完成: {time.strftime('%Y-%m-%d %H:%M:%S')}")
-            
-    except subprocess.TimeoutExpired:
-        logger.error("K线爬虫执行超时")
+        # 启动监控线程
+        monitor_thread = threading.Thread(target=monitor_process)
+        monitor_thread.daemon = True
+        monitor_thread.start()
+        
     except Exception as e:
         logger.error(f"启动K线爬虫失败: {e}")
         import traceback
         traceback.print_exc()
+        unlock_kline()
 
 
 def is_kline_locked():
