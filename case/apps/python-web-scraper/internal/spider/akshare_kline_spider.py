@@ -3,7 +3,6 @@ import logging
 import time
 import os
 import pandas as pd
-import akshare as ak
 from datetime import datetime, timedelta
 from ..utils.config import load_config
 from ..storage.mongo_storage import MongoStorage
@@ -69,6 +68,7 @@ class AkshareKlineSpider(scrapy.Spider):
     
     def _process_stock(self, symbol, name):
         """处理单个股票"""
+        import akshare as ak  # 延迟导入，避免 atexit 冲突
         try:
             # 获取数据库中最新的日期
             latest_date = self.storage.get_latest_kline_date(symbol)
@@ -128,6 +128,7 @@ class AkshareKlineSpider(scrapy.Spider):
     
     def _load_stock_list(self):
         """从 stock_zh_a_spot.csv 文件中读取股票列表"""
+        import akshare as ak  # 延迟导入，避免 atexit 冲突
         try:
             logger.info(f"从 {self.spot_csv_file} 读取股票列表...")
             
