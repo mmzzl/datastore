@@ -58,8 +58,9 @@ def load_stock_codes():
     stock_codes_file = os.path.join(
         os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
         'data',
-        config['storage']['stock_codes_file']
+        config['kline_spider']['stock_codes_file']
     )
+    logger.info(f"尝试加载股票代码文件: {stock_codes_file}")
     
     if os.path.exists(stock_codes_file):
         df = pd.read_csv(stock_codes_file)

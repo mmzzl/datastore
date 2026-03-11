@@ -30,7 +30,7 @@ class MongoStorage:
             logger.error(f"保存新闻失败: {e}")
             return None
     
-    def save_kline(self, code, klines):
+    def save_kline(self, code, klines, name=''):
         """保存K线数据到mongodb（去重）"""
         inserted_count = 0
         skipped_count = 0
@@ -48,10 +48,12 @@ class MongoStorage:
                         'low': float(parts[4]) if parts[4] and parts[4] != '-' else None,
                         'volume': float(parts[5]) if parts[5] and parts[5] != '-' else None,
                         'amount': float(parts[6]) if parts[6] and parts[6] != '-' else None,
-                        'pct_chg': float(parts[7]) if parts[7] and parts[7] != '-' else None,
-                        'amplitude': float(parts[8]) if len(parts) > 8 and parts[8] and parts[8] != '-' else None,
+                        'amplitude': float(parts[7]) if parts[7] and parts[7] != '-' else None,
+                        'pct_chg': float(parts[8]) if len(parts) > 8 and parts[8] and parts[8] != '-' else None,
                         'turnover': float(parts[9]) if len(parts) > 9 and parts[9] and parts[9] != '-' else None,
+                        'name': name,
                         'crawl_time': datetime.now()
+                        
                     }
                     self.kline_collection.update_one(
                         {'code': code, 'date': date},

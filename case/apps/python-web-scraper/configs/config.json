@@ -49,15 +49,17 @@
   },
   "kline_spider": {
     "enabled": false,
-    "run_time": "15:30",
+    "run_time": "22:51",
     "batch_size": 50,
-    "batch_delay": 10
+    "batch_delay": 10,
+    "default_days": 60,
+    "stock_codes_file": "all_stock.csv"
   },
   "akshare_kline": {
     "enabled": true,
     "run_time": "15:30",
     "batch_size": 50,
     "default_days": 60,
-    "spot_csv_file": "stock_zh_a_spot.csv"
+    "stock_codes_file": "stock_zh_a_spot.csv"
   }
 }

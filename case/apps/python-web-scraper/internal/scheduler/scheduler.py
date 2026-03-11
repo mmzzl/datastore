@@ -115,7 +115,7 @@ def _run_kline_spider_in_process():
         # 在子进程中重新导入和初始化
         from scrapy.crawler import CrawlerProcess
         from scrapy.utils.project import get_project_settings
-        from ..spider.akshare_kline_spider import AkshareKlineSpider
+        from ..spider.eastmoney_kline_spider import EastMoneyKlineSpider
         
         # 获取Scrapy设置
         settings = get_project_settings()
@@ -125,7 +125,7 @@ def _run_kline_spider_in_process():
         
         # 创建并启动CrawlerProcess
         process = CrawlerProcess(settings)
-        process.crawl(AkshareKlineSpider)
+        process.crawl(EastMoneyKlineSpider)
         
         print("开始执行K线爬虫")
         process.start()
@@ -199,8 +199,9 @@ class NewsScheduler:
         self.config = load_config()
         self.interval = self.config['spider']['interval']
         self.running = False
-        self.kline_enabled = self.config.get('akshare_kline', {}).get('enabled', True)
-        self.kline_run_time = self.config.get('akshare_kline', {}).get('run_time', '23:00').strip()
+        self.kline_enabled = self.config.get('kline_spider', {}).get('enabled', True)
+        self.kline_run_time = self.config.get('kline_spider', {}).get('run_time', '00:00').strip()
+        logger.info(f"K线爬虫配置: 启用={self.kline_enabled}, 运行时间={self.kline_run_time}")
 
     def start_crawler(self):
         """启动新闻爬虫"""

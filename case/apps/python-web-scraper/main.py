@@ -23,5 +23,3 @@ def main():
         scheduler.stop()
         print("系统已停止")
 
-if __name__ == "__main__":
-    main()

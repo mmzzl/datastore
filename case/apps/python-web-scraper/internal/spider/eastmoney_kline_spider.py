@@ -14,14 +14,6 @@ logger = logging.getLogger(__name__)
 
 class EastMoneyKlineSpider(scrapy.Spider):
     name = 'eastmoney_kline'
-    custom_settings = {
-        'DOWNLOAD_DELAY': 2,
-        'CONCURRENT_REQUESTS': 8,
-        'RETRY_TIMES': 3,
-        'RETRY_HTTP_CODES': [500, 502, 503, 504, 408, 429],
-        'DOWNLOAD_TIMEOUT': 30,
-        'RANDOMIZE_DOWNLOAD_DELAY': 0.5,
-    }
     
     def __init__(self, *args, **kwargs):
         super(EastMoneyKlineSpider, self).__init__(*args, **kwargs)
@@ -35,6 +27,8 @@ class EastMoneyKlineSpider(scrapy.Spider):
         self.error_count = 0
         kline_config = self.config.get('kline_spider', {})
         self.batch_size = kline_config.get('batch_size', 50)
+        self.batch_delay = kline_config.get('batch_delay', 10)
+        self.default_days = kline_config.get('default_days', 60)
         
         # 获取 User-Agent 列表
         spider_config = self.config.get('spider', {})
@@ -54,7 +48,6 @@ class EastMoneyKlineSpider(scrapy.Spider):
         for i in range(0, total, self.batch_size):
             batch = df.iloc[i:min(i+self.batch_size, total)]
             logger.info(f"处理第 {i//self.batch_size + 1} 批股票 ({i+1}-{min(i+self.batch_size, total)})")
-            
             for _, row in batch.iterrows():
                 code = str(row['code'])
                 stock_code = code.split('.')[1]
@@ -69,14 +62,12 @@ class EastMoneyKlineSpider(scrapy.Spider):
                         logger.info(f"跳过 {secid}: 已采集到最新日期 {latest_date}")
                         self.skip_count += 1
                         continue
-                    
-                    end_date = self.today
                     beg = latest_date
-                else:
-                    # 没有历史数据时，只获取一周前的数据
-                    beg = (datetime.now() - timedelta(days=7)).strftime('%Y%m%d')
                     end_date = self.today
-                
+                else:
+                    # 没有历史数据时，只获取默认天数前的数据
+                    beg = (datetime.now() - timedelta(days=self.default_days)).strftime('%Y%m%d')
+                    end_date = self.today
                 params = {
                     'secid': secid,
                     'klt': self.kline_params['klt'],
@@ -92,7 +83,9 @@ class EastMoneyKlineSpider(scrapy.Spider):
                 
                 # 随机选择 User-Agent
                 headers = {
-                    'User-Agent': random.choice(self.user_agents)
+                    'User-Agent': random.choice(self.user_agents),
+                    'Host': 'push2his.eastmoney.com',
+                    'Referer': f'https://quote.eastmoney.com/{code.replace(".", "")}.html',
                 }
                 
                 yield scrapy.Request(
@@ -103,9 +96,8 @@ class EastMoneyKlineSpider(scrapy.Spider):
                     dont_filter=True,
                     errback=self.errback
                 )
-            
+            time.sleep(0.5)
             # 每批处理完后延迟1秒，避免请求过快
-    
     def errback(self, failure):
         secid = failure.request.meta.get('secid', 'unknown')
         self.error_count += 1
@@ -124,9 +116,9 @@ class EastMoneyKlineSpider(scrapy.Spider):
             if data.get('rc') == 0 and 'data' in data:
                 kline_data = data['data']
                 klines = kline_data.get('klines', [])
-                
+                name = kline_data.get('name', '')
                 if klines:
-                    inserted, skipped = self.storage.save_kline(secid, klines)
+                    inserted, skipped = self.storage.save_kline(secid, klines, name)
                     self.processed_count += 1
                     logger.info(f"成功采集 {secid}: {len(klines)} 条数据")
                 else:
@@ -146,3 +138,4 @@ class EastMoneyKlineSpider(scrapy.Spider):
     def closed(self, reason):
         logger.info(f"爬虫关闭: {reason}, 共处理 {self.processed_count} 只股票, 跳过 {self.skip_count} 只, 错误 {self.error_count} 只")
         self.storage.close()
+
