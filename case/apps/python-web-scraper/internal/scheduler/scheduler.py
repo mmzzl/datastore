@@ -8,6 +8,7 @@ import os
 import baostock as bs
 from datetime import datetime, timedelta
 from multiprocessing import Process
+import signal
 from ..utils.config import load_config, save_progress, load_progress
 
 # 配置日志格式，避免写入syslog
@@ -25,6 +26,11 @@ KLINE_LOCK_FILE = os.path.join(
     "data",
     "kline_running.lock",
 )
+
+# 全局变量，用于跟踪爬虫进程
+_current_spider_process = None
+_current_kline_process = None
+_stop_event = threading.Event()
 
 
 def is_trading_day(date=None):
@@ -102,21 +108,35 @@ def _run_spider_in_process(sort_end, req_trace, sort_start):
 
 
 def run_spider(sort_end, req_trace, sort_start):
-    """使用多进程运行新闻爬虫，避免 ReactorNotRestartable 错误"""
+    """使用多进程运行新闻爬虫，支持 Ctrl+C 中止"""
+    global _current_spider_process
+
     try:
         logger.info(f"启动新闻爬虫... 当前时间: {time.strftime('%Y-%m-%d %H:%M:%S')}")
 
         # 创建子进程运行爬虫
-        p = Process(
+        _current_spider_process = Process(
             target=_run_spider_in_process, args=(sort_end, req_trace, sort_start)
         )
-        p.start()
+        _current_spider_process.start()
 
-        # 等待子进程完成
-        p.join()
+        # 等待子进程完成，但可以被中断
+        while _current_spider_process.is_alive():
+            _current_spider_process.join(timeout=1)
+            # 检查停止事件
+            if _stop_event.is_set():
+                logger.info("收到停止信号，正在停止爬虫...")
+                _current_spider_process.terminate()
+                _current_spider_process.join(timeout=5)
+                break
 
         logger.info(f"新闻爬虫进程已结束: {time.strftime('%Y-%m-%d %H:%M:%S')}")
 
+    except KeyboardInterrupt:
+        logger.info("收到键盘中断信号，停止爬虫")
+        if _current_spider_process and _current_spider_process.is_alive():
+            _current_spider_process.terminate()
+            _current_spider_process.join(timeout=5)
     except Exception as e:
         logger.error(f"启动新闻爬虫失败: {e}")
         import traceback
@@ -157,22 +177,37 @@ def _run_kline_spider_in_process():
 
 
 def run_kline_spider():
-    """使用多进程运行K线爬虫，避免 ReactorNotRestartable 错误"""
+    """使用多进程运行K线爬虫，支持 Ctrl+C 中止"""
+    global _current_kline_process
+
     try:
         logger.info(f"启动K线爬虫... 当前时间: {time.strftime('%Y-%m-%d %H:%M:%S')}")
 
         # 创建子进程运行爬虫
-        p = Process(target=_run_kline_spider_in_process)
-        p.start()
+        _current_kline_process = Process(target=_run_kline_spider_in_process)
+        _current_kline_process.start()
 
-        # 等待子进程完成
-        p.join()
+        # 等待子进程完成，但可以被中断
+        while _current_kline_process.is_alive():
+            _current_kline_process.join(timeout=1)
+            # 检查停止事件
+            if _stop_event.is_set():
+                logger.info("收到停止信号，正在停止K线爬虫...")
+                _current_kline_process.terminate()
+                _current_kline_process.join(timeout=5)
+                break
 
         logger.info(f"K线爬虫进程已结束: {time.strftime('%Y-%m-%d %H:%M:%S')}")
 
         # 解锁K线爬虫
         unlock_kline()
 
+    except KeyboardInterrupt:
+        logger.info("收到键盘中断信号，停止K线爬虫")
+        if _current_kline_process and _current_kline_process.is_alive():
+            _current_kline_process.terminate()
+            _current_kline_process.join(timeout=5)
+        unlock_kline()
     except Exception as e:
         logger.error(f"启动K线爬虫失败: {e}")
         import traceback
@@ -297,6 +332,10 @@ class NewsScheduler:
 
     def start(self):
         """启动调度器"""
+        # 设置信号处理器
+        signal.signal(signal.SIGINT, self._signal_handler)
+        signal.signal(signal.SIGTERM, self._signal_handler)
+
         job = schedule.every(self.interval).seconds.do(self.job)
         logger.info(f"已设置定时任务，每{self.interval}秒执行一次")
         logger.debug(f"定时任务详情: {job}")
@@ -331,7 +370,7 @@ class NewsScheduler:
             logger.info(
                 f"调度线程已启动，当前时间: {time.strftime('%Y-%m-%d %H:%M:%S')}"
             )
-            while self.running:
+            while self.running and not _stop_event.is_set():
                 schedule.run_pending()
                 time.sleep(1)
             logger.info("调度线程已停止")
@@ -345,7 +384,35 @@ class NewsScheduler:
             f"调度器已启动，新闻爬虫每{self.interval}秒执行一次，K线爬虫{kline_status}执行一次"
         )
 
+        # 等待调度线程
+        try:
+            while self.running and not _stop_event.is_set():
+                time.sleep(1)
+        except KeyboardInterrupt:
+            self.stop()
+
+    def _signal_handler(self, signum, frame):
+        """信号处理器"""
+        logger.info(f"收到信号 {signum}，正在停止调度器...")
+        _stop_event.set()
+        self.stop()
+
     def stop(self):
         """停止调度器"""
         self.running = False
+        _stop_event.set()
+
+        # 停止所有子进程
+        global _current_spider_process, _current_kline_process
+        if _current_spider_process and _current_spider_process.is_alive():
+            logger.info("正在停止新闻爬虫进程...")
+            _current_spider_process.terminate()
+            _current_spider_process.join(timeout=5)
+
+        if _current_kline_process and _current_kline_process.is_alive():
+            logger.info("正在停止K线爬虫进程...")
+            _current_kline_process.terminate()
+            _current_kline_process.join(timeout=5)
+
+        unlock_kline()
         logger.info("调度器已停止")
