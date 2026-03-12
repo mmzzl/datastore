@@ -30,7 +30,7 @@ class StockDataConfig:
     """股票数据配置"""
     csv_file: str = 'stock_zh_a_daily.csv'
     spot_csv_file: str = 'stock_zh_a_spot.csv'
-    default_date: str = '2026-03-06'
+    default_date: str = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d") 
     api_timeout: int = 30
     max_retries: int = 3
     retry_delay: int = 2
@@ -198,18 +198,38 @@ class TechnicalIndicators:
 class AkshareClient:
     """AKShare股票数据客户端"""
     
-    def __init__(self, config: StockDataConfig = None):
+    @staticmethod
+    def is_index_code(code: str) -> bool:
+        """判断是否为指数代码（sh.000xxx 或 sz.000xxx）"""
+        if not code:
+            return False
+        
+        code_str = str(code).lower()
+        
+        # 检查是否为指数格式
+        if code_str.startswith('sh.000') or code_str.startswith('sz.000'):
+            return True
+        
+        return False
+    
+    @staticmethod
+    def filter_index_codes(codes: List[str]) -> List[str]:
+        """过滤掉指数代码，只保留股票代码"""
+        return [code for code in codes if not AkshareClient.is_index_code(code)]
+    
+    def __init__(self, config: StockDataConfig = None, target_date: Optional[str] = None):
         self.config = config or StockDataConfig()
+        self.target_date = target_date or self.config.default_date
         self.cache = DataCache()
         self.data: Optional[pd.DataFrame] = None
         self.historical_data: Optional[pd.DataFrame] = None
         self._indicators_calculated = False
         
         # 初始化时加载数据
-        self.stock_zh_a_spot_df = self.load_data()
+        self.data = self.load_data(self.target_date)
     
     @retry_on_failure(max_retries=3, delay=2)
-    def load_data(self) -> pd.DataFrame:
+    def load_data(self, date: str = None) -> pd.DataFrame:
         """加载股票数据
         
         优先级：
@@ -218,14 +238,12 @@ class AkshareClient:
         3. 从本地文件读取（兜底）
         """
         try:
-            today_date = self.config.default_date
-            
+            today_date = date or self.config.default_date
             # 优先从MongoDB读取
             df = self._load_data_from_mongodb(today_date)
             if not df.empty:
                 df = self._add_stock_names(df)
                 df = self._ensure_date_format(df)
-                self.data = df
                 logger.info(f"从MongoDB成功加载 {len(df)} 条股票数据")
                 return df
             
@@ -238,7 +256,6 @@ class AkshareClient:
                 df = self._add_stock_names(df)
                 df = self._ensure_date_format(df)
                 self._save_data_to_file(df, self.config.csv_file)
-                self.data = df
                 logger.info(f"从接口成功加载 {len(df)} 条股票数据")
                 return df
             
@@ -283,6 +300,36 @@ class AkshareClient:
             }
             df = df.rename(columns=column_mapping)
             
+            # code 转换为字符串类型，数据库中是code 是 1.000002 表示sh 0 表示 sz
+            # 转换逻辑：1.000002 -> sh.000002, 0.000002 -> sz.000002
+            if 'symbol' in df.columns:
+                def convert_code(code):
+                    """转换股票代码格式"""
+                    try:
+                        code_str = str(code)
+                        if '.' in code_str:
+                            parts = code_str.split('.')
+                            if len(parts) == 2:
+                                exchange = parts[0]
+                                stock_code = parts[1]
+                                if exchange == '1':
+                                    return f'sh.{stock_code}'
+                                elif exchange == '0':
+                                    return f'sz.{stock_code}'
+                        return code_str
+                    except:
+                        return str(code)
+                
+                df['symbol'] = df['symbol'].apply(convert_code)
+            
+            # 过滤掉指数代码（sh.000xxx 和 sz.000xxx）
+            if 'symbol' in df.columns:
+                original_count = len(df)
+                df = df[~df['symbol'].apply(self.is_index_code)]
+                filtered_count = original_count - len(df)
+                if filtered_count > 0:
+                    logger.info(f"过滤掉 {filtered_count} 条指数数据")
+            
             logger.info(f"从MongoDB获取到 {len(df)} 条数据")
             return df
             
@@ -311,6 +358,15 @@ class AkshareClient:
                 'turnover': 'turnover_rate'
             }
             df = df.rename(columns=column_mapping)
+            
+            # 过滤掉指数代码（sh.000xxx 和 sz.000xxx）
+            if 'symbol' in df.columns:
+                original_count = len(df)
+                df = df[~df['symbol'].apply(self.is_index_code)]
+                filtered_count = original_count - len(df)
+                if filtered_count > 0:
+                    logger.info(f"过滤掉 {filtered_count} 条指数数据")
+            
             return df
             
         except requests.RequestException as e:
@@ -1383,8 +1439,531 @@ class AkshareClient:
             "oversold": []
         }
     
-    def generate_daily_brief(self, date: str = None) -> Dict:
-        """生成完整的每日简报"""
+    def analyze_buy_opportunities(self, date: str = None, top_n: int = 5) -> Dict:
+        """分析当前最值得买入的前N只股票
+        
+        使用 deepseek 分析 self.data 中的股票数据
+        """
+        if date is None:
+            date = self.get_latest_date()
+        
+        if self.data is None or self.data.empty:
+            return {
+                "date": date,
+                "error": "数据为空，无法分析买入机会"
+            }
+        
+        try:
+            # 确保技术指标已计算
+            self._ensure_indicators()
+            
+            # 筛选符合条件的股票
+            df_date = self.data[self.data['date'].astype(str).str[:10] == date].copy()
+            df_date = df_date.drop_duplicates(subset=['symbol'], keep='first')
+            
+            # 过滤掉指数
+            df_date = df_date[~df_date['symbol'].apply(self.is_index_code)]
+            
+            if df_date.empty:
+                return {
+                    "date": date,
+                    "error": "没有符合条件的股票数据"
+                }
+            
+            # 筛选条件：
+            # 1. 涨跌幅 > 0（上涨）
+            # 2. RSI < 70（不超买）
+            # 3. MA5 > MA20（金叉）
+            # 4. 振幅 > 2%（有波动）
+            conditions = (
+                (df_date['change_pct'] > 0) &
+                (df_date['rsi'] < 70) &
+                (df_date['ma5'] > df_date['ma20']) &
+                (df_date['amplitude'] > 2)
+            )
+            
+            candidates = df_date[conditions].copy()
+            
+            if candidates.empty:
+                return {
+                    "date": date,
+                    "error": "没有符合买入条件的股票",
+                    "candidates": []
+                }
+            
+            # 计算综合得分
+            # 得分 = 涨跌幅 * 0.3 + (70 - RSI) * 0.3 + (MA5 - MA20) / MA20 * 100 * 0.2 + 振幅 * 0.2
+            candidates['score'] = (
+                candidates['change_pct'] * 0.3 +
+                (70 - candidates['rsi']) * 0.3 +
+                ((candidates['ma5'] - candidates['ma20']) / candidates['ma20'] * 100) * 0.2 +
+                candidates['amplitude'] * 0.2
+            )
+            
+            # 按得分排序，取前N只
+            top_stocks = candidates.nlargest(top_n, 'score')[['symbol', 'name', 'close', 'change_pct', 'rsi', 'ma5', 'ma20', 'amplitude', 'score']]
+            
+            # 转换为字典列表
+            result = []
+            for _, row in top_stocks.iterrows():
+                result.append({
+                    'symbol': row['symbol'],
+                    'name': row['name'],
+                    'close': round(row['close'], 2),
+                    'change_pct': round(row['change_pct'], 2),
+                    'rsi': round(row['rsi'], 2),
+                    'ma5': round(row['ma5'], 2),
+                    'ma20': round(row['ma20'], 2),
+                    'amplitude': round(row['amplitude'], 2),
+                    'score': round(row['score'], 2)
+                })
+            
+            return {
+                "date": date,
+                "total_candidates": len(candidates),
+                "top_stocks": result
+            }
+            
+        except Exception as e:
+            logger.error(f"分析买入机会失败: {e}")
+            import traceback
+            logger.error(f"错误详情: {traceback.format_exc()}")
+            return {
+                "date": date,
+                "error": str(e),
+                "top_stocks": []
+            }
+    
+    def analyze_buy_opportunities_with_llm(self, date: str = None, top_n: int = 5, news_analysis: Dict = None) -> Dict:
+        """使用 LLM 分析当前最值得买入的前N只股票
+        
+        参数:
+            date: 日期
+            top_n: 返回前N只股票
+            news_analysis: 新闻分析数据，包含热点板块和热门股票
+        """
+        if date is None:
+            date = self.get_latest_date()
+        
+        try:
+            # 如果有新闻分析，根据热点板块和热门股票进行分析
+            if news_analysis:
+                return self._analyze_buy_opportunities_by_news(date, top_n, news_analysis)
+            
+            # 否则使用基础分析
+            base_result = self.analyze_buy_opportunities(date, top_n * 2)
+            
+            if 'error' in base_result or not base_result.get('top_stocks'):
+                return base_result
+            
+            # 构建 LLM prompt
+            stock_data = base_result['top_stocks'][:top_n * 2]
+            stock_text = ""
+            for i, stock in enumerate(stock_data, 1):
+                stock_text += f"{i}. {stock['name']} ({stock['symbol']})\n"
+                stock_text += f"   收盘价: {stock['close']}\n"
+                stock_text += f"   涨跌幅: {stock['change_pct']}%\n"
+                stock_text += f"   RSI: {stock['rsi']}\n"
+                stock_text += f"   MA5: {stock['ma5']}, MA20: {stock['ma20']}\n"
+                stock_text += f"   振幅: {stock['amplitude']}%\n"
+                stock_text += f"   综合得分: {stock['score']}\n\n"
+            
+            prompt = f"""你是一位专业的A股投资分析师。请分析以下股票数据，选出最值得买入的前{top_n}只股票。
+
+股票数据：
+{stock_text}
+
+请以JSON格式返回分析结果，包含以下字段：
+{{
+    "summary": "整体市场分析 (100字以内)",
+    "top_stocks": [
+        {{
+            "symbol": "股票代码",
+            "name": "股票名称",
+            "reason": "推荐理由 (50字以内)",
+            "target_price": "目标价位",
+            "stop_loss": "止损价位",
+            "risk_level": "低/中/高"
+        }}
+    ],
+    "market_outlook": "市场展望 (50字以内)",
+    "risk_warning": "风险提示"
+}}
+
+只返回JSON，不要其他内容。"""
+            
+            # 调用 LLM
+            try:
+                from ..collector import LLMClient
+                from ..core.config import settings
+                
+                llm_client = LLMClient(
+                    provider=settings.llm_provider,
+                    api_key=settings.llm_api_key,
+                    model=settings.llm_model,
+                    base_url=settings.llm_base_url
+                )
+                
+                response = llm_client._call_api(prompt)
+                llm_result = llm_client._parse_response(response)
+                
+                if 'top_stocks' in llm_result:
+                    return {
+                        "date": date,
+                        "total_candidates": base_result.get('total_candidates', 0),
+                        "top_stocks": llm_result['top_stocks'][:top_n],
+                        "summary": llm_result.get('summary', ''),
+                        "market_outlook": llm_result.get('market_outlook', ''),
+                        "risk_warning": llm_result.get('risk_warning', '')
+                    }
+                else:
+                    return base_result
+                    
+            except Exception as e:
+                logger.warning(f"LLM分析失败，使用基础分析: {e}")
+                return base_result
+                
+        except Exception as e:
+            logger.error(f"分析买入机会失败: {e}")
+            import traceback
+            logger.error(f"错误详情: {traceback.format_exc()}")
+            return {
+                "date": date,
+                "error": str(e),
+                "top_stocks": []
+            }
+    
+    def _analyze_buy_opportunities_by_news(self, date: str, top_n: int, news_analysis: Dict) -> Dict:
+        """根据新闻分析中的热点板块和热门股票进行买入机会分析"""
+        try:
+            from ..storage.mongo_client import MongoStorage
+            from ..core.config import settings
+            
+            # 连接 MongoDB
+            mongo = MongoStorage(
+                host=settings.mongodb_host,
+                port=settings.mongodb_port,
+                db_name=settings.mongodb_database,
+                username=settings.mongodb_username,
+                password=settings.mongodb_password
+            )
+            mongo.connect()
+            
+            # 提取热点板块和热门股票
+            hot_sectors = news_analysis.get('hot_sectors', [])
+            hot_stocks = news_analysis.get('hot_stocks', [])
+            
+            logger.info(f"热点板块: {hot_sectors}")
+            logger.info(f"热门股票: {hot_stocks}")
+            
+            # 从 self.data 中提取股票代码
+            target_symbols = set()
+            
+            # 从热门股票中提取
+            for stock in hot_stocks:
+                if isinstance(stock, str):
+                    target_symbols.add(stock)
+            
+            # 使用行业数据获取热点板块内的股票
+            if hot_sectors:
+                try:
+                    # 导入行业数据获取模块
+                    import sys
+                    import os
+                    
+                    # 添加行业数据模块路径
+                    industry_module_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'get_industry_data.py')
+                    if os.path.exists(industry_module_path):
+                        sys.path.insert(0, os.path.dirname(industry_module_path))
+                        from get_industry_data import get_industry_data, get_stocks_by_industry
+                        
+                        # 获取行业数据
+                        industry_df = get_industry_data()
+                        logger.info(f"获取到 {len(industry_df)} 条行业分类数据")
+                        
+                        # 遍历热点板块，获取每个板块内的股票
+                        for sector in hot_sectors:
+                            logger.info(f"正在获取板块 '{sector}' 内的股票...")
+                            
+                            # 模糊匹配行业名称
+                            matched_stocks = industry_df[industry_df['industry'].str.contains(sector, na=False)]
+                            
+                            if not matched_stocks.empty:
+                                stock_codes = matched_stocks['code'].tolist()
+                                logger.info(f"板块 '{sector}' 找到 {len(stock_codes)} 只股票")
+                                target_symbols.update(stock_codes)
+                            else:
+                                logger.warning(f"未找到匹配板块 '{sector}' 的行业")
+                                
+                                # 如果没有匹配到，尝试从 self.data 中匹配股票名称
+                                for _, row in self.data.iterrows():
+                                    if 'name' in row and pd.notna(row['name']):
+                                        if sector in row['name']:
+                                            target_symbols.add(row['symbol'])
+                except Exception as e:
+                    logger.warning(f"使用行业数据获取股票失败: {e}")
+                    # 降级方案：从 self.data 中匹配股票名称
+                    for sector in hot_sectors:
+                        for _, row in self.data.iterrows():
+                            if 'name' in row and pd.notna(row['name']):
+                                if sector in row['name']:
+                                    target_symbols.add(row['symbol'])
+            
+            logger.info(f"目标股票数量: {len(target_symbols)}")
+            
+            if not target_symbols:
+                return {
+                    "date": date,
+                    "error": "没有找到相关的热点股票",
+                    "top_stocks": []
+                }
+            
+            # 查询这些股票的60天K线数据
+            end_date = datetime.strptime(date, "%Y-%m-%d")
+            start_date = end_date - timedelta(days=60)
+            start_date_str = start_date.strftime("%Y-%m-%d")
+            
+            # 转换股票代码格式
+            converted_symbols = []
+            for symbol in target_symbols:
+                # 转换为数据库格式
+                if symbol.startswith('sh.'):
+                    converted_symbols.append(f"1.{symbol[3:]}")
+                elif symbol.startswith('sz.'):
+                    converted_symbols.append(f"0.{symbol[3:]}")
+                else:
+                    converted_symbols.append(symbol)
+            
+            # 查询K线数据
+            all_kline_data = []
+            for symbol in converted_symbols:
+                try:
+                    kline_data = mongo.get_kline(symbol, start_date=start_date_str, end_date=date, limit=100)
+                    if kline_data:
+                        all_kline_data.extend(kline_data)
+                except Exception as e:
+                    logger.warning(f"查询股票 {symbol} 的K线数据失败: {e}")
+            
+            mongo.close()
+            
+            logger.info(f"获取到 {len(all_kline_data)} 条K线数据")
+            
+            if not all_kline_data:
+                return {
+                    "date": date,
+                    "error": "没有获取到K线数据",
+                    "top_stocks": []
+                }
+            
+            # 转换为DataFrame
+            df = pd.DataFrame(all_kline_data)
+            
+            # 转换字段名
+            column_mapping = {
+                'code': 'symbol',
+                'pct_chg': 'change_pct',
+                'turnover': 'turnover_rate'
+            }
+            df = df.rename(columns=column_mapping)
+            
+            # 转换股票代码格式
+            def convert_code(code):
+                try:
+                    code_str = str(code)
+                    if '.' in code_str:
+                        parts = code_str.split('.')
+                        if len(parts) == 2:
+                            exchange = parts[0]
+                            stock_code = parts[1]
+                            if exchange == '1':
+                                return f'sh.{stock_code}'
+                            elif exchange == '0':
+                                return f'sz.{stock_code}'
+                    return code_str
+                except:
+                    return str(code)
+            
+            df['symbol'] = df['symbol'].apply(convert_code)
+            
+            # 添加股票名称
+            df = self._add_stock_names(df)
+            
+            # 计算技术指标
+            df = self._ensure_indicators_calculated(df)
+            
+            # 筛选符合条件的股票
+            df_date = df[df['date'].astype(str).str[:10] == date].copy()
+            df_date = df_date.drop_duplicates(subset=['symbol'], keep='first')
+            
+            # 过滤掉指数
+            df_date = df_date[~df_date['symbol'].apply(self.is_index_code)]
+            
+            if df_date.empty:
+                return {
+                    "date": date,
+                    "error": "没有符合条件的股票数据",
+                    "top_stocks": []
+                }
+            
+            # 筛选条件
+            conditions = (
+                (df_date['change_pct'] > 0) &
+                (df_date['rsi'] < 70) &
+                (df_date['ma5'] > df_date['ma20']) &
+                (df_date['amplitude'] > 2)
+            )
+            
+            candidates = df_date[conditions].copy()
+            
+            if candidates.empty:
+                return {
+                    "date": date,
+                    "error": "没有符合买入条件的股票",
+                    "top_stocks": []
+                }
+            
+            # 计算综合得分
+            candidates['score'] = (
+                candidates['change_pct'] * 0.3 +
+                (70 - candidates['rsi']) * 0.3 +
+                ((candidates['ma5'] - candidates['ma20']) / candidates['ma20'] * 100) * 0.2 +
+                candidates['amplitude'] * 0.2
+            )
+            
+            # 按得分排序，取前N只
+            top_stocks = candidates.nlargest(top_n * 2, 'score')[['symbol', 'name', 'close', 'change_pct', 'rsi', 'ma5', 'ma20', 'amplitude', 'score']]
+            
+            # 构建 LLM prompt
+            stock_text = ""
+            for i, row in top_stocks.iterrows():
+                stock_text += f"{i+1}. {row['name']} ({row['symbol']})\n"
+                stock_text += f"   收盘价: {row['close']}\n"
+                stock_text += f"   涨跌幅: {row['change_pct']}%\n"
+                stock_text += f"   RSI: {row['rsi']}\n"
+                stock_text += f"   MA5: {row['ma5']}, MA20: {row['ma20']}\n"
+                stock_text += f"   振幅: {row['amplitude']}%\n"
+                stock_text += f"   综合得分: {row['score']}\n\n"
+            
+            # 添加热点板块信息
+            sector_text = ""
+            if hot_sectors:
+                sector_text = "热点板块: " + ", ".join(hot_sectors) + "\n\n"
+            
+            prompt = f"""你是一位专业的A股投资分析师。请根据以下信息分析并选出最值得买入的前{top_n}只股票。
+
+{sector_text}股票数据（基于60天K线技术分析）：
+{stock_text}
+
+请以JSON格式返回分析结果，包含以下字段：
+{{
+    "summary": "整体市场分析 (100字以内)",
+    "top_stocks": [
+        {{
+            "symbol": "股票代码",
+            "name": "股票名称",
+            "reason": "推荐理由 (50字以内)",
+            "target_price": "目标价位",
+            "stop_loss": "止损价位",
+            "risk_level": "低/中/高"
+        }}
+    ],
+    "market_outlook": "市场展望 (50字以内)",
+    "risk_warning": "风险提示"
+}}
+
+只返回JSON，不要其他内容。"""
+            
+            # 调用 LLM
+            try:
+                from ..collector import LLMClient
+                
+                llm_client = LLMClient(
+                    provider=settings.llm_provider,
+                    api_key=settings.llm_api_key,
+                    model=settings.llm_model,
+                    base_url=settings.llm_base_url
+                )
+                
+                response = llm_client._call_api(prompt)
+                llm_result = llm_client._parse_response(response)
+                
+                if 'top_stocks' in llm_result:
+                    return {
+                        "date": date,
+                        "total_candidates": len(candidates),
+                        "hot_sectors": hot_sectors,
+                        "hot_stocks": hot_stocks,
+                        "top_stocks": llm_result['top_stocks'][:top_n],
+                        "summary": llm_result.get('summary', ''),
+                        "market_outlook": llm_result.get('market_outlook', ''),
+                        "risk_warning": llm_result.get('risk_warning', '')
+                    }
+                else:
+                    # LLM 解析失败，返回基础分析结果
+                    result = []
+                    for _, row in top_stocks.iterrows():
+                        result.append({
+                            'symbol': row['symbol'],
+                            'name': row['name'],
+                            'close': round(row['close'], 2),
+                            'change_pct': round(row['change_pct'], 2),
+                            'rsi': round(row['rsi'], 2),
+                            'ma5': round(row['ma5'], 2),
+                            'ma20': round(row['ma20'], 2),
+                            'amplitude': round(row['amplitude'], 2),
+                            'score': round(row['score'], 2)
+                        })
+                    
+                    return {
+                        "date": date,
+                        "total_candidates": len(candidates),
+                        "hot_sectors": hot_sectors,
+                        "hot_stocks": hot_stocks,
+                        "top_stocks": result[:top_n]
+                    }
+                    
+            except Exception as e:
+                logger.warning(f"LLM分析失败，使用基础分析: {e}")
+                # 返回基础分析结果
+                result = []
+                for _, row in top_stocks.iterrows():
+                    result.append({
+                        'symbol': row['symbol'],
+                        'name': row['name'],
+                        'close': round(row['close'], 2),
+                        'change_pct': round(row['change_pct'], 2),
+                        'rsi': round(row['rsi'], 2),
+                        'ma5': round(row['ma5'], 2),
+                        'ma20': round(row['ma20'], 2),
+                        'amplitude': round(row['amplitude'], 2),
+                        'score': round(row['score'], 2)
+                    })
+                
+                return {
+                    "date": date,
+                    "total_candidates": len(candidates),
+                    "hot_sectors": hot_sectors,
+                    "hot_stocks": hot_stocks,
+                    "top_stocks": result[:top_n]
+                }
+                
+        except Exception as e:
+            logger.error(f"根据新闻分析买入机会失败: {e}")
+            import traceback
+            logger.error(f"错误详情: {traceback.format_exc()}")
+            return {
+                "date": date,
+                "error": str(e),
+                "top_stocks": []
+            }
+    
+    def generate_daily_brief(self, date: str = None, news_analysis: Dict = None) -> Dict:
+        """生成完整的每日简报
+        
+        参数:
+            date: 日期
+            news_analysis: 新闻分析数据，用于买入机会分析
+        """
         date = date or self.get_latest_date()
         date = self.config.default_date  # 使用配置的默认日期
         
@@ -1394,6 +1973,7 @@ class AkshareClient:
         try:
             logger.info("开始生成市场概览...")
             market_overview = self.analyze_market_overview(date)
+            logger.info(f"市场概览数据: {market_overview}")
             logger.info(f"市场概览生成完成: {market_overview.get('error', '成功')}")
         except Exception as e:
             logger.error(f"生成市场概览失败: {e}")
@@ -1401,25 +1981,38 @@ class AkshareClient:
             logger.error(f"错误详情: {traceback.format_exc()}")
             market_overview = {"error": str(e)}
         
-        try:
-            logger.info("开始生成板块表现...")
-            sector_performance = self.analyze_sector_performance(date)
-            logger.info(f"板块表现生成完成: {sector_performance.get('error', '成功')}")
-        except Exception as e:
-            logger.error(f"生成板块表现失败: {e}")
-            import traceback
-            logger.error(f"错误详情: {traceback.format_exc()}")
-            sector_performance = {"error": str(e)}
+        # 根据新闻中的板块，和热门股票，和应该关注的数据，使用self.data 分析相关的股票
         
+        # 分析买入机会
         try:
-            logger.info("开始生成个股表现...")
-            stock_performance = self.analyze_stock_performance(date)
-            logger.info(f"个股表现生成完成: {stock_performance.get('error', '成功')}")
+            logger.info("开始分析买入机会...")
+            buy_opportunities = self.analyze_buy_opportunities_with_llm(date, top_n=5, news_analysis=news_analysis)
+            logger.info(f"买入机会分析完成: {buy_opportunities.get('error', '成功')}")
         except Exception as e:
-            logger.error(f"生成个股表现失败: {e}")
+            logger.error(f"分析买入机会失败: {e}")
             import traceback
             logger.error(f"错误详情: {traceback.format_exc()}")
-            stock_performance = {"error": str(e)}
+            buy_opportunities = {"error": str(e)}
+        
+        # try:
+        #     logger.info("开始生成板块表现...")
+        #     sector_performance = self.analyze_sector_performance(date)
+        #     logger.info(f"板块表现生成完成: {sector_performance.get('error', '成功')}")
+        # except Exception as e:
+        #     logger.error(f"生成板块表现失败: {e}")
+        #     import traceback
+        #     logger.error(f"错误详情: {traceback.format_exc()}")
+        #     sector_performance = {"error": str(e)}
+        
+        # try:
+        #     logger.info("开始生成个股表现...")
+        #     stock_performance = self.analyze_stock_performance(date)
+        #     logger.info(f"个股表现生成完成: {stock_performance.get('error', '成功')}")
+        # except Exception as e:
+        #     logger.error(f"生成个股表现失败: {e}")
+        #     import traceback
+        #     logger.error(f"错误详情: {traceback.format_exc()}")
+        #     stock_performance = {"error": str(e)}
         
         # try:
         #     logger.info("开始生成技术信号...")
@@ -1436,6 +2029,7 @@ class AkshareClient:
             "market_overview": market_overview,
             "sector_performance": sector_performance,
             "stock_performance": stock_performance,
+            "buy_opportunities": buy_opportunities
             # "technical_signals": technical_signals
         }
     

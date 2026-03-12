@@ -521,3 +521,456 @@ code {
   margin-bottom: 1rem;
   border-left: 4px solid #2e7d32;
 }
+
+/* ============================================
+   Stock Pages - 股票监控与分析系统
+   Design System: Dark Theme (金融仪表盘)
+   ============================================ */
+
+:root {
+  --stock-bg: #020617;
+  --stock-card: #0E1223;
+  --stock-primary: #0F172A;
+  --stock-border: #334155;
+  --stock-text: #F8FAFC;
+  --stock-text-muted: #94A3B8;
+  --stock-up: #22C55E;
+  --stock-down: #EF4444;
+  --stock-accent: #3B82F6;
+}
+
+/* Stock List Page */
+.stock-list-page {
+  color: var(--stock-text);
+}
+
+.stock-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.stock-list-header h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--stock-text);
+}
+
+.stock-search-input {
+  background: var(--stock-card);
+  border: 1px solid var(--stock-border);
+  color: var(--stock-text);
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  width: 250px;
+  transition: border-color 0.2s;
+}
+
+.stock-search-input:focus {
+  outline: none;
+  border-color: var(--stock-accent);
+}
+
+.stock-search-input::placeholder {
+  color: var(--stock-text-muted);
+}
+
+.stock-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.summary-card {
+  background: var(--stock-card);
+  border: 1px solid var(--stock-border);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.summary-label {
+  font-size: 0.85rem;
+  color: var(--stock-text-muted);
+}
+
+.summary-value {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--stock-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.summary-change {
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.summary-change.positive {
+  color: var(--stock-up);
+}
+
+.summary-change.negative {
+  color: var(--stock-down);
+}
+
+.stock-table-container {
+  background: var(--stock-card);
+  border: 1px solid var(--stock-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.stock-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.stock-table th {
+  background: var(--stock-primary);
+  color: var(--stock-text-muted);
+  font-weight: 500;
+  text-align: left;
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid var(--stock-border);
+  white-space: nowrap;
+}
+
+.stock-table th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.stock-table th.sortable:hover {
+  color: var(--stock-text);
+}
+
+.stock-table td {
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid var(--stock-border);
+  color: var(--stock-text);
+}
+
+.stock-table tr:last-child td {
+  border-bottom: none;
+}
+
+.stock-table .stock-row {
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.stock-table .stock-row:hover {
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.text-right {
+  text-align: right;
+}
+
+.stock-name .name {
+  display: block;
+  font-weight: 500;
+  color: var(--stock-text);
+}
+
+.stock-name .industry {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--stock-text-muted);
+}
+
+.stock-code {
+  color: var(--stock-text-muted);
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  font-size: 0.85rem;
+}
+
+.stock-table .price {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.stock-table .change.positive {
+  color: var(--stock-up);
+}
+
+.stock-table .change.negative {
+  color: var(--stock-down);
+}
+
+.change-tag {
+  display: inline-block;
+  padding: 0.125rem 0.375rem;
+  border-radius: 3px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  margin-right: 0.25rem;
+}
+
+.positive .change-tag {
+  background: rgba(34, 197, 94, 0.2);
+}
+
+.negative .change-tag {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+/* Stock Detail Page */
+.stock-detail-page {
+  color: var(--stock-text);
+}
+
+.stock-detail-header {
+  margin-bottom: 1rem;
+}
+
+.back-button {
+  background: var(--stock-card);
+  border: 1px solid var(--stock-border);
+  color: var(--stock-text);
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background-color 0.2s;
+}
+
+.back-button:hover {
+  background: var(--stock-border);
+}
+
+.stock-info-card {
+  background: var(--stock-card);
+  border: 1px solid var(--stock-border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.stock-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.stock-title h1 {
+  font-size: 1.75rem;
+  font-weight: 600;
+}
+
+.stock-title .stock-code {
+  font-size: 0.9rem;
+}
+
+.stock-price {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.stock-price .price {
+  font-size: 2.5rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.stock-price .change {
+  font-size: 1.1rem;
+  font-weight: 500;
+}
+
+.stock-price .change.positive {
+  color: var(--stock-up);
+}
+
+.stock-price .change.negative {
+  color: var(--stock-down);
+}
+
+.stock-tags {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.stock-tags .tag {
+  background: var(--stock-primary);
+  border: 1px solid var(--stock-border);
+  padding: 0.25rem 0.625rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  color: var(--stock-text-muted);
+}
+
+.stock-ohlc {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.ohlc-item {
+  background: var(--stock-card);
+  border: 1px solid var(--stock-border);
+  border-radius: 8px;
+  padding: 0.875rem;
+  text-align: center;
+}
+
+.ohlc-item .label {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--stock-text-muted);
+  margin-bottom: 0.25rem;
+}
+
+.ohlc-item .value {
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--stock-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.ohlc-item .value.high {
+  color: var(--stock-up);
+}
+
+.ohlc-item .value.low {
+  color: var(--stock-down);
+}
+
+.kline-section {
+  background: var(--stock-card);
+  border: 1px solid var(--stock-border);
+  border-radius: 12px;
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.kline-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.kline-header h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--stock-text);
+}
+
+.time-range-selector {
+  display: flex;
+  gap: 0.25rem;
+  background: var(--stock-primary);
+  padding: 0.25rem;
+  border-radius: 6px;
+}
+
+.time-range-selector button {
+  background: transparent;
+  border: none;
+  color: var(--stock-text-muted);
+  padding: 0.375rem 0.75rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: all 0.15s;
+}
+
+.time-range-selector button:hover {
+  color: var(--stock-text);
+}
+
+.time-range-selector button.active {
+  background: var(--stock-accent);
+  color: white;
+}
+
+.kline-chart {
+  height: 350px;
+}
+
+.stock-metrics {
+  background: var(--stock-card);
+  border: 1px solid var(--stock-border);
+  border-radius: 12px;
+  padding: 1.25rem;
+}
+
+.stock-metrics h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--stock-text);
+  margin-bottom: 1rem;
+}
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.75rem;
+}
+
+.metric-item {
+  background: var(--stock-primary);
+  border: 1px solid var(--stock-border);
+  border-radius: 8px;
+  padding: 0.875rem;
+  text-align: center;
+}
+
+.metric-item .label {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--stock-text-muted);
+  margin-bottom: 0.25rem;
+}
+
+.metric-item .value {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--stock-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.error-message {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid var(--stock-down);
+  color: var(--stock-down);
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .stock-summary {
+    grid-template-columns: 1fr;
+  }
+  
+  .stock-ohlc {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  
+  .metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .stock-table-container {
+    overflow-x: auto;
+  }
+  
+  .stock-table {
+    min-width: 800px;
+  }
+}

@@ -18,12 +18,12 @@ def get_date_range(period: str, date_str: Optional[str] = None):
     
     if period == "daily":
         start_date = base_date.replace(hour=0, minute=0, second=0, microsecond=0)
-        end_date = start_date + timedelta(days=1)
+        end_date = start_date + timedelta(days=2)
     elif period == "weekly":
         # 计算本周一
         start_date = base_date - timedelta(days=base_date.weekday())
         start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
-        end_date = start_date + timedelta(days=7)
+        end_date = start_date + timedelta(days=8)
     elif period == "monthly":
         # 计算本月第一天
         start_date = base_date.replace(day=1, hour=0, minute=0, second=0, microsecond=0)

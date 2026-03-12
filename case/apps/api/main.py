@@ -7,7 +7,7 @@ from app.core.error import setup_error_handlers
 import logging
 from logging.handlers import TimedRotatingFileHandler
 import os
-
+import traceback
 from logging.handlers import TimedRotatingFileHandler
 
 # 确保日志目录存在
@@ -94,6 +94,7 @@ def run_scheduled_job():
         job.run()
     except Exception as e:
         logging.error(f"Scheduled job failed: {e}")
+        logging.error(traceback.format_exc())
 
 
 def setup_scheduler():

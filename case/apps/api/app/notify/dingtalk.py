@@ -32,12 +32,9 @@ class DingTalkNotifier:
     def _ensure_akshare_client(self):
         """确保 AkshareClient 已初始化"""
         if self.akshare_client is None:
-            try:
-                self.akshare_client = AkshareClient()
-                logger.info("AkshareClient initialized for DingTalk notifications")
-            except Exception as e:
-                logger.error(f"Failed to initialize AkshareClient: {e}")
-                self.akshare_client = None
+            logger.warning("AkshareClient is None, cannot initialize without target_date")
+            logger.warning("Please ensure AkshareClient is passed to DingTalkNotifier constructor")
+            self.akshare_client = None
         else:
             logger.debug("Using provided AkshareClient")
 
@@ -186,6 +183,40 @@ class DingTalkNotifier:
                                     else:
                                         msg_parts.append(f"{value}\n")
                                     msg_parts.append("\n")
+                        
+                        # 添加买入机会分析
+                        buy_opportunities = data.get('buy_opportunities', {})
+                        if buy_opportunities and 'error' not in buy_opportunities:
+                            msg_parts.append("\n### 💡 买入机会 (AI)\n")
+                            
+                            if 'summary' in buy_opportunities:
+                                msg_parts.append(f"{buy_opportunities['summary']}\n\n")
+                            
+                            if 'market_outlook' in buy_opportunities:
+                                msg_parts.append(f"**市场展望：** {buy_opportunities['market_outlook']}\n\n")
+                            
+                            if 'top_stocks' in buy_opportunities and buy_opportunities['top_stocks']:
+                                msg_parts.append("#### 🎯 推荐股票\n")
+                                for stock in buy_opportunities['top_stocks'][:5]:
+                                    msg_parts.append(f"**{stock.get('name', stock.get('symbol', ''))}**\n")
+                                    if 'reason' in stock:
+                                        msg_parts.append(f"- 理由: {stock['reason']}\n")
+                                    if 'target_price' in stock:
+                                        msg_parts.append(f"- 目标价: {stock['target_price']}\n")
+                                    if 'stop_loss' in stock:
+                                        msg_parts.append(f"- 止损: {stock['stop_loss']}\n")
+                                    if 'risk_level' in stock:
+                                        risk_emoji = {
+                                            "低": "🟢",
+                                            "中": "🟡",
+                                            "高": "🔴"
+                                        }
+                                        emoji = risk_emoji.get(stock['risk_level'], "⚪")
+                                        msg_parts.append(f"- 风险: {emoji} {stock['risk_level']}\n")
+                                    msg_parts.append("\n")
+                            
+                            if 'risk_warning' in buy_opportunities:
+                                msg_parts.append(f"**风险提示：** {buy_opportunities['risk_warning']}\n")
                         
                         msg_parts.append(f"\n---\n*发布时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*")
                         return "".join(msg_parts)

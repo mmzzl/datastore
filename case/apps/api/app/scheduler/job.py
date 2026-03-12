@@ -18,9 +18,9 @@ class AfterMarketJob:
         self.storage = None
         self.notifier = None
 
-    def _ensure_clients(self):
+    def _ensure_clients(self, target_date: Optional[str] = None):
         if self.akshare_client is None:
-            self.akshare_client = AkshareClient()
+            self.akshare_client = AkshareClient(target_date=target_date)
             logger.info("Using Akshare data source for stock data")
         
         if self.news_client is None:
@@ -60,43 +60,39 @@ class AfterMarketJob:
             )
 
     def run(self, target_date: Optional[str] = None) -> str:
-        self._ensure_clients()
-        
         if target_date:
-            target = datetime.strptime(target_date, "%Y-%m-%d").date()
+            # 每天早上执行，查询昨天的股票数据
+            target = datetime.strptime(target_date, "%Y-%m-%d") - timedelta(days=1)
         else:
-            target = date.today()
-        
+            target = datetime.now() - timedelta(days=1)
         date_str = target.strftime("%Y-%m-%d")
         logger.info(f"Starting after-market job for {date_str}")
-        
+        self._ensure_clients(date_str)
         try:
-            # 使用 AkshareClient 获取所有数据
-            brief = self.akshare_client.generate_daily_brief(date_str)
-            
-            # 获取新闻
+            # 先获取新闻
             news = self._fetch_news(date_str)
-            
             # 使用LLM分析新闻
             news_analysis = self._analyze_news(news)
+            logger.info(news_analysis)
+            # 使用 AkshareClient 获取所有数据，传入新闻分析用于买入机会分析
+            brief = self.akshare_client.generate_dailly_brief(date_str, news_analysis=news_analysis)
+            # # 构建数据
+            # data = {
+            #     "date": date_str,
+            #     "market_overview": brief.get('market_overview', {}),
+            #     "stocks": brief.get('stock_performance', {}),
+            #     "capital_flow": brief.get('capital_flow', {}),
+            #     "sectors": brief.get('sector_performance', {}),
+            #     "technical_signals": brief.get('technical_signals', {}),
+            #     "news": news,
+            #     "news_analysis": news_analysis,
+            # }
             
-            # 构建数据
-            data = {
-                "date": date_str,
-                "market_overview": brief.get('market_overview', {}),
-                "stocks": brief.get('stock_performance', {}),
-                "capital_flow": brief.get('capital_flow', {}),
-                "sectors": brief.get('sector_performance', {}),
-                "technical_signals": brief.get('technical_signals', {}),
-                "news": news,
-                "news_analysis": news_analysis,
-            }
+            # self.storage.save(data)
+            # logger.info(f"Data saved to MongoDB for {date_str}")
             
-            self.storage.save(data)
-            logger.info(f"Data saved to MongoDB for {date_str}")
-            
-            self.notifier.send(data)
-            logger.info(f"DingTalk notification sent for {date_str}")
+            # self.notifier.send(data)
+            # logger.info(f"DingTalk notification sent for {date_str}")
             
             return f"盘后信息已生成: {date_str}"
             

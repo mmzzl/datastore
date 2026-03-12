@@ -6,9 +6,11 @@ import StrategyListPage from './pages/StrategyListPage'
 import StrategyDetailPage from './pages/StrategyDetailPage'
 import StrategyCreatePage from './pages/StrategyCreatePage'
 import StrategyComparePage from './pages/StrategyComparePage'
+import StockListPage from './pages/StockListPage'
+import StockDetailPage from './pages/StockDetailPage'
 
 // 定义路由类型
-type Route = 'list' | 'detail' | 'create' | 'compare'
+type Route = 'list' | 'detail' | 'create' | 'compare' | 'stock-list' | 'stock-detail'
 
 function App() {
   const [route, setRoute] = useState<Route>('list')
@@ -39,6 +41,18 @@ function App() {
         <aside className="sidebar">
           <nav>
             <ul className="sidebar-nav">
+              <li>
+                <a 
+                  href="#" 
+                  className={route === 'stock-list' ? 'active' : ''}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    navigate('stock-list')
+                  }}
+                >
+                  行情中心
+                </a>
+              </li>
               <li>
                 <a 
                   href="#" 
@@ -79,6 +93,17 @@ function App() {
           </nav>
         </aside>
         <section className="content">
+          {route === 'stock-list' && (
+            <StockListPage 
+              onSelectStock={(code) => navigate('stock-detail', code)} 
+            />
+          )}
+          {route === 'stock-detail' && selectedStrategyId && (
+            <StockDetailPage 
+              stockCode={selectedStrategyId} 
+              onBack={() => navigate('stock-list')} 
+            />
+          )}
           {route === 'list' && (
             <StrategyListPage 
               strategies={strategies} 
