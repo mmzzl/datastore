@@ -33,6 +33,10 @@ logging.getLogger("scrapy.core.downloader.middleware").setLevel(logging.WARNING)
 logging.getLogger("scrapy.core.scraper").setLevel(logging.WARNING)
 logging.getLogger("scrapy.core.spidermw").setLevel(logging.WARNING)
 
+# 配置 pymongo 日志级别，避免输出 DEBUG 信息
+logging.getLogger("pymongo").setLevel(logging.WARNING)
+logging.getLogger("pymongo.connection").setLevel(logging.WARNING)
+
 # 配置最大并发请求（默认: 16）
 CONCURRENT_REQUESTS = 8
 CONCURRENT_REQUESTS_PER_DOMAIN = 4
