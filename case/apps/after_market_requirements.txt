@@ -1,0 +1,22 @@
+# 盘后分析服务额外依赖
+
+# 定时任务调度
+apscheduler>=3.10.0
+
+# 时区支持
+pytz>=2023.3
+
+# 以下依赖已在主项目 requirements.txt 中
+# fastapi
+# uvicorn
+# pymongo
+# numpy
+# python-jose[cryptography]
+# pydantic-settings
+# python-multipart
+# akshare
+# tushare
+# pandas
+# requests
+# pyyaml
+# baostock

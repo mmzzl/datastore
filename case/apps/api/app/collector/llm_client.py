@@ -13,6 +13,46 @@ class LLMClient:
         self.model = model
         self.base_url = base_url
 
+    def chat(self, prompt: str) -> str:
+        """通用聊天接口，返回原始文本响应"""
+        if not self.api_key:
+            raise Exception("未配置LLM API Key")
+        return self._call_api(prompt)
+
+    def analyze_stocks(self, stock_data: List[Dict], hot_sectors: List[str], top_n: int = 5) -> Dict:
+        """分析股票数据，推荐买入标的"""
+        if not stock_data:
+            return {"error": "无股票数据"}
+        
+        prompt = f"""你是一位专业的A股短线交易分析师。根据以下股票的技术指标数据，从热门板块 {hot_sectors} 中选出最值得买入的{top_n}只股票。
+
+股票技术数据：
+{json.dumps(stock_data, ensure_ascii=False, indent=2)}
+
+筛选逻辑：
+1. RSI < 70（不超买）
+2. MA5 > MA10（金叉状态）
+3. 涨幅 > 0（上涨趋势）
+
+请选出最值得买入的{top_n}只股票，返回JSON格式：
+{{
+    "recommendations": [{{"symbol": "股票代码", "reason": "推荐理由"}}],
+    "analysis": "整体分析（50字以内）"
+}}
+
+只返回JSON。"""
+        
+        try:
+            response = self.chat(prompt)
+            result = json.loads(response)
+            return {
+                "top_stocks": result.get('recommendations', [])[:top_n],
+                "analysis": result.get('analysis', '')
+            }
+        except Exception as e:
+            logger.warning(f"股票分析失败: {e}")
+            return {"error": str(e)}
+
     def analyze_news(self, news_list: List[Dict]) -> Dict:
         """分析新闻并返回结构化结果"""
         if not self.api_key:

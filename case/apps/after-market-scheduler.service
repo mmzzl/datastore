@@ -1,0 +1,17 @@
+[Unit]
+Description=After Market Analysis Scheduler Service
+After=network.target mongodb.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/apps
+Environment="PYTHONUNBUFFERED=1"
+ExecStart=/usr/bin/python3 /root/apps/after_market_scheduler.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
