@@ -178,8 +178,8 @@ class LLMClient:
         
         return {
             "summary": f"今日共{len(news_list)}条新闻，市场{sentiment}",
-            "hot_sectors": list(hot_sectors)[:5],
-            "hot_stocks": list(hot_stocks)[:5],
+            "hot_sectors": list(hot_sectors)[:10],
+            "hot_stocks": list(hot_stocks)[:10],
             "sentiment": sentiment,
             "tomorrow_strategy": {
                 "direction": "震荡",

@@ -49,7 +49,7 @@
   },
   "kline_spider": {
     "enabled": false,
-    "run_time": "22:51",
+    "run_time": "15:01",
     "batch_size": 50,
     "batch_delay": 10,
     "default_days": 60,

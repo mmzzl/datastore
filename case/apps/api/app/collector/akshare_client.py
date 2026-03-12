@@ -77,7 +77,8 @@ class AkshareClient:
         return {
             "date": self.target_date,
             "market_overview": market_overview,
-            "buy_opportunities": buy_opportunities
+            "buy_opportunities": buy_opportunities,
+            "news_analysis": news_analysis
         }
     
     def format_dingtalk(self, news_analysis: Dict = None, llm_client=None) -> str:

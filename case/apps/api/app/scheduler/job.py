@@ -75,24 +75,13 @@ class AfterMarketJob:
             news_analysis = self._analyze_news(news)
             logger.info(news_analysis)
             # 使用 AkshareClient 获取所有数据，传入新闻分析用于买入机会分析
-            brief = self.akshare_client.generate_dailly_brief(date_str, news_analysis=news_analysis)
-            # # 构建数据
-            # data = {
-            #     "date": date_str,
-            #     "market_overview": brief.get('market_overview', {}),
-            #     "stocks": brief.get('stock_performance', {}),
-            #     "capital_flow": brief.get('capital_flow', {}),
-            #     "sectors": brief.get('sector_performance', {}),
-            #     "technical_signals": brief.get('technical_signals', {}),
-            #     "news": news,
-            #     "news_analysis": news_analysis,
-            # }
+            data = self.akshare_client.format_dingtalk(news_analysis=news_analysis, llm_client=self.llm_client)
+           
+            self.storage.save(data)
+            logger.info(f"Data saved to MongoDB for {date_str}")
             
-            # self.storage.save(data)
-            # logger.info(f"Data saved to MongoDB for {date_str}")
-            
-            # self.notifier.send(data)
-            # logger.info(f"DingTalk notification sent for {date_str}")
+            self.notifier.send(data)
+            logger.info(f"DingTalk notification sent for {date_str}")
             
             return f"盘后信息已生成: {date_str}"
             
