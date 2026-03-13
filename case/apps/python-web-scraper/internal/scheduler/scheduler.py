@@ -13,7 +13,7 @@ from ..utils.config import load_config, save_progress, load_progress
 
 # 配置日志格式，避免写入syslog
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.WARNING,  # 只输出 WARNING 及以上级别的日志
     format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
     stream=sys.stdout,  # 确保输出到stdout而不是syslog
