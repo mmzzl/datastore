@@ -27,9 +27,16 @@ KLINE_LOCK_FILE = os.path.join(
     "kline_running.lock",
 )
 
+CAPITAL_FLOW_LOCK_FILE = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+    "data",
+    "capital_flow_running.lock",
+)
+
 # 全局变量，用于跟踪爬虫进程
 _current_spider_process = None
 _current_kline_process = None
+_current_capital_flow_process = None
 _stop_event = threading.Event()
 
 
@@ -249,6 +256,111 @@ def unlock_kline():
             pass
 
 
+def _run_capital_flow_spider_in_process():
+    """
+    在子进程中运行资金流向爬虫
+    这个函数会在独立的子进程中被调用
+    """
+    try:
+        # 在子进程中重新导入和初始化
+        from scrapy.crawler import CrawlerProcess
+        from scrapy.utils.project import get_project_settings
+        from ..spider.eastmoney_capital_flow_spider import EastMoneyCapitalFlowSpider
+
+        # 获取Scrapy设置
+        settings = get_project_settings()
+
+        # 禁用py_mini_racer的自动清理
+        settings.set("PY_MINI_RACER_NO_CLEANUP", True)
+
+        # 创建并启动CrawlerProcess
+        process = CrawlerProcess(settings)
+        process.crawl(EastMoneyCapitalFlowSpider)
+
+        print("开始执行资金流向爬虫")
+        process.start()
+        print(f"资金流向爬虫执行完成: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+
+    except Exception as e:
+        print(f"启动资金流向爬虫失败: {e}")
+        import traceback
+
+        traceback.print_exc()
+
+
+def run_capital_flow_spider():
+    """使用多进程运行资金流向爬虫，支持 Ctrl+C 中止"""
+    global _current_capital_flow_process
+
+    try:
+        logger.info(f"启动资金流向爬虫... 当前时间: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+
+        # 创建子进程运行爬虫
+        _current_capital_flow_process = Process(target=_run_capital_flow_spider_in_process)
+        _current_capital_flow_process.start()
+
+        # 等待子进程完成，但可以被中断
+        while _current_capital_flow_process.is_alive():
+            _current_capital_flow_process.join(timeout=1)
+            # 检查停止事件
+            if _stop_event.is_set():
+                logger.info("收到停止信号，正在停止资金流向爬虫...")
+                _current_capital_flow_process.terminate()
+                _current_capital_flow_process.join(timeout=5)
+                break
+
+        logger.info(f"资金流向爬虫进程已结束: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+
+        # 解锁资金流向爬虫
+        unlock_capital_flow()
+
+    except KeyboardInterrupt:
+        logger.info("收到键盘中断信号，停止资金流向爬虫")
+        if _current_capital_flow_process and _current_capital_flow_process.is_alive():
+            _current_capital_flow_process.terminate()
+            _current_capital_flow_process.join(timeout=5)
+        unlock_capital_flow()
+    except Exception as e:
+        logger.error(f"启动资金流向爬虫失败: {e}")
+        import traceback
+
+        traceback.print_exc()
+        unlock_capital_flow()
+
+
+def is_capital_flow_locked():
+    """检查资金流向爬虫是否正在运行"""
+    if os.path.exists(CAPITAL_FLOW_LOCK_FILE):
+        try:
+            with open(CAPITAL_FLOW_LOCK_FILE, "r") as f:
+                pid = int(f.read().strip())
+                try:
+                    os.kill(pid, 0)
+                    return True
+                except OSError:
+                    unlock_capital_flow()
+                    return False
+        except:
+            return False
+    return False
+
+
+def lock_capital_flow():
+    """锁定资金流向爬虫"""
+    os.makedirs(os.path.dirname(CAPITAL_FLOW_LOCK_FILE), exist_ok=True)
+    with open(CAPITAL_FLOW_LOCK_FILE, "w") as f:
+        f.write(str(os.getpid()))
+
+
+def unlock_capital_flow():
+    """解锁资金流向爬虫"""
+    if os.path.exists(CAPITAL_FLOW_LOCK_FILE):
+        try:
+            os.remove(CAPITAL_FLOW_LOCK_FILE)
+        except:
+            pass
+
+
 class NewsScheduler:
     def __init__(self):
         self.config = load_config()
@@ -258,8 +370,15 @@ class NewsScheduler:
         self.kline_run_time = (
             self.config.get("kline_spider", {}).get("run_time", "00:00").strip()
         )
+        self.capital_flow_enabled = self.config.get("capital_flow_spider", {}).get("enabled", True)
+        self.capital_flow_run_time = (
+            self.config.get("capital_flow_spider", {}).get("run_time", "00:00").strip()
+        )
         logger.info(
             f"K线爬虫配置: 启用={self.kline_enabled}, 运行时间={self.kline_run_time}"
+        )
+        logger.info(
+            f"资金流向爬虫配置: 启用={self.capital_flow_enabled}, 运行时间={self.capital_flow_run_time}"
         )
 
     def start_crawler(self):
@@ -318,6 +437,33 @@ class NewsScheduler:
 
             traceback.print_exc()
 
+    def start_capital_flow_crawler(self):
+        """启动资金流向爬虫"""
+        if is_capital_flow_locked():
+            logger.warning("资金流向爬虫正在运行中，跳过本次任务")
+            return
+
+        # 判断当天是否为交易日
+        current_date = datetime.now().strftime("%Y-%m-%d")
+        if not is_trading_day(current_date):
+            logger.info(f"当前日期 {current_date} 不是交易日，跳过资金流向爬虫任务")
+            return
+
+        try:
+            logger.info(
+                f"开始启动资金流向爬虫... 当前时间: {time.strftime('%Y-%m-%d %H:%M:%S')}"
+            )
+            lock_capital_flow()
+
+            # 使用subprocess运行爬虫
+            run_capital_flow_spider()
+
+        except Exception as e:
+            logger.error(f"启动资金流向爬虫失败: {e}")
+            import traceback
+
+            traceback.print_exc()
+
     def job(self):
         """定时任务"""
         logger.info(f"\n======================================")
@@ -361,6 +507,27 @@ class NewsScheduler:
         else:
             logger.info("K线爬虫已禁用")
 
+        if self.capital_flow_enabled:
+            capital_flow_time = self.capital_flow_run_time.strip()
+            logger.info(f"资金流向爬虫已启用，运行时间: {capital_flow_time}")
+            try:
+                capital_flow_job = (
+                    schedule.every().day.at(capital_flow_time).do(self.start_capital_flow_crawler)
+                )
+                logger.info(f"已设置资金流向爬虫定时任务，每天{capital_flow_time}执行一次")
+                logger.debug(f"资金流向定时任务详情: {capital_flow_job}")
+            except Exception as e:
+                logger.error(f"资金流向爬虫定时任务设置失败: {e}")
+                import traceback
+
+                logger.error(f"错误详情: {traceback.format_exc()}")
+                logger.info("将使用默认时间15:01")
+                capital_flow_job = (
+                    schedule.every().day.at("15:01").do(self.start_capital_flow_crawler)
+                )
+        else:
+            logger.info("资金流向爬虫已禁用")
+
         logger.info("立即执行第一次任务")
         self.job()
 
@@ -380,8 +547,9 @@ class NewsScheduler:
         thread.start()
 
         kline_status = f"每天{self.kline_run_time}" if self.kline_enabled else "已禁用"
+        capital_flow_status = f"每天{self.capital_flow_run_time}" if self.capital_flow_enabled else "已禁用"
         logger.info(
-            f"调度器已启动，新闻爬虫每{self.interval}秒执行一次，K线爬虫{kline_status}执行一次"
+            f"调度器已启动，新闻爬虫每{self.interval}秒执行一次，K线爬虫{kline_status}执行一次，资金流向爬虫{capital_flow_status}执行一次"
         )
 
         # 等待调度线程
@@ -403,7 +571,7 @@ class NewsScheduler:
         _stop_event.set()
 
         # 停止所有子进程
-        global _current_spider_process, _current_kline_process
+        global _current_spider_process, _current_kline_process, _current_capital_flow_process
         if _current_spider_process and _current_spider_process.is_alive():
             logger.info("正在停止新闻爬虫进程...")
             _current_spider_process.terminate()
@@ -414,5 +582,11 @@ class NewsScheduler:
             _current_kline_process.terminate()
             _current_kline_process.join(timeout=5)
 
+        if _current_capital_flow_process and _current_capital_flow_process.is_alive():
+            logger.info("正在停止资金流向爬虫进程...")
+            _current_capital_flow_process.terminate()
+            _current_capital_flow_process.join(timeout=5)
+
         unlock_kline()
+        unlock_capital_flow()
         logger.info("调度器已停止")

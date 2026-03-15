@@ -25,7 +25,8 @@
     "password": "aa123aaqqA!",
     "db": "eastmoney_news",
     "collection": "news",
-    "kline_collection": "stock_kline"
+    "kline_collection": "stock_kline",
+    "capital_flow_collection": "capital_flow"
   },
   "spider": {
     "name": "eastmoney_news",
@@ -61,5 +62,9 @@
     "batch_size": 50,
     "default_days": 60,
     "stock_codes_file": "stock_zh_a_spot.csv"
+  },
+  "capital_flow_spider": {
+    "enabled": true,
+    "run_time": "15:01"
   }
 }

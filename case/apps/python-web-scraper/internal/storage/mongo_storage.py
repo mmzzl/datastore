@@ -17,9 +17,11 @@ class MongoStorage:
         self.db = self.client[config['mongodb']['db']]
         self.collection = self.db[config['mongodb']['collection']]
         self.kline_collection = self.db[config['mongodb'].get('kline_collection', 'stock_kline')]
+        self.capital_flow_collection = self.db[config['mongodb'].get('capital_flow_collection', 'capital_flow')]
         
         self.collection.create_index('code', unique=True)
         self.kline_collection.create_index([('code', 1), ('date', 1)], unique=True)
+        self.capital_flow_collection.create_index([('code', 1), ('date', 1)], unique=True)
     
     def save_news(self, news_item):
         """保存新闻到mongodb"""
@@ -96,6 +98,19 @@ class MongoStorage:
         except Exception as e:
             logger.error(f"获取K线数据失败: {e}")
             return []
+    
+    def save_capital_flow(self, capital_flow_data):
+        """保存资金流向数据到mongodb（去重）"""
+        try:
+            result = self.capital_flow_collection.update_one(
+                {'code': capital_flow_data['code'], 'date': capital_flow_data['date']},
+                {'$set': capital_flow_data},
+                upsert=True
+            )
+            return result
+        except Exception as e:
+            logger.error(f"保存资金流向数据失败: {capital_flow_data.get('code')} - {capital_flow_data.get('date')}: {e}")
+            return None
     
     def get_sort_end(self):
         """获取当前排序最大值"""
