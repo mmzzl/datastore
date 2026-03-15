@@ -1,5 +1,5 @@
 """股票数据客户端 - 简洁版本"""
-
+import logging
 import pandas as pd
 from typing import Dict, Optional
 from datetime import datetime, timedelta
@@ -9,7 +9,7 @@ from .technical_indicators import TechnicalIndicators
 from .stock_analyzer import StockAnalyzer
 from .dingtalk_formatter import DingTalkFormatter
 from ..core.config import settings
-
+logger = logging.getLogger(__name__)
 
 class AkshareClient:
     """股票数据客户端"""
@@ -92,5 +92,5 @@ class AkshareClient:
                     'name': row.get('name', symbol),
                     'close': row.get('close', 0)
                 }
-        
+        logger.info(f"brief: {brief}, stock_info: {stock_info}")
         return DingTalkFormatter.format(brief, stock_info)

@@ -1,12 +1,16 @@
 """
 新闻客户端 - 重构版本
 支持自动分页查询，获取所有类型的完整数据
+支持缓存机制，避免重复请求
 """
 
 import requests
 from typing import List, Dict, Optional, Iterator
 from dataclasses import dataclass
 import logging
+import hashlib
+import json
+from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -28,10 +32,14 @@ class NewsClientConfig:
     auto_retry: bool = True              # 是否自动重试
     stop_on_empty: bool = True           # 遇到空页是否停止
     log_requests: bool = True            # 是否记录请求日志
+    
+    # 缓存配置
+    enable_cache: bool = True            # 是否启用缓存
+    cache_ttl: int = 3600            # 缓存过期时间（秒），默认24小时
 
 
 class NewsClient:
-    """新闻客户端，支持自动分页查询"""
+    """新闻客户端，支持自动分页查询和缓存"""
     
     def __init__(
         self, 
@@ -53,7 +61,11 @@ class NewsClient:
         self.config = config or NewsClientConfig()
         self.token = self._get_token(username, password)
         
-        logger.info(f"新闻客户端初始化完成，配置: page_size={self.config.default_page_size}")
+        # 初始化缓存
+        self._cache = {}  # 格式: {cache_key: (data, timestamp)}
+        
+        cache_status = "启用" if self.config.enable_cache else "禁用"
+        logger.info(f"新闻客户端初始化完成，配置: page_size={self.config.default_page_size}, 缓存={cache_status}")
     
     def _get_token(self, username: str, password: str) -> str:
         """
@@ -106,7 +118,7 @@ class NewsClient:
     
     def _request(self, endpoint: str, params: Optional[Dict] = None) -> Dict:
         """
-        发送HTTP请求
+        发送HTTP请求（支持重试）
         
         参数:
             endpoint: API端点
@@ -122,36 +134,150 @@ class NewsClient:
             logger.info(f"请求 URL: {url}")
             logger.info(f"请求参数: {params}")
         
-        try:
-            resp = requests.get(
-                url,
-                params=params,
-                headers=headers,
-                timeout=self.config.request_timeout,
-                verify=False
-            )
-            
-            if self.config.log_requests:
-                logger.info(f"响应状态码: {resp.status_code}")
-            
-            if resp.status_code != 200:
-                logger.error(f"请求失败，响应内容: {resp.text}")
-            
-            resp.raise_for_status()
-            result = resp.json()
-            
-            if self.config.log_requests:
-                logger.info(f"响应数据: {len(result.get('items', []))} 条记录")
-            
-            return result
-            
-        except requests.exceptions.HTTPError as e:
-            logger.error(f"HTTP 错误: {e}")
-            logger.error(f"响应内容: {e.response.text if e.response else 'No response'}")
-            raise
-        except Exception as e:
-            logger.error(f"请求异常: {e}")
-            raise
+        max_retries = 10
+        last_error = None
+        
+        for attempt in range(max_retries):
+            try:
+                resp = requests.get(
+                    url,
+                    params=params,
+                    headers=headers,
+                    timeout=self.config.request_timeout,
+                    verify=False
+                )
+                
+                if self.config.log_requests:
+                    logger.info(f"响应状态码: {resp.status_code}")
+                
+                if resp.status_code != 200:
+                    logger.error(f"请求失败，响应内容: {resp.text}")
+                
+                resp.raise_for_status()
+                result = resp.json()
+                
+                if self.config.log_requests:
+                    logger.info(f"响应数据: {len(result.get('items', []))} 条记录")
+                
+                return result
+                
+            except requests.exceptions.HTTPError as e:
+                last_error = e
+                logger.error(f"HTTP 错误 (第{attempt + 1}/{max_retries}次尝试): {e}")
+                logger.error(f"响应内容: {e.response.text if e.response else 'No response'}")
+                
+                if attempt < max_retries - 1:
+                    import time
+                    wait_time = 2 ** attempt  # 指数退避：2, 4, 8, 16, 32...
+                    logger.info(f"等待 {wait_time} 秒后重试...")
+                    time.sleep(wait_time)
+                else:
+                    logger.error(f"已达到最大重试次数 {max_retries}，放弃请求")
+                    
+            except requests.exceptions.Timeout as e:
+                last_error = e
+                logger.error(f"请求超时 (第{attempt + 1}/{max_retries}次尝试): {e}")
+                
+                if attempt < max_retries - 1:
+                    import time
+                    wait_time = 2 ** attempt
+                    logger.info(f"等待 {wait_time} 秒后重试...")
+                    time.sleep(wait_time)
+                else:
+                    logger.error(f"已达到最大重试次数 {max_retries}，放弃请求")
+                    
+            except requests.exceptions.ConnectionError as e:
+                last_error = e
+                logger.error(f"连接错误 (第{attempt + 1}/{max_retries}次尝试): {e}")
+                
+                if attempt < max_retries - 1:
+                    import time
+                    wait_time = 2 ** attempt
+                    logger.info(f"等待 {wait_time} 秒后重试...")
+                    time.sleep(wait_time)
+                else:
+                    logger.error(f"已达到最大重试次数 {max_retries}，放弃请求")
+                    
+            except Exception as e:
+                last_error = e
+                logger.error(f"请求异常 (第{attempt + 1}/{max_retries}次尝试): {e}")
+                
+                if attempt < max_retries - 1:
+                    import time
+                    wait_time = 2 ** attempt
+                    logger.info(f"等待 {wait_time} 秒后重试...")
+                    time.sleep(wait_time)
+                else:
+                    logger.error(f"已达到最大重试次数 {max_retries}，放弃请求")
+        
+        # 所有重试都失败，抛出最后一个错误
+        if last_error:
+            raise last_error
+    
+    def _generate_cache_key(self, endpoint: str, params: Optional[Dict] = None) -> str:
+        """
+        生成缓存键
+        
+        参数:
+            endpoint: API端点
+            params: 请求参数
+        
+        返回:
+            缓存键
+        """
+        # 将参数转换为字符串并排序，确保相同参数生成相同的键
+        params_str = json.dumps(params, sort_keys=True) if params else ""
+        key_str = f"{endpoint}:{params_str}"
+        # 使用MD5哈希生成缓存键
+        return hashlib.md5(key_str.encode()).hexdigest()
+    
+    def _get_from_cache(self, cache_key: str) -> Optional[Dict]:
+        """
+        从缓存获取数据
+        
+        参数:
+            cache_key: 缓存键
+        
+        返回:
+            缓存的数据，如果不存在或已过期返回None
+        """
+        if not self.config.enable_cache:
+            return None
+        
+        if cache_key not in self._cache:
+            return None
+        
+        data, timestamp = self._cache[cache_key]
+        cache_age = datetime.now() - timestamp
+        
+        if cache_age.total_seconds() > self.config.cache_ttl:
+            logger.info(f"缓存已过期（{cache_age.total_seconds():.0f}秒），删除缓存")
+            del self._cache[cache_key]
+            return None
+        
+        logger.info(f"从缓存获取数据（缓存时间: {cache_age.total_seconds():.0f}秒）")
+        return data
+    
+    def _save_to_cache(self, cache_key: str, data: Dict) -> None:
+        """
+        保存数据到缓存
+        
+        参数:
+            cache_key: 缓存键
+            data: 要缓存的数据
+        """
+        if not self.config.enable_cache:
+            return
+        
+        self._cache[cache_key] = (data, datetime.now())
+        logger.info(f"数据已缓存，键: {cache_key[:16]}...")
+    
+    def clear_cache(self) -> None:
+        """
+        清空缓存
+        """
+        self._cache.clear()
+        logger.info("缓存已清空")
     
     def get_daily_news(
         self, 
@@ -171,7 +297,21 @@ class NewsClient:
             新闻数据
         """
         limit = limit or self.config.default_page_size
-        return self._request("/api/news/daily", {"date": date, "limit": limit, "offset": offset})
+        params = {"date": date, "limit": limit, "offset": offset}
+        
+        # 检查缓存
+        cache_key = self._generate_cache_key("/api/news/daily", params)
+        cached_data = self._get_from_cache(cache_key)
+        if cached_data is not None:
+            return cached_data
+        
+        # 缓存未命中，发送请求
+        data = self._request("/api/news/daily", params)
+        
+        # 保存到缓存
+        self._save_to_cache(cache_key, data)
+        
+        return data
     
     def get_weekly_news(
         self, 
@@ -191,7 +331,21 @@ class NewsClient:
             新闻数据
         """
         limit = limit or self.config.default_page_size
-        return self._request("/api/news/weekly", {"date": date, "limit": limit, "offset": offset})
+        params = {"date": date, "limit": limit, "offset": offset}
+        
+        # 检查缓存
+        cache_key = self._generate_cache_key("/api/news/weekly", params)
+        cached_data = self._get_from_cache(cache_key)
+        if cached_data is not None:
+            return cached_data
+        
+        # 缓存未命中，发送请求
+        data = self._request("/api/news/weekly", params)
+        
+        # 保存到缓存
+        self._save_to_cache(cache_key, data)
+        
+        return data
     
     def get_monthly_news(
         self, 
@@ -211,7 +365,21 @@ class NewsClient:
             新闻数据
         """
         limit = limit or self.config.default_page_size
-        return self._request("/api/news/monthly", {"date": date, "limit": limit, "offset": offset})
+        params = {"date": date, "limit": limit, "offset": offset}
+        
+        # 检查缓存
+        cache_key = self._generate_cache_key("/api/news/monthly", params)
+        cached_data = self._get_from_cache(cache_key)
+        if cached_data is not None:
+            return cached_data
+        
+        # 缓存未命中，发送请求
+        data = self._request("/api/news/monthly", params)
+        
+        # 保存到缓存
+        self._save_to_cache(cache_key, data)
+        
+        return data
     
     def get_all_daily_news(
         self, 
@@ -306,7 +474,7 @@ class NewsClient:
         news_type: str
     ) -> List[Dict]:
         """
-        获取所有页面的数据
+        获取所有页面的数据（支持缓存）
         
         参数:
             endpoint: API端点
@@ -318,6 +486,13 @@ class NewsClient:
         返回:
             所有数据列表
         """
+        # 检查缓存
+        cache_key = self._generate_cache_key(endpoint, params)
+        cached_data = self._get_from_cache(cache_key)
+        if cached_data is not None:
+            logger.info(f"从缓存获取所有{news_type}新闻")
+            return cached_data
+        
         all_items = []
         offset = 0
         page_count = 0
@@ -373,6 +548,10 @@ class NewsClient:
             offset += page_size
         
         logger.info(f"{news_type}新闻获取完成，共{len(all_items)}条记录")
+        
+        # 保存到缓存
+        self._save_to_cache(cache_key, all_items)
+        
         return all_items
     
     def get_all_news(

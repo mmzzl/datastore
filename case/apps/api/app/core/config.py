@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     after_market_dingtalk_webhook: str = ""
     after_market_dingtalk_secret: str = ""
     after_market_scheduler_time: str = "20:00"
+    after_market_pre_cache_scheduler_time: str = "17:00"
     after_market_scheduler_timezone: str = "Asia/Shanghai"
     
     # 日志配置
@@ -96,6 +97,7 @@ def load_config() -> Settings:
             after_market_dingtalk_webhook=config_data.get("after_market", {}).get("dingtalk_webhook", ""),
             after_market_dingtalk_secret=config_data.get("after_market", {}).get("dingtalk_secret", ""),
             after_market_scheduler_time=config_data.get("after_market", {}).get("scheduler_time", "20:00"),
+            after_market_pre_cache_scheduler_time=config_data.get("after_market", {}).get("pre_cache_scheduler_time", "17:00"),
             after_market_scheduler_timezone=config_data.get("after_market", {}).get("scheduler_timezone", "Asia/Shanghai"),
         )
     else:

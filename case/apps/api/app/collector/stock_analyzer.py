@@ -4,11 +4,13 @@ import os
 import pandas as pd
 import logging
 import json
-import baostock as bs
+import re
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
 from dataclasses import dataclass
 from .industry_normalizer import IndustryNormalizer
+from .baostock_kline_fetcher import BaostockKlineFetcher
+from .technical_indicators import TechnicalIndicators
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +30,7 @@ class StockScore:
     risk_score: float = 0.0
     reasons: List[str] = None
     warnings: List[str] = None
+    sector: str = None
 
     def __post_init__(self):
         if self.reasons is None:
@@ -65,19 +68,18 @@ class StockAnalyzer:
 
         try:
             target_stocks = self._get_target_stocks(hot_sectors, hot_stocks)
-            logger.info(f"目标股票数量: %s",  {len(target_stocks)})
+            logger.info(f"目标股票数量: {len(target_stocks)}")
 
             if not target_stocks:
                 return {"error": "未找到目标股票"}
 
             kline_data = self._get_klines_with_indicators(target_stocks)
             if kline_data.empty:
-                return {"error": "MongoDB中无K线数据"}
+                return {"error": "未获取到K线数据"}
 
             capital_flow_data = self._get_capital_flow_data(target_stocks)
-            print("资金流向数据:", capital_flow_data)
             if capital_flow_data.empty:
-                logger.warning("MongoDB中无资金流向数据，将跳过资金流向筛选")
+                logger.warning("未获取到资金流向数据，将跳过资金流向筛选")
 
             candidates = self._multi_dimensional_filter(
                 kline_data, capital_flow_data, news_analysis
@@ -94,6 +96,7 @@ class StockAnalyzer:
                     {
                         "symbol": c.symbol,
                         "name": c.name,
+                        "sector": c.sector,
                         "close": c.close,
                         "change_pct": c.change_pct,
                         "score": round(c.score, 2),
@@ -123,131 +126,115 @@ class StockAnalyzer:
 
         if hot_sectors:
             for sector in hot_sectors:
-                print("sector", sector)
-                stocks = self.industry_normalizer.get_stock_name(sector)
+                stock_codes = self.industry_normalizer.get_stock_codes(sector)
                 
-                if stocks:
-                    target.update(stocks)
-                    logger.info(f"从行业 {sector} 获取到 {len(stocks)} 只股票")
+                if stock_codes:
+                    target.update(stock_codes)
+                    logger.info(f"从行业 {sector} 获取到 {len(stock_codes)} 只股票")
 
         for stock in hot_stocks:
             if isinstance(stock, str):
-                symbol = stock.split("(")[-1].rstrip(")") if "(" in stock else stock
-                if len(symbol) == 6 and symbol.isdigit():
-                    if int(symbol) >= 600000:
-                        target.add(f"sh{symbol}")
+                # 解析股票代码，支持格式：贵州茅台(sh.600519) 或 sh.600519 或 600519
+                if "(" in stock and ")" in stock:
+                    # 格式：贵州茅台(sh.600519)
+                    symbol = stock.split("(")[-1].rstrip(")")
+                elif "." in stock:
+                    # 格式：sh.600519 或 sz.000001
+                    symbol = stock
+                else:
+                    # 格式：600519
+                    symbol = stock
+                
+                # 提取6位数字代码
+                code_match = re.search(r'\d{6}', symbol)
+                if code_match:
+                    code = code_match.group()
+                    if int(code) >= 600000:
+                        target.add(f"sh.{code}")
                     else:
-                        target.add(f"sz{symbol}")
+                        target.add(f"sz.{code}")
 
         return list(target)
 
     def _get_klines_with_indicators(
         self, names: List[str], days: int = 60
     ) -> pd.DataFrame:
-        from app.storage.mongo_client import MongoStorage
-
+        """从baostock获取K线数据并计算技术指标"""
         end_date = datetime.now().strftime("%Y-%m-%d")
         start_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
 
-        mongo = MongoStorage(**self.mongo_config)
-        mongo.connect()
-
-        all_data = []
-        for name in names[0:10]:
-            try:
-                data = mongo.get_kline_by_name(
-                    name, start_date=start_date, end_date=end_date, limit=100
-                )
-                if data:
-                    df = pd.DataFrame(data)
-                    df["name"] = name
-                    all_data.append(df)
-            except Exception as e:
-                logger.warning(f"获取 {name} K线失败: {e}")
-
-        mongo.close()
-
-        if not all_data:
+        try:
+            with BaostockKlineFetcher() as fetcher:
+                kline_data = fetcher.get_klines_batch(names, start_date, end_date)
+                
+                if kline_data.empty:
+                    logger.warning("未获取到K线数据")
+                    return pd.DataFrame()
+                
+                # 计算技术指标
+                kline_data = TechnicalIndicators.calculate_all(kline_data)
+                
+                logger.info(f"成功获取并计算K线数据，共 {len(kline_data)} 条记录")
+                return kline_data
+                
+        except Exception as e:
+            logger.error(f"获取K线数据失败: {e}")
+            import traceback
+            logger.error(f"错误详情: {traceback.format_exc()}")
             return pd.DataFrame()
-
-        result = pd.concat(all_data, ignore_index=True)
-        result = result.rename(
-            columns={
-                "code": "symbol",
-                "pct_chg": "change_pct",
-                "turnover": "turnover_rate",
-            }
-        )
-
-        numeric_cols = [
-            "open",
-            "close",
-            "high",
-            "low",
-            "volume",
-            "amount",
-            "pct_chg",
-            "amplitude",
-            "turnover",
-        ]
-        for col in numeric_cols:
-            if col in result.columns:
-                result[col] = pd.to_numeric(result[col], errors="coerce")
-
-        if "date" in result.columns:
-            result["date"] = pd.to_datetime(result["date"])
-
-        from .technical_indicators import TechnicalIndicators
-
-        result = TechnicalIndicators.calculate_all(result)
-
-        return result
 
     def _get_capital_flow_data(self, names: List[str], days: int = 10) -> pd.DataFrame:
+        """从MongoDB获取资金流向数据（baostock不提供资金流向数据）"""
         from app.storage.mongo_client import MongoStorage
 
         end_date = datetime.now().strftime("%Y-%m-%d")
         start_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
 
-        mongo = MongoStorage(**self.mongo_config)
-        mongo.connect()
+        try:
+            mongo = MongoStorage(**self.mongo_config)
+            mongo.connect()
 
-        all_data = []
-        for name in names:
-            try:
-                data = mongo.get_capital_flow(
-                    name, start_date=start_date, end_date=end_date, limit=10
-                )
-                if data:
-                    df = pd.DataFrame(data)
-                    df["name"] = name
-                    all_data.append(df)
-            except Exception as e:
-                logger.warning(f"获取 {name} 资金流向失败: {e}")
+            all_data = []
+            for symbol in names:
+                try:
+                    data = mongo.get_capital_flow(
+                        symbol, start_date=start_date, end_date=end_date, limit=10
+                    )
+                    if data:
+                        df = pd.DataFrame(data)
+                        df["symbol"] = symbol
+                        all_data.append(df)
+                except Exception as e:
+                    logger.warning(f"获取 {symbol} 资金流向失败: {e}")
 
-        mongo.close()
+            mongo.close()
 
-        if not all_data:
+            if not all_data:
+                return pd.DataFrame()
+
+            result = pd.concat(all_data, ignore_index=True)
+
+            numeric_cols = [
+                "main_net_inflow",
+                "main_net_inflow_pct",
+                "super_large_net_inflow",
+                "large_net_inflow",
+                "medium_net_inflow",
+                "small_net_inflow",
+            ]
+            for col in numeric_cols:
+                if col in result.columns:
+                    result[col] = pd.to_numeric(result[col], errors="coerce")
+
+            if "date" in result.columns:
+                result["date"] = pd.to_datetime(result["date"])
+
+            logger.info(f"成功获取资金流向数据，共 {len(result)} 条记录")
+            return result
+            
+        except Exception as e:
+            logger.error(f"获取资金流向数据失败: {e}")
             return pd.DataFrame()
-
-        result = pd.concat(all_data, ignore_index=True)
-
-        numeric_cols = [
-            "main_net_inflow",
-            "main_net_inflow_pct",
-            "super_large_net_inflow",
-            "large_net_inflow",
-            "medium_net_inflow",
-            "small_net_inflow",
-        ]
-        for col in numeric_cols:
-            if col in result.columns:
-                result[col] = pd.to_numeric(result[col], errors="coerce")
-
-        if "date" in result.columns:
-            result["date"] = pd.to_datetime(result["date"])
-
-        return result
 
     def _multi_dimensional_filter(
         self,
@@ -259,27 +246,38 @@ class StockAnalyzer:
             return []
 
         kline_data = kline_data.sort_values("date", ascending=False)
-        latest_kline = kline_data.groupby("name").first().reset_index()
-        print("capital_flow_data", capital_flow_data.columns)
+        latest_kline = kline_data.groupby("symbol").first().reset_index()
+        
         candidates = []
 
         for _, row in latest_kline.iterrows():
-            name = row["name"]
-            stock_kline = kline_data[kline_data["name"] == name].sort_values("date")
+            symbol = row.get("symbol", "")
+            
+            # 获取股票名称
+            name = self.industry_normalizer.get_stock_name_by_code(symbol)
+            if not name:
+                # 如果找不到名称，使用 symbol 作为名称
+                name = symbol
+            
+            # 获取股票所属板块
+            sector = self.industry_normalizer.get_stock_sector(symbol)
+            
+            stock_kline = kline_data[kline_data["symbol"] == symbol].sort_values("date")
             stock_capital = (
-                capital_flow_data[capital_flow_data["name"] == name]
+                capital_flow_data[capital_flow_data["symbol"] == symbol]
                 .sort_values("date")
                 .copy()
                 if not capital_flow_data.empty
                 else pd.DataFrame()
             )
-            print("资金stock_capital", stock_capital)
+            
             score = StockScore(
-                symbol=row.get("code", ""),
+                symbol=symbol,
                 name=name,
                 close=row.get("close", 0),
                 change_pct=row.get("change_pct", 0),
                 score=0.0,
+                sector=sector,
             )
 
             sector_score = self._evaluate_sector(score, news_analysis)

@@ -49,8 +49,8 @@
     "stock_codes_file": "stock_codes.csv"
   },
   "kline_spider": {
-    "enabled": false,
-    "run_time": "15:01",
+    "enabled": true,
+    "run_time": "15:30",
     "batch_size": 50,
     "batch_delay": 10,
     "default_days": 60,

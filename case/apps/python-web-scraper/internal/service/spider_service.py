@@ -93,6 +93,9 @@ class SpiderService:
         self.kline_process = None
         self.kline_status = SpiderStatus.IDLE
         self.kline_status_lock = threading.Lock()
+        self.capital_flow_process = None
+        self.capital_flow_status = SpiderStatus.IDLE
+        self.capital_flow_status_lock = threading.Lock()
         self.config = load_config()
         logger.info(f"爬虫管理服务初始化完成，当前状态: {self.status.value}")
     
@@ -106,7 +109,7 @@ class SpiderService:
             try:
                 logger.info("开始启动爬虫服务...")
                 
-                # 创建并启动新闻调度器进程
+                # 创建并启动新闻调度器进程（调度器会统一管理新闻、K线、资金流向爬虫）
                 logger.info("创建并启动新闻调度器进程...")
                 self.scheduler_process = multiprocessing.Process(target=run_scheduler)
                 self.scheduler_process.daemon = False
@@ -118,36 +121,16 @@ class SpiderService:
                 # 检查新闻调度器进程是否还在运行
                 if self.scheduler_process.is_alive():
                     logger.info(f"新闻调度器进程已启动，PID: {self.scheduler_process.pid}")
+                    logger.info("调度器将根据配置文件自动管理新闻、K线、资金流向爬虫")
                 else:
                     logger.error("新闻调度器进程启动后立即退出")
                     return False
                 
-                # 创建并启动K线爬虫进程
-                logger.info("创建并启动K线爬虫进程...")
-                from ..scheduler.scheduler import run_kline_spider
-                self.kline_process = multiprocessing.Process(target=run_kline_spider)
-                self.kline_process.daemon = False
-                self.kline_process.start()
-                
-                # 等待一小段时间，确保K线爬虫进程已经启动
-                time.sleep(0.5)
-                
-                # 检查K线爬虫进程是否还在运行
-                if self.kline_process.is_alive():
-                    logger.info(f"K线爬虫进程已启动，PID: {self.kline_process.pid}")
-                else:
-                    logger.error("K线爬虫进程启动后立即退出")
-                    # K线爬虫启动失败，终止新闻调度器进程
-                    if self.scheduler_process and self.scheduler_process.is_alive():
-                        self.scheduler_process.terminate()
-                    return False
-                
                 # 更新状态
                 self.status = SpiderStatus.RUNNING
-                self.kline_status = SpiderStatus.RUNNING
                 # 保存状态到文件
                 save_service_status(self.status.value)
-                logger.info("爬虫服务启动成功（新闻调度器和K线爬虫）")
+                logger.info("爬虫服务启动成功（调度器统一管理所有爬虫）")
                 return True
             except Exception as e:
                 logger.error(f"启动爬虫服务失败: {e}")
@@ -156,8 +139,6 @@ class SpiderService:
                 # 清理已启动的进程
                 if self.scheduler_process and self.scheduler_process.is_alive():
                     self.scheduler_process.terminate()
-                if self.kline_process and self.kline_process.is_alive():
-                    self.kline_process.terminate()
                 self.status = SpiderStatus.ERROR
                 # 保存状态到文件
                 save_service_status(self.status.value)
@@ -171,29 +152,21 @@ class SpiderService:
                 return False
             
             try:
-                # 终止新闻调度器进程
+                # 终止新闻调度器进程（调度器会停止所有子爬虫）
                 if self.scheduler_process and self.scheduler_process.is_alive():
                     logger.info(f"终止新闻调度器进程，PID: {self.scheduler_process.pid}")
                     self.scheduler_process.terminate()
                     self.scheduler_process.join(timeout=5)
                 
-                # 终止K线爬虫进程
-                if self.kline_process and self.kline_process.is_alive():
-                    logger.info(f"终止K线爬虫进程，PID: {self.kline_process.pid}")
-                    self.kline_process.terminate()
-                    self.kline_process.join(timeout=5)
-                
                 # 更新状态
                 self.status = SpiderStatus.STOPPED
-                self.kline_status = SpiderStatus.STOPPED
                 # 保存状态到文件
                 save_service_status(self.status.value)
-                logger.info("爬虫服务停止成功（新闻调度器和K线爬虫）")
+                logger.info("爬虫服务停止成功（调度器统一管理所有爬虫）")
                 return True
             except Exception as e:
                 logger.error(f"停止爬虫服务失败: {e}")
                 self.status = SpiderStatus.ERROR
-                self.kline_status = SpiderStatus.ERROR
                 # 保存状态到文件
                 save_service_status(self.status.value)
                 return False
@@ -237,15 +210,21 @@ class SpiderService:
             elif self.status == SpiderStatus.RUNNING:
                 self.status = SpiderStatus.STOPPED
             
-            if self.kline_process and self.kline_process.is_alive():
-                self.kline_status = SpiderStatus.RUNNING
-            elif self.kline_status == SpiderStatus.RUNNING:
-                self.kline_status = SpiderStatus.STOPPED
+            # 从配置文件读取各爬虫的启用状态
+            kline_enabled = self.config.get("kline_spider", {}).get("enabled", False)
+            capital_flow_enabled = self.config.get("capital_flow_spider", {}).get("enabled", False)
             
-            # 返回两个爬虫的状态
+            # 返回服务状态和各爬虫的启用状态
             return {
-                "news_scheduler": self.status.value,
-                "kline_spider": self.kline_status.value
+                "service_status": self.status.value,
+                "kline_spider": {
+                    "enabled": kline_enabled,
+                    "run_time": self.config.get("kline_spider", {}).get("run_time", "00:00")
+                },
+                "capital_flow_spider": {
+                    "enabled": capital_flow_enabled,
+                    "run_time": self.config.get("capital_flow_spider", {}).get("run_time", "00:00")
+                }
             }
     
     def get_progress(self):
@@ -417,6 +396,118 @@ class SpiderService:
         except Exception as e:
             logger.error(f"运行K线爬虫失败: {e}")
             return False
+    
+    def start_capital_flow(self):
+        """启动资金流向爬虫"""
+        with self.capital_flow_status_lock:
+            if self.capital_flow_status == SpiderStatus.RUNNING:
+                logger.warning("资金流向爬虫已经在运行中")
+                return False
+            
+            try:
+                logger.info("开始启动资金流向爬虫...")
+                
+                # 导入需要的模块
+                from ..scheduler.scheduler import run_capital_flow_spider
+                
+                # 创建并启动进程
+                logger.info("创建并启动资金流向爬虫进程...")
+                self.capital_flow_process = multiprocessing.Process(target=run_capital_flow_spider)
+                self.capital_flow_process.daemon = False
+                self.capital_flow_process.start()
+                
+                # 等待一小段时间，确保进程已经启动
+                time.sleep(1)
+                
+                # 检查进程是否还在运行
+                if self.capital_flow_process.is_alive():
+                    logger.info(f"资金流向爬虫进程已启动，PID: {self.capital_flow_process.pid}")
+                else:
+                    logger.error("资金流向爬虫进程启动后立即退出")
+                    return False
+                
+                # 更新状态
+                self.capital_flow_status = SpiderStatus.RUNNING
+                logger.info("资金流向爬虫启动成功")
+                return True
+            except Exception as e:
+                logger.error(f"启动资金流向爬虫失败: {e}")
+                import traceback
+                traceback.print_exc()
+                self.capital_flow_status = SpiderStatus.ERROR
+                return False
+    
+    def stop_capital_flow(self):
+        """停止资金流向爬虫"""
+        with self.capital_flow_status_lock:
+            if self.capital_flow_status != SpiderStatus.RUNNING:
+                logger.warning(f"资金流向爬虫当前状态为 {self.capital_flow_status.value}，无需停止")
+                return False
+            
+            try:
+                # 终止进程
+                if self.capital_flow_process and self.capital_flow_process.is_alive():
+                    logger.info(f"终止资金流向爬虫进程，PID: {self.capital_flow_process.pid}")
+                    self.capital_flow_process.terminate()
+                    self.capital_flow_process.join(timeout=5)
+                
+                # 更新状态
+                self.capital_flow_status = SpiderStatus.STOPPED
+                logger.info("资金流向爬虫停止成功")
+                return True
+            except Exception as e:
+                logger.error(f"停止资金流向爬虫失败: {e}")
+                self.capital_flow_status = SpiderStatus.ERROR
+                return False
+    
+    def restart_capital_flow(self):
+        """重启资金流向爬虫"""
+        logger.info("开始重启资金流向爬虫")
+        
+        # 停止服务
+        self.stop_capital_flow()
+        
+        # 等待一段时间
+        time.sleep(2)
+        
+        # 启动服务
+        result = self.start_capital_flow()
+        
+        if result:
+            logger.info("资金流向爬虫重启成功")
+        else:
+            logger.error("资金流向爬虫重启失败")
+        
+        return result
+    
+    def get_capital_flow_status(self):
+        """获取资金流向爬虫状态"""
+        with self.capital_flow_status_lock:
+            # 检查进程是否还在运行
+            if self.capital_flow_process and self.capital_flow_process.is_alive():
+                self.capital_flow_status = SpiderStatus.RUNNING
+            elif self.capital_flow_status == SpiderStatus.RUNNING:
+                self.capital_flow_status = SpiderStatus.STOPPED
+            return self.capital_flow_status.value
+    
+    def run_capital_flow_once(self):
+        """运行一次资金流向爬虫"""
+        try:
+            logger.info("开始运行一次资金流向爬虫")
+            
+            # 导入需要的模块
+            from ..scheduler.scheduler import run_capital_flow_spider
+            
+            # 在子进程中运行爬虫
+            p = multiprocessing.Process(target=run_capital_flow_spider)
+            p.start()
+            p.join()
+            
+            logger.info("资金流向爬虫运行完成")
+            return True
+        except Exception as e:
+            logger.error(f"运行资金流向爬虫失败: {e}")
+            return False
 
 
 # 创建全局服务实例
@@ -434,7 +525,7 @@ def main():
     
     # 解析命令行参数
     if len(sys.argv) < 2:
-        print("用法: python spider_service.py [start|stop|restart|status|run_once|start_kline|stop_kline|restart_kline|kline_status|run_kline_once]")
+        print("用法: python spider_service.py [start|stop|restart|status|run_once|start_kline|stop_kline|restart_kline|kline_status|run_kline_once|start_capital_flow|stop_capital_flow|restart_capital_flow|capital_flow_status|run_capital_flow_once]")
         return
     
     command = sys.argv[1]
@@ -472,8 +563,23 @@ def main():
         elif command == "run_kline_once":
             result = spider_service.run_kline_once()
             print(f"运行一次K线爬虫: {'成功' if result else '失败'}")
+        elif command == "start_capital_flow":
+            result = spider_service.start_capital_flow()
+            print(f"启动资金流向爬虫: {'成功' if result else '失败'}")
+        elif command == "stop_capital_flow":
+            result = spider_service.stop_capital_flow()
+            print(f"停止资金流向爬虫: {'成功' if result else '失败'}")
+        elif command == "restart_capital_flow":
+            result = spider_service.restart_capital_flow()
+            print(f"重启资金流向爬虫: {'成功' if result else '失败'}")
+        elif command == "capital_flow_status":
+            status = spider_service.get_capital_flow_status()
+            print(f"资金流向爬虫状态: {status}")
+        elif command == "run_capital_flow_once":
+            result = spider_service.run_capital_flow_once()
+            print(f"运行一次资金流向爬虫: {'成功' if result else '失败'}")
         else:
-            print("无效命令，请使用: start|stop|restart|status|run_once|start_kline|stop_kline|restart_kline|kline_status|run_kline_once")
+            print("无效命令，请使用: start|stop|restart|status|run_once|start_kline|stop_kline|restart_kline|kline_status|run_kline_once|start_capital_flow|stop_capital_flow|restart_capital_flow|capital_flow_status|run_capital_flow_once")
     except KeyboardInterrupt as e:
         logger.error(f"收到中断信号，正在停止爬虫服务...")
         spider_service.stop()

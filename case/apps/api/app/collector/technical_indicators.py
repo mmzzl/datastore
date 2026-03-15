@@ -71,14 +71,55 @@ class TechnicalIndicators:
         df['amplitude'] = ((df['high'] - df['low']) / df['low']) * 100
         return df
     
+    @staticmethod
+    def calculate_macd(df: pd.DataFrame, fast_period: int = 12, slow_period: int = 26, signal_period: int = 9) -> pd.DataFrame:
+        if 'close' not in df.columns:
+            logger.warning("缺少close列，无法计算MACD")
+            return df
+        
+        if 'macd' in df.columns:
+            return df
+        
+        symbol_counts = df.groupby('symbol').size()
+        valid_symbols = symbol_counts[symbol_counts >= slow_period + signal_period].index
+        
+        if len(valid_symbols) == 0:
+            logger.warning(f"没有股票有足够的数据（{len(df)} 条），无法计算 MACD")
+            df['macd'] = None
+            df['macd_signal'] = None
+            df['macd_hist'] = None
+            return df
+        
+        def macd_line(series: pd.Series) -> pd.Series:
+            ema_fast = series.ewm(span=fast_period, adjust=False).mean()
+            ema_slow = series.ewm(span=slow_period, adjust=False).mean()
+            return ema_fast - ema_slow
+        
+        def macd_signal(series: pd.Series) -> pd.Series:
+            return series.ewm(span=signal_period, adjust=False).mean()
+        
+        df['macd'] = df.groupby('symbol')['close'].transform(
+            lambda x: macd_line(x) if len(x) >= slow_period + signal_period else None
+        )
+        
+        df['macd_signal'] = df.groupby('symbol')['macd'].transform(
+            lambda x: macd_signal(x) if len(x) >= signal_period else None
+        )
+        
+        df['macd_hist'] = df['macd'] - df['macd_signal']
+        
+        logger.info("MACD计算完成")
+        return df
+    
     @classmethod
     def calculate_all(cls, df: pd.DataFrame, ma_windows: list = None, rsi_window: int = 14) -> pd.DataFrame:
         if ma_windows is None:
-            ma_windows = [5, 10]
+            ma_windows = [5, 10, 20]
         
         df = cls.calculate_amplitude(df)
         for window in ma_windows:
             df = cls.calculate_ma(df, window)
         df = cls.calculate_rsi(df, rsi_window)
+        df = cls.calculate_macd(df)
         
         return df

@@ -1,6 +1,7 @@
 from datetime import datetime, date, timedelta
 from typing import Dict, Any, List, Optional
 import logging
+import time
 
 from ..collector import NewsClient, LLMClient, AkshareClient
 from ..storage import MongoStorage
@@ -61,7 +62,6 @@ class AfterMarketJob:
 
     def run(self, target_date: Optional[str] = None) -> str:
         if target_date:
-            # 每天早上执行，查询昨天的股票数据
             target = datetime.strptime(target_date, "%Y-%m-%d") - timedelta(days=1)
         else:
             target = datetime.now() - timedelta(days=1)
@@ -69,18 +69,32 @@ class AfterMarketJob:
         logger.info(f"Starting after-market job for {date_str}")
         self._ensure_clients(date_str)
         try:
-            # 先获取新闻
-            news = self._fetch_news(date_str)
-            # 使用LLM分析新闻
-            news_analysis = self._analyze_news(news)
-            logger.info(news_analysis)
-            # 使用 AkshareClient 获取所有数据，传入新闻分析用于买入机会分析
-            data = self.akshare_client.format_dingtalk(news_analysis=news_analysis, llm_client=self.llm_client)
-            self.storage.save(data)
-            logger.info(f"Data saved to MongoDB for {date_str}")
-            self.notifier.send(data)
-            logger.info(f"DingTalk notification sent for {date_str}")
-            return f"盘后信息已生成: {date_str}"
+            # 先尝试从数据库读取缓存的数据
+            logger.info("Attempting to load cached data from MongoDB...")
+            cached_data = self.storage.load(date_str)
+            
+            if cached_data:
+                logger.info(f"Found cached data for {date_str}, sending notification directly")
+                # 直接发送钉钉消息，重试10次
+                self.notifier.send(cached_data, max_retries=10)
+                logger.info(f"DingTalk notification sent for {date_str} (from cache)")
+                return f"盘后信息已发送: {date_str} (来自缓存)"
+            else:
+                logger.info(f"No cached data found for {date_str}, running full analysis...")
+                # 缓存未命中，执行完整流程
+                # 先获取新闻
+                news = self._fetch_news(date_str)
+                # 使用LLM分析新闻，重试10次
+                news_analysis = self._analyze_news(news, max_retries=10)
+                logger.info(news_analysis)
+                # 使用 AkshareClient 获取所有数据，传入新闻分析用于买入机会分析
+                data = self.akshare_client.format_dingtalk(news_analysis=news_analysis, llm_client=self.llm_client)
+                self.storage.save(data)
+                logger.info(f"Data saved to MongoDB for {date_str}")
+                # 发送钉钉消息，重试10次
+                self.notifier.send(data, max_retries=10)
+                logger.info(f"DingTalk notification sent for {date_str}")
+                return f"盘后信息已生成: {date_str}"
             
         except Exception as e:
             logger.error(f"Job failed for {date_str}: {e}")
@@ -92,6 +106,19 @@ class AfterMarketJob:
     def _fetch_news(self, date_str: str) -> List[Dict[str, Any]]:
         return self.news_client.get_all_daily_news(date_str)
 
-    def _analyze_news(self, news: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """使用LLM分析新闻"""
-        return self.llm_client.analyze_news(news)
+    def _analyze_news(self, news: List[Dict[str, Any]], max_retries: int = 10) -> Dict[str, Any]:
+        """使用LLM分析新闻，带重试机制"""
+        for attempt in range(max_retries):
+            try:
+                result = self.llm_client.analyze_news(news)
+                logger.info(f"新闻分析成功 (第 {attempt + 1} 次尝试)")
+                return result
+            except Exception as e:
+                logger.error(f"新闻分析失败 (第 {attempt + 1} 次尝试): {e}")
+                if attempt < max_retries - 1:
+                    logger.warning(f"重试新闻分析 ({attempt + 1}/{max_retries})...")
+                    import time
+                    time.sleep(2)
+        
+        logger.error(f"新闻分析失败，已重试 {max_retries} 次")
+        return {"error": "新闻分析失败"}

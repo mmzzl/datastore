@@ -1,7 +1,7 @@
 from pymongo import MongoClient
 from pymongo.errors import PyMongoError
 from typing import Optional, List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timedelta
 from urllib.parse import quote_plus
 import logging
 
@@ -67,6 +67,38 @@ class MongoStorage:
             return str(result.modified_count)
         except PyMongoError as e:
             logger.error(f"MongoDB save failed: {e}")
+            raise
+
+    def load(self, date_str: str) -> Optional[Dict[str, Any]]:
+        """
+        根据日期字符串加载数据
+        
+        参数:
+            date_str: 日期字符串，格式为 YYYY-MM-DD
+        
+        返回:
+            数据字典，如果未找到返回None
+        """
+        if self.collection is None:
+            self.connect()
+
+        try:
+            # 查询指定日期的数据
+            start_date = datetime.strptime(date_str, "%Y-%m-%d")
+            end_date = start_date + timedelta(days=1)
+            
+            doc = self.collection.find_one({
+                "created_at": {
+                    "$gte": start_date,
+                    "$lt": end_date
+                }
+            })
+            
+            if doc:
+                return doc.get("data")
+            return None
+        except PyMongoError as e:
+            logger.error(f"MongoDB load failed: {e}")
             raise
 
     def get_by_date(self, date: str) -> Optional[Dict]:

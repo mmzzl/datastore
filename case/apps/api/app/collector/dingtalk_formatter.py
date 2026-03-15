@@ -16,7 +16,7 @@ class DingTalkFormatter:
             stock_info = {}
 
         lines = []
-        lines.append(f"## 📊 每日收盘简报 - {brief.get('date', '')}")
+        lines.append(f"## 📊 每日盘前简报 - {brief.get('date', '')}")
         lines.append("")
 
         DingTalkFormatter._add_market_section(lines, brief.get("market_overview", {}))
@@ -148,17 +148,25 @@ class DingTalkFormatter:
 
         for i, stock in enumerate(top_stocks[:5], 1):
             symbol = stock.get("symbol", "")
-            name = stock_info.get(symbol, {}).get("name", symbol)
+            name = stock.get("name", symbol)
+            sector = stock.get("sector", "")
+            
+            # 如果 symbol 为空，使用 name 作为标识
+            display_symbol = symbol if symbol else name
+            display_name = name if name else symbol
+            
+            # 构建板块信息
+            sector_text = f" [{sector}]" if sector else ""
 
-            if "reason" in stock:
-                reason = stock.get("reason", "")
-                lines.append(f"{i}. **{name}**({symbol}) - {reason}")
+            if "reasons" in stock and stock["reasons"]:
+                reasons_text = "、".join(stock["reasons"][:3])
+                lines.append(f"{i}. **{display_name}**({display_symbol}){sector_text} - {reasons_text}")
             else:
                 close = stock.get("close", 0)
                 change = stock.get("change_pct", 0)
-                rsi = stock.get("rsi", 0)
+                score = stock.get("score", 0)
                 lines.append(
-                    f"{i}. **{name}**({symbol}) | 收盘:{close:.2f} | 涨跌:{change:.2f}% | RSI:{rsi:.1f}"
+                    f"{i}. **{display_name}**({display_symbol}){sector_text} | 收盘:{close:.2f} | 涨跌:{change:.2f}% | 评分:{score:.1f}"
                 )
 
         if buy.get("analysis"):
