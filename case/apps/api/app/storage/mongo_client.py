@@ -26,6 +26,7 @@ class MongoStorage:
         self.db = None
         self.collection = None
         self.kline_collection = None
+        self.capital_flow_collection = None
 
     def connect(self):
         try:
@@ -38,6 +39,7 @@ class MongoStorage:
             self.db = self.client[self.db_name]
             self.collection = self.db["after_market"]
             self.kline_collection = self.db["stock_kline"]
+            self.capital_flow_collection = self.db["capital_flow"]
             self.client.admin.command("ping")
             logger.info(f"MongoDB connected: {self.host}:{self.port}/{self.db_name}")
         except PyMongoError as e:
@@ -52,12 +54,13 @@ class MongoStorage:
     def save(self, data: Dict[str, Any]) -> Optional[str]:
         if self.collection is None:
             self.connect()
-
-        data["created_at"] = datetime.now()
-
+        save_data = {}
+        save_data["created_at"] = datetime.now()
+        save_data.update({"data": data})
+        
         try:
             result = self.collection.update_one(
-                {"date": data.get("date")}, {"$set": data}, upsert=True
+                {"date": save_data.get("created_at")}, {"$set": save_data}, upsert=True
             )
             if result.upserted_id:
                 return str(result.upserted_id)
@@ -102,6 +105,33 @@ class MongoStorage:
             return result.deleted_count
         except PyMongoError as e:
             logger.error(f"MongoDB delete failed: {e}")
+            raise
+    def get_kline_by_name(self, name: str, start_date: str = None, end_date: str = None, limit: int = 100
+    ) -> List[Dict]:
+        """根据股票名称获取K线数据"""
+        if self.kline_collection is None:
+            self.connect()
+
+        try:
+            query = {"name": name}
+            if start_date:
+                query["date"] = {"$gte": start_date}
+            if end_date:
+                if "date" in query:
+                    query["date"]["$lte"] = end_date
+                else:
+                    query["date"] = {"$lte": end_date}
+
+            cursor = self.kline_collection.find(query).sort("date", -1).limit(limit)
+            results = []
+            for doc in cursor:
+                doc["_id"] = str(doc["_id"])
+                if doc.get("crawl_time"):
+                    doc["crawl_time"] = doc["crawl_time"].isoformat()
+                results.append(doc)
+            return results
+        except PyMongoError as e:
+            logger.error(f"MongoDB kline by name query failed: {e}")
             raise
 
     def get_kline(
@@ -207,4 +237,33 @@ class MongoStorage:
             return results
         except PyMongoError as e:
             logger.error(f"MongoDB kline query failed: {e}")
+            raise
+
+    def get_capital_flow(
+        self, name: str, start_date: str = None, end_date: str = None, limit: int = 10
+    ) -> List[Dict]:
+        """获取资金流向数据"""
+        if self.capital_flow_collection is None:
+            self.connect()
+
+        try:
+            query = {"name": name}
+            if start_date:
+                query["date"] = {"$gte": start_date}
+            if end_date:
+                if "date" in query:
+                    query["date"]["$lte"] = end_date
+                else:
+                    query["date"] = {"$lte": end_date}
+
+            cursor = self.capital_flow_collection.find(query).sort("date", -1).limit(limit)
+            results = []
+            for doc in cursor:
+                doc["_id"] = str(doc["_id"])
+                if doc.get("crawl_time"):
+                    doc["crawl_time"] = doc["crawl_time"].isoformat()
+                results.append(doc)
+            return results
+        except PyMongoError as e:
+            logger.error(f"MongoDB capital flow query failed: {e}")
             raise

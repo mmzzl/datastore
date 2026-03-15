@@ -2,7 +2,7 @@ import requests
 from typing import Dict, List, Optional
 import json
 import logging
-
+from .industry_normalizer import IndustryNormalizer
 logger = logging.getLogger(__name__)
 
 
@@ -12,6 +12,7 @@ class LLMClient:
         self.api_key = api_key
         self.model = model
         self.base_url = base_url
+        self.industry = IndustryNormalizer()
 
     def chat(self, prompt: str) -> str:
         """通用聊天接口，返回原始文本响应"""
@@ -72,36 +73,63 @@ class LLMClient:
 
     def _build_prompt(self, news_list: List[Dict]) -> str:
         news_text = ""
-        for i, news in enumerate(news_list[:20], 1):
+        for i, news in enumerate(news_list, 1):
             title = news.get('title', '')
             summary = news.get('summary', '')
-            stock_list = news.get('stock_list', [])
+            sector_list = [i.split(".")[1] for i in news.get('stockList', [])]
+            industry_list = [self.industry.get_industry_name(sector) for sector in sector_list]
+            industry_list = [i for i in industry_list if i]
+            stock_list = []
+            for industry in industry_list:
+                stock_list.extend(self.industry.get_stock_name(industry) or [])
+            logger.info("industry_list: %s, stock_list: %s", industry_list, stock_list)
             news_text += f"{i}. 标题: {title}\n"
             if summary:
                 news_text += f"   摘要: {summary}\n"
             if stock_list:
-                news_text += f"   关联股票: {', '.join(stock_list[:5])}\n"
-        
-        prompt = f"""你是一位专业的A股市场分析师。请分析以下新闻，提取关键信息并给出明日操作建议。
+                news_text += f"   关联股票: {', '.join(stock_list)}\n"
+            if industry_list:
+                news_text += f"   关联行业: {', '.join(industry_list)}\n"
+        # 关键：把 JSON 示例用 HEREDOC/原始字符串包裹，避免 f-string 解析冲突
+        prompt = f"""你是一位专业、严谨、客观的A股市场分析师。请严格遵守以下要求分析新闻：
 
-新闻内容：
-{news_text}
+        ### 核心规则（必须100%遵守）
+        1. 立场客观，不夸大、不造谣，基于新闻事实分析；
+        2. 不推荐具体股票买卖，不预测个股涨跌，只做板块与情绪判断；
+        3. 严格区分利好/利空/中性，不模棱两可；
+        4. 只输出合法合规内容，不提供投资建议，仅做市场解读与风险提示；
+        5. **格式强制要求**：仅返回标准 JSON 字符串，无任何多余文字、注释、换行、解释，JSON 必须可被 Python json.loads() 解析；
+        6. JSON 字段约束：
+        - summary：50字以内，新闻核心总结；
+        - hot_sectors：数组，数据只能从关联行业中取值,不能自己创造新的名字；
+        - hot_concepts：数组（仅列名称，不做推荐）；
+        - hot_stocks：数组（仅列名称，不做推荐）；
+        - sentiment：仅可选「利好」「利空」「中性」；
+        - tomorrow_strategy.direction：仅可选「看多」「看空」「震荡」；
+        - tomorrow_strategy.attention：重点关注方向（50字内）；
+        - tomorrow_strategy.risk：风险提示（50字内）；
+        - key_events：数组，最多3个关键事件。
 
-请以JSON格式返回分析结果，包含以下字段：
-{{
-    "summary": "今日新闻整体概要 (50字以内)",
-    "hot_sectors": ["热门板块1", "热门板块2"],
-    "hot_stocks": ["关注股票1", "关注股票2"],
-    "sentiment": "利好/利空/中性",
-    "tomorrow_strategy": {{
-        "direction": "看多/看空/震荡",
-        "attention": "需要重点关注的板块或事件",
-        "risk": "风险提示"
-    }},
-    "key_events": ["关键事件1", "关键事件2"]
-}}
+        ### 待分析新闻
+        {news_text}
 
-只返回JSON，不要其他内容。"""
+        ### 输出示例（仅参考格式，需替换为真实分析结果）
+        {{
+            "summary": "央行降准0.25个百分点，释放流动性利好基建板块",
+            "hot_sectors": ["基建", "银行"],
+            "hot_concepts": ["大基建", "低估值"],
+            "hot_stocks": ["中国建筑", "工商银行"],
+            "sentiment": "利好",
+            "tomorrow_strategy": {{
+                "direction": "看多",
+                "attention": "关注基建板块龙头股资金流向",
+                "risk": "谨防板块短期冲高回落风险"
+            }},
+            "key_events": ["央行降准", "基建专项债发行提速"]
+        }}
+
+        ### 最终要求
+        仅返回符合上述规则的 JSON 字符串，无任何其他内容！"""
         return prompt
 
     def _call_api(self, prompt: str) -> str:

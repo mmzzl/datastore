@@ -76,13 +76,10 @@ class AfterMarketJob:
             logger.info(news_analysis)
             # 使用 AkshareClient 获取所有数据，传入新闻分析用于买入机会分析
             data = self.akshare_client.format_dingtalk(news_analysis=news_analysis, llm_client=self.llm_client)
-           
             self.storage.save(data)
             logger.info(f"Data saved to MongoDB for {date_str}")
-            
             self.notifier.send(data)
             logger.info(f"DingTalk notification sent for {date_str}")
-            
             return f"盘后信息已生成: {date_str}"
             
         except Exception as e:

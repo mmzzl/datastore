@@ -41,7 +41,7 @@ class EastMoneyCapitalFlowSpider(scrapy.Spider):
             'cb': f'jQuery112305365419743416425_{int(time.time() * 1000)}',
             'fid': 'f62',
             'po': '1',
-            'pz': '6000',
+            'pz': '100',
             'pn': '1',
             'np': '1',
             'fltt': '2',
@@ -55,13 +55,77 @@ class EastMoneyCapitalFlowSpider(scrapy.Spider):
         import urllib.parse
         query_string = urllib.parse.urlencode(params)
         full_url = f"{url}?{query_string}"
-        
         yield scrapy.Request(
             url=full_url,
             headers=headers,
-            callback=self.parse,
+            callback=self.parse_total,
             dont_filter=True
         )
+    
+    def parse_total(self, response):
+        """解析总数，然后分页获取所有数据"""
+        try:
+            text = response.text
+            # 移除 jQuery 回调函数
+            text = re.sub(r'^jQuery\d+_\d+\(', '', text)
+            text = re.sub(r'\);$', '', text)
+            
+            import json
+            data = json.loads(text)
+            
+            if data.get('rc') != 0:
+                logger.error(f"获取资金流向数据失败: {data}")
+                return
+            
+            total = data.get('data', {}).get('total', 0)
+            logger.info(f"资金流向数据总数: {total}")
+            
+            if total == 0:
+                logger.info("没有资金流向数据")
+                return
+            
+            # 计算需要多少页
+            page_size = 100
+            total_pages = (total + page_size - 1) // page_size
+            logger.info(f"需要获取 {total_pages} 页数据")
+            
+            # 分页获取所有数据
+            url = "https://push2.eastmoney.com/api/qt/clist/get"
+            headers = {
+                'Host': 'push2.eastmoney.com',
+                'Referer': 'https://data.eastmoney.com/zjlx/detail.html',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            }
+            
+            for page in range(1, total_pages + 1):
+                params = {
+                    'cb': f'jQuery112305365419743416425_{int(time.time() * 1000)}',
+                    'fid': 'f62',
+                    'po': '1',
+                    'pz': str(page_size),
+                    'pn': str(page),
+                    'np': '1',
+                    'fltt': '2',
+                    'invt': '2',
+                    'ut': '8dec03ba335b81bf4ebdf7b29ec27d15',
+                    'fs': 'm:0+t:6+f:!2,m:0+t:13+f:!2,m:0+t:80+f:!2,m:1+t:2+f:!2,m:1+t:23+f:!2,m:0+t:7+f:!2,m:1+t:3+f:!2',
+                    'fields': 'f12,f14,f2,f3,f62,f184,f66,f69,f72,f75,f78,f81,f84,f87,f204,f205,f124,f1,f13'
+                }
+                
+                import urllib.parse
+                query_string = urllib.parse.urlencode(params)
+                full_url = f"{url}?{query_string}"
+                yield scrapy.Request(
+                    url=full_url,
+                    headers=headers,
+                    callback=self.parse,
+                    dont_filter=True
+                )
+                
+        except Exception as e:
+            logger.error(f"解析资金流向总数失败: {e}")
+            import traceback
+            logger.error(f"错误详情: {traceback.format_exc()}")
     
     def parse(self, response):
         """解析资金流向数据"""

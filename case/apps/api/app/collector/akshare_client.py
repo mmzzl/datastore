@@ -69,7 +69,6 @@ class AkshareClient:
     def generate_brief(self, news_analysis: Dict = None, llm_client=None) -> Dict:
         """生成每日简报"""
         market_overview = self.analyze_market()
-        
         buy_opportunities = {"error": "未执行"}
         if news_analysis:
             buy_opportunities = self.analyze_buy_opportunities(news_analysis, llm_client)

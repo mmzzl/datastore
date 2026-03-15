@@ -1,180 +1,139 @@
-"""股票分析模块 - 根据新闻分析结果推荐买入股票"""
+"""股票分析模块 - 多维度共振筛选系统"""
 
 import os
 import pandas as pd
 import logging
 import json
 import baostock as bs
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
+from dataclasses import dataclass
+from .industry_normalizer import IndustryNormalizer
 
 logger = logging.getLogger(__name__)
 
 
-class IndustryStockFinder:
-    """行业股票查找器"""
+@dataclass
+class StockScore:
+    """股票评分结果"""
+    symbol: str
+    name: str
+    close: float
+    change_pct: float
+    score: float
+    sector_score: float = 0.0
+    capital_score: float = 0.0
+    technical_score: float = 0.0
+    fundamental_score: float = 0.0
+    risk_score: float = 0.0
+    reasons: List[str] = None
+    warnings: List[str] = None
 
-    def __init__(self):
-        self._industry_cache = None
-
-    def get_industry_data(self) -> pd.DataFrame:
-        base_dir = os.path.dirname(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        )
-        if not os.path.exists(base_dir):
-            os.makedirs(base_dir)
-        csv_path = os.path.join(base_dir, "data", "stock_industry.csv")
-        logger.info("csv_path: %s", csv_path)
-        if self._industry_cache is not None:
-            return self._industry_cache
-
-        # Check if CSV file exists
-        if os.path.exists(csv_path):
-            logger.info(f"Reading cached file: {csv_path}")
-            df = pd.read_csv(csv_path, encoding="utf-8")
-            self._industry_cache = df
-            return df
-
-        # Login to baostock
-        logger.info("Logging into baostock...")
-        lg = bs.login()
-        if lg.error_code != "0":
-            raise Exception(f"Login failed: {lg.error_msg}")
-        logger.info(f"Login successful: {lg.error_msg}")
-
-        # Get industry classification data
-        logger.info("Fetching industry classification data...")
-        rs = bs.query_stock_industry()
-        if rs.error_code != "0":
-            bs.logout()
-            raise Exception(f"Query failed: {rs.error_msg}")
-
-        # Parse results
-        industry_list = []
-        while rs.next():
-            industry_list.append(rs.get_row_data())
-
-        result = pd.DataFrame(industry_list, columns=rs.fields)
-
-        # Save to CSV
-        result.to_csv(csv_path, encoding="utf-8", index=False)
-        logger.info(f"Data saved to: {csv_path}")
-
-        # Logout
-        bs.logout()
-        logger.info("Logged out from baostock")
-
-        self._industry_cache = result
-        return result
-
-    def get_stocks_by_industry(self, industry_names: List[str]) -> List[str]:
-        df = self.get_industry_data()
-        if df.empty:
-            return []
-
-        stocks = []
-        for industry in industry_names:
-            matched = df[df["industry"] == industry]["code"].tolist()
-            stocks.extend(matched)
-
-        result = []
-        for code in stocks:
-            if isinstance(code, str):
-                if code.startswith("sh."):
-                    result.append(f"sh{code[3:]}")
-                elif code.startswith("sz."):
-                    result.append(f"sz{code[3:]}")
-                else:
-                    result.append(code)
-
-        return list(set(result))
+    def __post_init__(self):
+        if self.reasons is None:
+            self.reasons = []
+        if self.warnings is None:
+            self.warnings = []
 
 
 class StockAnalyzer:
-    """股票买入机会分析器"""
-
-    # 行业映射表：热门行业关键词 -> Baostock行业分类
-    INDUSTRY_MAPPING = {
-        # 能源相关
-        "能源/油气": ["能源", "石油", "煤炭", "采掘"],
-        "油气": ["石油", "能源", "采掘"],
-        "储能": ["电力设备", "新能源", "电池", "储能"],
-        "固态电池": ["电池", "新能源材料", "化学制品", "电力设备"],
-        # 人工智能相关
-        "人工智能/金融科技": ["计算机", "软件", "信息技术", "金融科技"],
-        "人工智能": ["计算机", "软件", "信息技术"],
-        "金融科技": ["银行", "证券", "保险", "金融科技"],
-        # 其他
-        "新能源": ["电力设备", "新能源", "电池"],
-        "半导体": ["电子", "半导体"],
-        "医药": ["医药生物", "医疗器械"],
-        "消费": ["食品饮料", "家用电器", "消费"],
-    }
+    """股票多维度共振筛选分析器"""
 
     def __init__(self, mongodb_config: Dict):
         self.mongo_config = mongodb_config
-        self._industry_finder = None
+        self._industry_normalizer = None
 
     @property
-    def industry_finder(self) -> IndustryStockFinder:
-        if self._industry_finder is None:
-            self._industry_finder = IndustryStockFinder()
-        return self._industry_finder
+    def industry_normalizer(self) -> IndustryNormalizer:
+        if self._industry_normalizer is None:
+            self._industry_normalizer = IndustryNormalizer()
+        return self._industry_normalizer
 
-    def analyze(self, news_analysis: Dict, llm_client=None, top_n: int = 5) -> Dict:
-        """根据新闻分析结果分析最佳买入机会"""
+    def analyze(self, news_analysis: Dict, llm_client=None, top_n: int = 10) -> Dict:
+        """多维度共振筛选分析"""
         if not news_analysis:
             return {"error": "新闻分析数据为空"}
 
         hot_sectors = news_analysis.get("hot_sectors", [])
         hot_stocks = news_analysis.get("hot_stocks", [])
-
         if not hot_sectors and not hot_stocks:
             return {"error": "热门行业和热门股票均为空"}
 
         logger.info(
-            f"开始分析买入机会: hot_sectors={hot_sectors}, hot_stocks={hot_stocks}"
+            f"开始多维度共振筛选: hot_sectors={hot_sectors}, hot_stocks={hot_stocks}"
         )
 
-        # Step 1: 获取目标股票
-        target_stocks = self._get_target_stocks(hot_sectors, hot_stocks)
+        try:
+            target_stocks = self._get_target_stocks(hot_sectors, hot_stocks)
+            logger.info(f"目标股票数量: %s",  {len(target_stocks)})
 
-        if not target_stocks:
-            return {"error": "未找到目标股票"}
+            if not target_stocks:
+                return {"error": "未找到目标股票"}
 
-        # Step 2: 获取K线数据并计算指标
-        kline_data = self._get_klines_with_indicators(target_stocks)
+            kline_data = self._get_klines_with_indicators(target_stocks)
+            if kline_data.empty:
+                return {"error": "MongoDB中无K线数据"}
 
-        if kline_data.empty:
-            return {"error": "MongoDB中无K线数据"}
+            capital_flow_data = self._get_capital_flow_data(target_stocks)
+            print("资金流向数据:", capital_flow_data)
+            if capital_flow_data.empty:
+                logger.warning("MongoDB中无资金流向数据，将跳过资金流向筛选")
 
-        # Step 3: 筛选分析
-        if llm_client:
-            return self._analyze_with_llm(kline_data, news_analysis, top_n, llm_client)
-        else:
-            return self._filter_by_rules(kline_data, top_n)
+            candidates = self._multi_dimensional_filter(
+                kline_data, capital_flow_data, news_analysis
+            )
+
+            if not candidates:
+                return {"error": "无符合条件股票", "candidates": []}
+
+            top_candidates = sorted(candidates, key=lambda x: x.score, reverse=True)[:top_n]
+
+            result = {
+                "total_candidates": len(candidates),
+                "top_stocks": [
+                    {
+                        "symbol": c.symbol,
+                        "name": c.name,
+                        "close": c.close,
+                        "change_pct": c.change_pct,
+                        "score": round(c.score, 2),
+                        "sector_score": round(c.sector_score, 2),
+                        "capital_score": round(c.capital_score, 2),
+                        "technical_score": round(c.technical_score, 2),
+                        "fundamental_score": round(c.fundamental_score, 2),
+                        "risk_score": round(c.risk_score, 2),
+                        "reasons": c.reasons,
+                        "warnings": c.warnings,
+                    }
+                    for c in top_candidates
+                ],
+                "summary": self._generate_summary(top_candidates, news_analysis),
+            }
+
+            return result
+
+        except Exception as e:
+            logger.error(f"多维度共振筛选失败: {e}")
+            import traceback
+            logger.error(f"错误详情: {traceback.format_exc()}")
+            return {"error": f"分析失败: {str(e)}"}
 
     def _get_target_stocks(self, hot_sectors: List, hot_stocks: List) -> List[str]:
         target = set()
 
         if hot_sectors:
-            # 尝试直接匹配行业
-            stocks = self.industry_finder.get_stocks_by_industry(hot_sectors)
-            target.update(stocks)
-            logger.info(f"从行业获取到 {len(stocks)} 只股票")
-
-            # 如果没有匹配到，尝试使用映射表
-            if not stocks:
-                mapped_industries = self._map_hot_sectors(hot_sectors)
-                stocks = self.industry_finder.get_stocks_by_industry(mapped_industries)
-                target.update(stocks)
-                logger.info(f"从映射行业获取到 {len(stocks)} 只股票")
+            for sector in hot_sectors:
+                print("sector", sector)
+                stocks = self.industry_normalizer.get_stock_name(sector)
+                
+                if stocks:
+                    target.update(stocks)
+                    logger.info(f"从行业 {sector} 获取到 {len(stocks)} 只股票")
 
         for stock in hot_stocks:
             if isinstance(stock, str):
                 symbol = stock.split("(")[-1].rstrip(")") if "(" in stock else stock
                 if len(symbol) == 6 and symbol.isdigit():
-                    # 添加A股代码前缀
                     if int(symbol) >= 600000:
                         target.add(f"sh{symbol}")
                     else:
@@ -182,42 +141,8 @@ class StockAnalyzer:
 
         return list(target)
 
-    def _map_hot_sectors(self, hot_sectors: List[str]) -> List[str]:
-        """将热门行业映射到 Baostock 行业分类"""
-        industry_df = self.industry_finder.get_industry_data()
-        if industry_df.empty:
-            return []
-
-        # 获取所有唯一行业名称
-        all_industries = industry_df["industry"].unique().tolist()
-
-        matched_industries = set()
-
-        for hot_sector in hot_sectors:
-            # 尝试直接匹配
-            if hot_sector in all_industries:
-                matched_industries.add(hot_sector)
-                continue
-
-            # 使用映射表
-            if hot_sector in self.INDUSTRY_MAPPING:
-                mapped = self.INDUSTRY_MAPPING[hot_sector]
-                for m in mapped:
-                    if m in all_industries:
-                        matched_industries.add(m)
-
-            # 关键词模糊匹配
-            for industry in all_industries:
-                if isinstance(industry, str):
-                    for keyword in hot_sector.split("/"):
-                        if keyword in industry:
-                            matched_industries.add(industry)
-
-        logger.info(f"热门行业 {hot_sectors} -> 映射到 {list(matched_industries)}")
-        return list(matched_industries)
-
     def _get_klines_with_indicators(
-        self, symbols: List[str], days: int = 60
+        self, names: List[str], days: int = 60
     ) -> pd.DataFrame:
         from app.storage.mongo_client import MongoStorage
 
@@ -228,17 +153,17 @@ class StockAnalyzer:
         mongo.connect()
 
         all_data = []
-        for symbol in symbols:
+        for name in names[0:10]:
             try:
-                data = mongo.get_kline(
-                    symbol, start_date=start_date, end_date=end_date, limit=100
+                data = mongo.get_kline_by_name(
+                    name, start_date=start_date, end_date=end_date, limit=100
                 )
                 if data:
                     df = pd.DataFrame(data)
-                    df["symbol"] = symbol
+                    df["name"] = name
                     all_data.append(df)
             except Exception as e:
-                logger.warning(f"获取 {symbol} K线失败: {e}")
+                logger.warning(f"获取 {name} K线失败: {e}")
 
         mongo.close()
 
@@ -272,98 +197,342 @@ class StockAnalyzer:
         if "date" in result.columns:
             result["date"] = pd.to_datetime(result["date"])
 
-        # 计算技术指标
         from .technical_indicators import TechnicalIndicators
 
         result = TechnicalIndicators.calculate_all(result)
 
         return result
 
-    def _filter_by_rules(self, df: pd.DataFrame, top_n: int) -> Dict:
-        if df.empty:
-            return {"error": "无有效数据"}
+    def _get_capital_flow_data(self, names: List[str], days: int = 10) -> pd.DataFrame:
+        from app.storage.mongo_client import MongoStorage
 
-        required_cols = ["ma5", "ma10", "rsi"]
-        if not all(col in df.columns for col in required_cols):
-            return {"error": "缺少技术指标列"}
+        end_date = datetime.now().strftime("%Y-%m-%d")
+        start_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
 
-        df_valid = df.dropna(subset=required_cols)
-        if df_valid.empty:
-            return {"error": "无有效技术指标数据"}
+        mongo = MongoStorage(**self.mongo_config)
+        mongo.connect()
 
-        df_valid = df_valid.sort_values("date", ascending=False)
-        latest = df_valid.groupby("symbol").first().reset_index()
+        all_data = []
+        for name in names:
+            try:
+                data = mongo.get_capital_flow(
+                    name, start_date=start_date, end_date=end_date, limit=10
+                )
+                if data:
+                    df = pd.DataFrame(data)
+                    df["name"] = name
+                    all_data.append(df)
+            except Exception as e:
+                logger.warning(f"获取 {name} 资金流向失败: {e}")
 
-        # 筛选条件
-        conditions = (
-            (latest["change_pct"] > 0)
-            & (latest["rsi"] < 70)
-            & (latest["ma5"] > latest["ma10"])
-        )
-        candidates = latest[conditions].copy()
+        mongo.close()
 
-        if candidates.empty:
-            conditions = (latest["rsi"] < 80) & (latest["ma5"] > latest["ma10"])
-            candidates = latest[conditions].copy()
+        if not all_data:
+            return pd.DataFrame()
 
-        if candidates.empty:
-            return {"error": "无符合条件股票", "candidates": []}
+        result = pd.concat(all_data, ignore_index=True)
 
-        # 计算得分
-        candidates["score"] = (
-            candidates["change_pct"] * 0.3
-            + (70 - candidates["rsi"]) * 0.3
-            + ((candidates["ma5"] - candidates["ma10"]) / candidates["ma10"] * 100)
-            * 0.2
-            + candidates.get("amplitude", pd.Series([5] * len(candidates))) * 0.2
-        )
-
-        top = candidates.nlargest(top_n, "score")
-
-        result = [
-            {
-                "symbol": row["symbol"],
-                "close": round(row.get("close", 0), 2),
-                "change_pct": round(row.get("change_pct", 0), 2),
-                "rsi": round(row.get("rsi", 0), 2),
-                "ma5": round(row.get("ma5", 0), 2),
-                "ma10": round(row.get("ma10", 0), 2),
-                "score": round(row.get("score", 0), 2),
-            }
-            for _, row in top.iterrows()
+        numeric_cols = [
+            "main_net_inflow",
+            "main_net_inflow_pct",
+            "super_large_net_inflow",
+            "large_net_inflow",
+            "medium_net_inflow",
+            "small_net_inflow",
         ]
+        for col in numeric_cols:
+            if col in result.columns:
+                result[col] = pd.to_numeric(result[col], errors="coerce")
 
-        return {"total_candidates": len(candidates), "top_stocks": result}
+        if "date" in result.columns:
+            result["date"] = pd.to_datetime(result["date"])
 
-    def _analyze_with_llm(
-        self, df: pd.DataFrame, news_analysis: Dict, top_n: int, llm_client
+        return result
+
+    def _multi_dimensional_filter(
+        self,
+        kline_data: pd.DataFrame,
+        capital_flow_data: pd.DataFrame,
+        news_analysis: Dict,
+    ) -> List[StockScore]:
+        if kline_data.empty:
+            return []
+
+        kline_data = kline_data.sort_values("date", ascending=False)
+        latest_kline = kline_data.groupby("name").first().reset_index()
+        print("capital_flow_data", capital_flow_data.columns)
+        candidates = []
+
+        for _, row in latest_kline.iterrows():
+            name = row["name"]
+            stock_kline = kline_data[kline_data["name"] == name].sort_values("date")
+            stock_capital = (
+                capital_flow_data[capital_flow_data["name"] == name]
+                .sort_values("date")
+                .copy()
+                if not capital_flow_data.empty
+                else pd.DataFrame()
+            )
+            print("资金stock_capital", stock_capital)
+            score = StockScore(
+                symbol=row.get("code", ""),
+                name=name,
+                close=row.get("close", 0),
+                change_pct=row.get("change_pct", 0),
+                score=0.0,
+            )
+
+            sector_score = self._evaluate_sector(score, news_analysis)
+            if sector_score == 0:
+                continue
+
+            score.sector_score = sector_score
+
+            if not stock_capital.empty:
+                capital_score = self._evaluate_capital_flow(score, stock_capital, stock_kline)
+                if capital_score == 0:
+                    continue
+                score.capital_score = capital_score
+
+            technical_score = self._evaluate_technical(score, stock_kline)
+            if technical_score == 0:
+                continue
+            score.technical_score = technical_score
+
+            fundamental_score, risk_score = self._evaluate_fundamental_and_risk(
+                score, stock_kline
+            )
+            if risk_score == 0:
+                continue
+            score.fundamental_score = fundamental_score
+            score.risk_score = risk_score
+
+            score.score = (
+                score.sector_score * 0.25
+                + score.capital_score * 0.25
+                + score.technical_score * 0.30
+                + score.fundamental_score * 0.15
+                + score.risk_score * 0.05
+            )
+
+            candidates.append(score)
+
+        return candidates
+
+    def _evaluate_sector(
+        self, score: StockScore, news_analysis: Dict
+    ) -> float:
+        hot_sectors = news_analysis.get("hot_sectors", [])
+        hot_concepts = news_analysis.get("hot_concepts", [])
+        sentiment = news_analysis.get("sentiment", "中性")
+
+        sector_score = 0.0
+
+        if sentiment == "积极":
+            sector_score += 20
+        elif sentiment == "中性":
+            sector_score += 10
+
+        if score.change_pct > 5:
+            sector_score += 20
+            score.reasons.append("涨幅超过5%")
+        elif score.change_pct > 2:
+            sector_score += 15
+            score.reasons.append("涨幅超过2%")
+        elif score.change_pct > 0:
+            sector_score += 10
+
+        if score.change_pct > 0 and score.change_pct < 9.8:
+            sector_score += 10
+            score.reasons.append("涨幅健康")
+
+        return min(sector_score, 100)
+
+    def _evaluate_capital_flow(
+        self,
+        score: StockScore,
+        capital_data: pd.DataFrame,
+        kline_data: pd.DataFrame,
+    ) -> float:
+        capital_score = 0.0
+
+        if capital_data.empty:
+            return 10.0
+
+        latest = capital_data.iloc[0]
+        recent_3_days = capital_data.head(3)
+
+        main_inflow = latest.get("main_net_inflow", 0)
+        main_inflow_pct = latest.get("main_net_inflow_pct", 0)
+
+        if main_inflow > 100000000:
+            capital_score += 25
+            score.reasons.append("主力净流入超1亿")
+        elif main_inflow > 50000000:
+            capital_score += 20
+            score.reasons.append("主力净流入超5000万")
+        elif main_inflow > 0:
+            capital_score += 15
+            score.reasons.append("主力净流入")
+
+        if main_inflow_pct > 10:
+            capital_score += 15
+            score.reasons.append("主力流入占比超10%")
+        elif main_inflow_pct > 5:
+            capital_score += 10
+            score.reasons.append("主力流入占比超5%")
+
+        consecutive_inflow = 0
+        for _, row in recent_3_days.iterrows():
+            if row.get("main_net_inflow", 0) > 0:
+                consecutive_inflow += 1
+            else:
+                break
+
+        if consecutive_inflow >= 3:
+            capital_score += 20
+            score.reasons.append("连续3日主力净流入")
+        elif consecutive_inflow >= 2:
+            capital_score += 15
+            score.reasons.append("连续2日主力净流入")
+
+        if not kline_data.empty:
+            latest_kline = kline_data.iloc[0]
+            volume_ratio = latest_kline.get("volume", 0) / kline_data["volume"].mean()
+            turnover_rate = latest_kline.get("turnover_rate", 0)
+
+            if volume_ratio >= 1.5:
+                capital_score += 10
+                score.reasons.append("量比≥1.5")
+
+            if 3 <= turnover_rate <= 8:
+                capital_score += 10
+                score.reasons.append("换手率健康(3%-8%)")
+            elif turnover_rate > 8:
+                capital_score += 5
+                score.warnings.append("换手率偏高")
+
+        return min(capital_score, 100)
+
+    def _evaluate_technical(self, score: StockScore, kline_data: pd.DataFrame) -> float:
+        technical_score = 0.0
+
+        if kline_data.empty or len(kline_data) < 20:
+            return 10.0
+
+        latest = kline_data.iloc[0]
+        ma5 = latest.get("ma5", 0)
+        ma10 = latest.get("ma10", 0)
+        ma20 = latest.get("ma20", 0)
+        rsi = latest.get("rsi", 50)
+        macd = latest.get("macd", 0)
+        macd_signal = latest.get("macd_signal", 0)
+
+        if ma5 > ma10 > ma20:
+            technical_score += 25
+            score.reasons.append("均线多头排列")
+        elif ma5 > ma10:
+            technical_score += 15
+            score.reasons.append("短期均线向上")
+
+        if score.close > ma20:
+            technical_score += 15
+            score.reasons.append("站稳20日均线")
+
+        if macd > 0 and macd > macd_signal:
+            technical_score += 20
+            score.reasons.append("MACD金叉且在零轴上方")
+        elif macd > 0:
+            technical_score += 10
+            score.reasons.append("MACD在零轴上方")
+
+        if 60 <= rsi <= 80:
+            technical_score += 20
+            score.reasons.append("RSI强势区间(60-80)")
+        elif 50 <= rsi < 60:
+            technical_score += 15
+            score.reasons.append("RSI健康区间(50-60)")
+        elif rsi > 80:
+            technical_score += 5
+            score.warnings.append("RSI超买")
+
+        if len(kline_data) >= 2:
+            prev = kline_data.iloc[1]
+            if score.close > prev["close"] and latest["volume"] > prev["volume"]:
+                technical_score += 10
+                score.reasons.append("放量上涨")
+
+        return min(technical_score, 100)
+
+    def _evaluate_fundamental_and_risk(
+        self, score: StockScore, kline_data: pd.DataFrame
+    ) -> Tuple[float, float]:
+        fundamental_score = 0.0
+        risk_score = 0.0
+
+        if kline_data.empty:
+            return 50.0, 50.0
+
+        latest = kline_data.iloc[0]
+        amount = latest.get("amount", 0)
+        volume = latest.get("volume", 0)
+        close = latest.get("close", 0)
+
+        if amount > 300000000:
+            risk_score += 30
+            score.reasons.append("成交额超3亿")
+        elif amount > 100000000:
+            risk_score += 20
+            score.reasons.append("成交额超1亿")
+
+        market_cap = close * volume
+        if market_cap > 1500000000:
+            risk_score += 30
+            score.reasons.append("市值超15亿")
+        elif market_cap > 500000000:
+            risk_score += 20
+            score.reasons.append("市值超5亿")
+
+        if score.change_pct > 9.8:
+            risk_score += 10
+            score.warnings.append("涨停股波动大")
+        elif score.change_pct > 7:
+            risk_score += 5
+            score.warnings.append("涨幅较大")
+
+        if len(kline_data) >= 5:
+            recent_5 = kline_data.head(5)
+            volatility = recent_5["change_pct"].std()
+            if volatility < 3:
+                fundamental_score += 20
+                score.reasons.append("波动率较低")
+            elif volatility < 5:
+                fundamental_score += 10
+                score.reasons.append("波动率适中")
+
+        return min(fundamental_score, 100), min(risk_score, 100)
+
+    def _generate_summary(
+        self, candidates: List[StockScore], news_analysis: Dict
     ) -> Dict:
-        if df.empty:
-            return {"error": "无数据可供分析"}
+        if not candidates:
+            return {"message": "未找到符合条件的股票"}
 
-        required_cols = ["ma5", "ma10", "rsi"]
-        if not all(col in df.columns for col in required_cols):
-            return self._filter_by_rules(df, top_n)
-
-        df_valid = df.dropna(subset=required_cols).sort_values("date", ascending=False)
-        latest = df_valid.groupby("symbol").first().reset_index()
-
-        stock_list = [
-            {
-                "symbol": row.get("symbol", ""),
-                "close": round(row.get("close", 0), 2),
-                "change_pct": round(row.get("change_pct", 0), 2),
-                "rsi": round(row.get("rsi", 0), 2),
-                "ma5": round(row.get("ma5", 0), 2),
-                "ma10": round(row.get("ma10", 0), 2),
-            }
-            for _, row in latest.head(30).iterrows()
-        ]
+        avg_score = sum(c.score for c in candidates) / len(candidates)
+        high_score_count = sum(1 for c in candidates if c.score >= 70)
 
         hot_sectors = news_analysis.get("hot_sectors", [])
+        sentiment = news_analysis.get("sentiment", "中性")
 
-        try:
-            return llm_client.analyze_stocks(stock_list, hot_sectors, top_n)
-        except Exception as e:
-            logger.warning(f"LLM调用失败，使用规则筛选: {e}")
-            return self._filter_by_rules(latest, top_n)
+        return {
+            "message": f"从6000多只A股中筛选出{len(candidates)}只高关注标的",
+            "avg_score": round(avg_score, 2),
+            "high_score_count": high_score_count,
+            "hot_sectors": hot_sectors,
+            "market_sentiment": sentiment,
+            "disclaimer": (
+                "⚠️ 风险提示：本分析基于历史数据和客观指标，不构成投资建议。"
+                "市场存在不确定性，请结合自身风险承受能力谨慎决策。"
+                "不存在绝对的最优股票，只有当前阶段综合表现更优的候选池。"
+            ),
+        }
