@@ -50,10 +50,11 @@ class DingTalkNotifier:
             payload = {
                 "msgtype": "markdown",
                 "markdown": {
-                    "title": f"📊 盘后信息 {date}",
+                    "title": f"📊 盘前信息 {date}",
                     "text": msg
                 }
             }
+            logger.info("payload: %s", payload)
             try:
                 resp = requests.post(self.webhook_url, json=payload, params=params, timeout=10)
                 if resp.status_code == 200:

@@ -71,8 +71,7 @@ class AfterMarketJob:
         try:
             # 先尝试从数据库读取缓存的数据
             logger.info("Attempting to load cached data from MongoDB...")
-            cached_data = self.storage.load(date_str)
-            
+            cached_data = self.storage.load()
             if cached_data:
                 logger.info(f"Found cached data for {date_str}, sending notification directly")
                 # 直接发送钉钉消息，重试10次

@@ -70,7 +70,7 @@ class MongoStorage:
             logger.error(f"MongoDB save failed: {e}")
             raise
 
-    def load(self, date_str: str) -> Optional[Dict[str, Any]]:
+    def load(self, date_str: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """
         根据日期字符串加载数据
         
@@ -85,15 +85,19 @@ class MongoStorage:
 
         try:
             # 查询指定日期的数据
-            start_date = datetime.strptime(date_str, "%Y-%m-%d")
-            end_date = start_date + timedelta(days=1)
+            if not date_str:
+                start_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+                end_date = start_date + timedelta(days=1)
+            else:
+                start_date = datetime.strptime(date_str, "%Y-%m-%d")
+                end_date = start_date + timedelta(days=1)
             
             doc = self.collection.find_one({
                 "created_at": {
                     "$gte": start_date,
                     "$lt": end_date
                 }
-            })
+            }, sort=[("created_at", -1)])
             
             if doc:
                 return doc.get("data")

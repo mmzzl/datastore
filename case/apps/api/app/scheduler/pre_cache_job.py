@@ -84,9 +84,7 @@ class PreCacheJob:
             
             # 3. 预缓存股票数据（使用新闻分析结果）
             logger.info("Step 3: Pre-caching stock data...")
-            data = self.akshare_client.format_dingtalk(news_analysis=news_analysis, llm_client=self.llm_client)
-            logger.info(f"Stock data cached: {len(data.get('stocks', []))} stocks")
-            
+            data = self.akshare_client.format_dingtalk(news_analysis=news_analysis, llm_client=self.llm_client) 
             # 4. 保存到数据库
             logger.info("Step 4: Saving cached data to MongoDB...")
             self.storage.save(data)
