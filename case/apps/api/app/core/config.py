@@ -37,6 +37,33 @@ class Settings(BaseSettings):
     after_market_pre_cache_scheduler_time: str = "17:00"
     after_market_scheduler_timezone: str = "Asia/Shanghai"
     
+    # 盯盘服务配置
+    monitor_enabled: bool = True
+    monitor_interval: int = 300  # 监控间隔（秒）
+    monitor_scheduler_time: str = "09:30"  # 盯盘开始时间
+    monitor_stocks: list = [
+        {
+            "code": "600519",
+            "name": "贵州茅台",
+            "hold": False,
+            "buy_threshold": 0.05,
+            "sell_threshold": 0.03,
+            "cost_price": 0.0,
+            "profit_target": 0.1,
+            "stop_loss": 0.05
+        },
+        {
+            "code": "000858",
+            "name": "五粮液",
+            "hold": False,
+            "buy_threshold": 0.05,
+            "sell_threshold": 0.03,
+            "cost_price": 0.0,
+            "profit_target": 0.1,
+            "stop_loss": 0.05
+        }
+    ]
+    
     # 日志配置
     logging_level: str = "INFO"
     logging_format: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -99,6 +126,10 @@ def load_config() -> Settings:
             after_market_scheduler_time=config_data.get("after_market", {}).get("scheduler_time", "20:00"),
             after_market_pre_cache_scheduler_time=config_data.get("after_market", {}).get("pre_cache_scheduler_time", "17:00"),
             after_market_scheduler_timezone=config_data.get("after_market", {}).get("scheduler_timezone", "Asia/Shanghai"),
+            monitor_enabled=config_data.get("monitor", {}).get("enabled", True),
+            monitor_interval=config_data.get("monitor", {}).get("interval", 300),
+            monitor_scheduler_time=config_data.get("monitor", {}).get("scheduler_time", "09:30"),
+            monitor_stocks=config_data.get("monitor", {}).get("stocks", []),
         )
     else:
         settings = Settings()

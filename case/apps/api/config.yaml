@@ -54,3 +54,18 @@ after_market:
 data_source:
   provider: "tushare"
   tushare_token: "9374d0726d4ba180415579b63c1e67eceb43c61d728ffe0ec7d63add"
+
+# 盯盘服务配置
+monitor:
+  enabled: true
+  interval: 300  # 监控间隔（秒）
+  scheduler_time: "09:30"  # 盯盘开始时间
+  stocks:
+    - code: "600026"
+      name: "中远海能"
+      hold: true
+      buy_threshold: 0.05
+      sell_threshold: 0.03
+      cost_price: 22.413
+      profit_target: 0.1
+      stop_loss: 0.05

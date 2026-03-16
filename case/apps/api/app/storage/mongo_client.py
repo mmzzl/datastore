@@ -51,12 +51,13 @@ class MongoStorage:
             self.client.close()
             logger.info("MongoDB connection closed")
 
-    def save(self, data: Dict[str, Any]) -> Optional[str]:
+    def save(self, data: Any) -> Optional[str]:
         if self.collection is None:
             self.connect()
+        # Always create a new dictionary to avoid modifying the input
         save_data = {}
         save_data["created_at"] = datetime.now()
-        save_data.update({"data": data})
+        save_data["data"] = data
         
         try:
             result = self.collection.update_one(

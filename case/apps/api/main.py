@@ -134,9 +134,48 @@ def run_pre_cache_job():
         logging.error(traceback.format_exc())
 
 
+def run_monitor_job():
+    """执行盯盘任务"""
+    try:
+        config = {
+            "database": {
+                "host": settings.mongodb_host,
+                "port": settings.mongodb_port,
+                "name": settings.mongodb_database,
+                "username": settings.mongodb_username,
+                "password": settings.mongodb_password,
+            },
+            "data_source": {
+                "provider": settings.data_source,
+                "tushare_token": settings.tushare_token,
+            },
+            "after_market": {
+                "news_api_url": settings.after_market_news_api_url,
+                "news_api_username": settings.after_market_news_api_username,
+                "news_api_password": settings.after_market_news_api_password,
+                "dingtalk_webhook": settings.after_market_dingtalk_webhook,
+                "dingtalk_secret": settings.after_market_dingtalk_secret,
+            },
+            "llm": {
+                "provider": settings.llm_provider,
+                "api_key": settings.llm_api_key,
+                "model": settings.llm_model,
+                "base_url": settings.llm_base_url,
+            },
+        }
+        from app.scheduler import MonitorJob
+        job = MonitorJob(config)
+        job.run()
+    except Exception as e:
+        logging.error(f"Monitor job failed: {e}")
+        logging.error(traceback.format_exc())
+
+
 def setup_scheduler():
     job_time = settings.after_market_scheduler_time
     pre_cache_time = settings.after_market_pre_cache_scheduler_time
+    monitor_time = settings.monitor_scheduler_time
+    monitor_interval = settings.monitor_interval
     timezone = settings.after_market_scheduler_timezone
     
     # 添加预缓存任务
@@ -162,6 +201,21 @@ def setup_scheduler():
         id='after_market_job'
     )
     logging.info(f"Main scheduler configured to run at {job_time} ({timezone})")
+    
+    # 添加盯盘任务
+    if settings.monitor_enabled:
+        monitor_hour, monitor_minute = map(int, monitor_time.split(':'))
+        # 每天在指定时间开始，然后按间隔重复执行
+        # 使用cron表达式确保每天固定时间执行，避免start_date不更新的问题
+        scheduler.add_job(
+            run_monitor_job,
+            'cron',
+            hour=monitor_hour,
+            minute=monitor_minute,
+            timezone=timezone,
+            id='monitor_job'
+        )
+        logging.info(f"Monitor scheduler configured to run at {monitor_time} every day ({timezone})")
 
 
 @app.on_event("startup")
