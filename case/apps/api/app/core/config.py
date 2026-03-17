@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     mongodb_username: str = "admin"
     mongodb_password: str = "aa123aaqqA!@"
     mongodb_database: str = "news_db"
+    mongodb_dbname: str = "news_db"  # 兼容旧代码
     mongodb_collection: str = "news"
     
     # JWT配置
@@ -102,6 +103,7 @@ def load_config() -> Settings:
             mongodb_collection=config_data.get("mongodb", {}).get("collection", "news"),
             mongodb_username=config_data.get("mongodb", {}).get("username", ""),
             mongodb_password=config_data.get("mongodb", {}).get("password", ""),
+            mongodb_dbname=config_data.get("mongodb", {}).get("database", "news_db"),
             jwt_secret_key=config_data.get("jwt", {}).get("secret_key", "your-secret-key-here"),
             jwt_algorithm=config_data.get("jwt", {}).get("algorithm", "HS256"),
             jwt_access_token_expire_minutes=config_data.get("jwt", {}).get("access_token_expire_minutes", 30),

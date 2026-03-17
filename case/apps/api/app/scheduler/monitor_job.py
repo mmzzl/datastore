@@ -1,6 +1,7 @@
 from datetime import datetime, date, timedelta
 from typing import Dict, Any, Optional
 import logging
+import calendar
 
 from ..monitor import StockMonitor
 
@@ -13,6 +14,33 @@ class MonitorJob:
         self.config = config
         self.monitor = None
     
+    def is_trading_time(self) -> bool:
+        """
+        判断当前是否为交易时间
+        
+        返回:
+            bool: 是否为交易时间
+        """
+        now = datetime.now()
+        
+        # 检查是否为工作日
+        if now.weekday() >= 5:  # 周六、周日
+            # logger.info("当前为非工作日，跳过盯盘")
+            return False
+        
+        # 检查是否为交易日（这里简化处理，实际应该检查法定节假日）
+        # 这里可以添加更复杂的节假日判断逻辑
+        
+        # 检查是否为交易时间
+        trading_start = now.replace(hour=9, minute=30, second=0, microsecond=0)
+        trading_end = now.replace(hour=15, minute=0, second=0, microsecond=0)
+        
+        if not (trading_start <= now <= trading_end):
+            # logger.info(f"当前非交易时间 ({now.strftime('%H:%M:%S')})，跳过盯盘")
+            return False
+        
+        return True
+    
     def run(self, target_date: Optional[str] = None) -> str:
         """
         执行盯盘任务
@@ -23,6 +51,10 @@ class MonitorJob:
         返回:
             执行结果消息
         """
+        # 检查是否为交易时间
+        if not self.is_trading_time():
+            return "当前非交易时间，跳过盯盘任务"
+        
         if target_date:
             target = datetime.strptime(target_date, "%Y-%m-%d")
         else:

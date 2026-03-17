@@ -204,18 +204,14 @@ def setup_scheduler():
     
     # 添加盯盘任务
     if settings.monitor_enabled:
-        monitor_hour, monitor_minute = map(int, monitor_time.split(':'))
-        # 每天在指定时间开始，然后按间隔重复执行
-        # 使用cron表达式确保每天固定时间执行，避免start_date不更新的问题
+        # 使用interval类型，按指定间隔执行
         scheduler.add_job(
             run_monitor_job,
-            'cron',
-            hour=monitor_hour,
-            minute=monitor_minute,
-            timezone=timezone,
+            'interval',
+            seconds=monitor_interval,
             id='monitor_job'
         )
-        logging.info(f"Monitor scheduler configured to run at {monitor_time} every day ({timezone})")
+        logging.info(f"Monitor scheduler configured to run every {monitor_interval} seconds")
 
 
 @app.on_event("startup")

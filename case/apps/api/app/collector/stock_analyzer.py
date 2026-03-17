@@ -90,6 +90,7 @@ class StockAnalyzer:
 
             top_candidates = sorted(candidates, key=lambda x: x.score, reverse=True)[:top_n]
 
+            # 构建结果
             result = {
                 "total_candidates": len(candidates),
                 "top_stocks": [
@@ -112,6 +113,40 @@ class StockAnalyzer:
                 ],
                 "summary": self._generate_summary(top_candidates, news_analysis),
             }
+
+            # 保存新闻分析股票到单独的collection
+            try:
+                from app.storage.mongo_client import MongoStorage
+                mongo = MongoStorage(**self.mongo_config)
+                mongo.connect()
+                
+                # 转换股票格式，添加必要的字段
+                news_stocks = []
+                for stock in top_candidates:
+                    # 提取6位数字代码
+                    code_match = re.search(r'\d{6}', stock.symbol)
+                    if code_match:
+                        code = code_match.group()
+                        news_stocks.append({
+                            "code": code,
+                            "name": stock.name,
+                            "hold": False,
+                            "buy_threshold": 0.05,
+                            "sell_threshold": 0.03,
+                            "cost_price": 0.0,
+                            "profit_target": 0.1,
+                            "stop_loss": 0.05,
+                            "rsi_buy_level": 30,
+                            "rsi_sell_level": 70,
+                            "k_buy_level": 20,
+                            "k_sell_level": 80
+                        })
+                
+                if news_stocks:
+                    mongo.save_news_stocks(news_stocks)
+                mongo.close()
+            except Exception as e:
+                logger.error(f"保存新闻分析股票失败: {e}")
 
             return result
 

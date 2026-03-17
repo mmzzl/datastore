@@ -1,7 +1,12 @@
 from typing import Dict, Any, List
+from datetime import datetime
 from app.core.config import settings
+from app.storage.mongo_client import MongoStorage
 import json
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 class MonitorConfig:
     """监控配置管理"""
@@ -77,9 +82,84 @@ class MonitorConfig:
         获取监控股票列表
         
         返回:
-            监控股票列表
+            监控股票列表，包含配置文件中的股票和新闻分析后的股票
         """
-        return self.config.get("stocks", [])
+        # 从配置文件获取股票
+        config_stocks = self.config.get("stocks", [])
+        
+        # 从MongoDB获取新闻分析后的股票（只获取今天的）
+        news_stocks = []
+        try:
+            # 构建MongoDB配置
+            mongo_config = {
+                "host": settings.mongodb_host,
+                "port": settings.mongodb_port,
+                "db_name": settings.mongodb_dbname,
+                "username": settings.mongodb_username,
+                "password": settings.mongodb_password
+            }
+            
+            mongo = MongoStorage(**mongo_config)
+            mongo.connect()
+            
+            # 只获取今天的新闻分析股票
+            today = datetime.now().strftime("%Y-%m-%d")
+            news_stocks = mongo.get_news_stocks(today)
+            
+            # 获取当前监控股票池
+            monitor_stocks = mongo.get_monitor_stocks()
+            
+            # 如果监控股票池为空，初始化监控股票池
+            if not monitor_stocks:
+                # 合并配置文件中的股票和新闻分析后的股票
+                all_stocks = []
+                seen_codes = set()
+                
+                # 先添加配置文件中的股票
+                for stock in config_stocks:
+                    code = stock.get("code")
+                    if code and code not in seen_codes:
+                        seen_codes.add(code)
+                        all_stocks.append(stock)
+                
+                # 再添加新闻分析后的股票
+                for stock in news_stocks:
+                    code = stock.get("code")
+                    if code and code not in seen_codes:
+                        seen_codes.add(code)
+                        all_stocks.append(stock)
+                
+                # 保存到监控股票池
+                if all_stocks:
+                    mongo.save_monitor_stocks(all_stocks)
+                mongo.close()
+                logger.info(f"初始化监控股票池，共 {len(all_stocks)} 只股票")
+                return all_stocks
+            else:
+                # 检查是否有新的新闻分析股票需要添加
+                seen_codes = set(stock.get("code") for stock in monitor_stocks)
+                new_stocks = []
+                
+                # 添加新的新闻分析股票
+                for stock in news_stocks:
+                    code = stock.get("code")
+                    if code and code not in seen_codes:
+                        seen_codes.add(code)
+                        monitor_stocks.append(stock)
+                        new_stocks.append(stock)
+                
+                # 如果有新股票，更新监控股票池
+                if new_stocks:
+                    mongo.save_monitor_stocks(monitor_stocks)
+                    logger.info(f"添加 {len(new_stocks)} 只新股票到监控股票池")
+                
+                mongo.close()
+                logger.info(f"从监控股票池获取到 {len(monitor_stocks)} 只股票")
+                return monitor_stocks
+        except Exception as e:
+            logger.error(f"获取监控股票失败: {e}")
+            # 失败时返回配置文件中的股票
+            return config_stocks
     
     def get_holding_stocks(self) -> List[Dict[str, Any]]:
         """

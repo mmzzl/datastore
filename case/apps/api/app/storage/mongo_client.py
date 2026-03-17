@@ -27,6 +27,8 @@ class MongoStorage:
         self.collection = None
         self.kline_collection = None
         self.capital_flow_collection = None
+        self.news_stocks_collection = None
+        self.monitor_stocks_collection = None
 
     def connect(self):
         try:
@@ -40,6 +42,8 @@ class MongoStorage:
             self.collection = self.db["after_market"]
             self.kline_collection = self.db["stock_kline"]
             self.capital_flow_collection = self.db["capital_flow"]
+            self.news_stocks_collection = self.db["news_stocks"]
+            self.monitor_stocks_collection = self.db["monitor_stocks"]
             self.client.admin.command("ping")
             logger.info(f"MongoDB connected: {self.host}:{self.port}/{self.db_name}")
         except PyMongoError as e:
@@ -303,4 +307,150 @@ class MongoStorage:
             return results
         except PyMongoError as e:
             logger.error(f"MongoDB capital flow query failed: {e}")
+            raise
+
+    def save_news_stocks(self, stocks: List[Dict]) -> Optional[str]:
+        """
+        保存新闻分析后的股票到单独的collection
+        
+        参数:
+            stocks: 股票列表，每个股票包含code、name等信息
+            
+        返回:
+            保存结果的ID或修改计数
+        """
+        if self.news_stocks_collection is None:
+            self.connect()
+        
+        try:
+            # 先删除当天的记录
+            today = datetime.now().strftime("%Y-%m-%d")
+            self.news_stocks_collection.delete_many({"date": today})
+            
+            # 保存新记录
+            save_data = {
+                "date": today,
+                "created_at": datetime.now(),
+                "stocks": stocks
+            }
+            
+            result = self.news_stocks_collection.insert_one(save_data)
+            logger.info(f"保存新闻分析股票成功，共 {len(stocks)} 只股票")
+            return str(result.inserted_id)
+        except PyMongoError as e:
+            logger.error(f"保存新闻分析股票失败: {e}")
+            raise
+
+    def get_news_stocks(self, date: str = None) -> List[Dict]:
+        """
+        获取新闻分析后的股票
+        
+        参数:
+            date: 日期字符串，格式为 YYYY-MM-DD，默认今天
+            
+        返回:
+            股票列表
+        """
+        if self.news_stocks_collection is None:
+            self.connect()
+        
+        try:
+            if not date:
+                date = datetime.now().strftime("%Y-%m-%d")
+            
+            doc = self.news_stocks_collection.find_one({"date": date})
+            if doc:
+                return doc.get("stocks", [])
+            return []
+        except PyMongoError as e:
+            logger.error(f"获取新闻分析股票失败: {e}")
+            raise
+
+    def save_monitor_stocks(self, stocks: List[Dict]) -> Optional[str]:
+        """
+        保存监控股票池
+        
+        参数:
+            stocks: 股票列表，每个股票包含code、name等信息
+            
+        返回:
+            保存结果的ID
+        """
+        if self.monitor_stocks_collection is None:
+            self.connect()
+        
+        try:
+            # 先删除所有记录
+            self.monitor_stocks_collection.delete_many({})
+            
+            # 保存新记录
+            save_data = {
+                "date": datetime.now().strftime("%Y-%m-%d"),
+                "created_at": datetime.now(),
+                "stocks": stocks
+            }
+            
+            result = self.monitor_stocks_collection.insert_one(save_data)
+            logger.info(f"保存监控股票池成功，共 {len(stocks)} 只股票")
+            return str(result.inserted_id)
+        except PyMongoError as e:
+            logger.error(f"保存监控股票池失败: {e}")
+            raise
+
+    def get_monitor_stocks(self) -> List[Dict]:
+        """
+        获取监控股票池
+        
+        返回:
+            股票列表
+        """
+        if self.monitor_stocks_collection is None:
+            self.connect()
+        
+        try:
+            doc = self.monitor_stocks_collection.find_one(sort=[("created_at", -1)])
+            if doc:
+                return doc.get("stocks", [])
+            return []
+        except PyMongoError as e:
+            logger.error(f"获取监控股票池失败: {e}")
+            raise
+
+    def remove_monitor_stock(self, stock_code: str) -> int:
+        """
+        从监控股票池中移除股票
+        
+        参数:
+            stock_code: 股票代码
+            
+        返回:
+            操作结果
+        """
+        if self.monitor_stocks_collection is None:
+            self.connect()
+        
+        try:
+            # 获取当前监控股票池
+            doc = self.monitor_stocks_collection.find_one(sort=[("created_at", -1)])
+            if not doc:
+                return 0
+            
+            # 过滤掉要移除的股票
+            stocks = doc.get("stocks", [])
+            filtered_stocks = [stock for stock in stocks if stock.get("code") != stock_code]
+            
+            # 保存更新后的股票池
+            if len(filtered_stocks) != len(stocks):
+                save_data = {
+                    "date": datetime.now().strftime("%Y-%m-%d"),
+                    "created_at": datetime.now(),
+                    "stocks": filtered_stocks
+                }
+                self.monitor_stocks_collection.delete_many({})
+                self.monitor_stocks_collection.insert_one(save_data)
+                logger.info(f"从监控股票池移除股票: {stock_code}")
+                return 1
+            return 0
+        except PyMongoError as e:
+            logger.error(f"移除监控股票失败: {e}")
             raise

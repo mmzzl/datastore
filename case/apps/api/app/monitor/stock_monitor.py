@@ -6,9 +6,10 @@ from .config import MonitorConfig
 from .analysis.technical import TechnicalAnalyzer
 from .analysis.signal import SignalGenerator
 from .models import StockData, TechnicalData, Signal, MonitorResult, MonitorNotification
-from ..collector import AkshareClient
+from .data_source import get_data_source_manager, MultiDataSourceManager
 from ..notify import DingTalkNotifier
 from ..storage import MongoStorage
+from ..collector import AkshareClient
 
 logger = logging.getLogger(__name__)
 
@@ -167,6 +168,16 @@ class StockMonitor:
         
         # 存储监控历史
         self._save_monitor_history(monitor_result)
+        
+        # 检查股票是否适合继续监控
+        # 如果信号为hold且信号强度较低，可能意味着股票走势走坏
+        if signal_result.get("signal") == "hold" and signal_result.get("strength") < 2:
+            # 从监控股票池中移除
+            try:
+                self.storage.remove_monitor_stock(stock_code)
+                logger.info(f"股票 {stock_code} 走势走坏，已从监控股票池移除")
+            except Exception as e:
+                logger.error(f"移除股票失败: {e}")
         
         return monitor_result
     
