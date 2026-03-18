@@ -7,6 +7,7 @@ from .models import DataSourceConfig, StockKLine, StockInfo
 from .adapters.baostock_adapter import BaostockAdapter
 from .adapters.mongodb_adapter import MongoDBAdapter
 from .adapters.akshare_adapter import AkshareAdapter
+from .adapters.tdx_adapter import TDXAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -25,24 +26,31 @@ class DataSourceManager:
         """获取默认数据源配置"""
         return [
             DataSourceConfig(
+                provider="tdx",
+                name="通达信实时数据源",
+                enabled=True,
+                priority=1,
+                config={}
+            ),
+            DataSourceConfig(
                 provider="baostock",
                 name="Baostock免费数据源",
                 enabled=True,
-                priority=1,
+                priority=2,
                 config={}
             ),
             DataSourceConfig(
                 provider="mongodb",
                 name="MongoDB缓存数据源",
                 enabled=True,
-                priority=2,
+                priority=3,
                 config={}
             ),
             DataSourceConfig(
                 provider="akshare",
                 name="Akshare数据源",
                 enabled=True,
-                priority=3,
+                priority=4,
                 config={}
             )
         ]
@@ -60,6 +68,8 @@ class DataSourceManager:
                     adapter = MongoDBAdapter()
                 elif config.provider == "akshare":
                     adapter = AkshareAdapter()
+                elif config.provider == "tdx":
+                    adapter = TDXAdapter()
                 else:
                     logger.warning(f"未知的数据源提供商: {config.provider}")
                     continue
