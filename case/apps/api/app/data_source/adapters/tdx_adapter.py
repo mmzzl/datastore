@@ -2,6 +2,8 @@ import logging
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 
+logger = logging.getLogger(__name__)
+
 try:
     from mootdx.quotes import Quotes
     MOOTDX_AVAILABLE = True
@@ -11,8 +13,6 @@ except ImportError:
 
 from ..interface import IDataSource
 from ..models import StockKLine, StockInfo
-
-logger = logging.getLogger(__name__)
 
 class TDXAdapter(IDataSource):
     """通达信（TDX）数据源适配器"""
