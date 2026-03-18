@@ -6,6 +6,9 @@ from .config import MonitorConfig
 from .analysis.technical import TechnicalAnalyzer
 from .analysis.signal import SignalGenerator
 from .models import StockData, TechnicalData, Signal, MonitorResult, MonitorNotification
+from .brain.analyzer import BrainAnalyzer
+from .brain.unhook import UnhookEngine
+from .brain.backtest import BacktestEngine
 from .data_source import get_data_source_manager, MultiDataSourceManager
 from ..notify import DingTalkNotifier
 from ..storage import MongoStorage
@@ -21,6 +24,11 @@ class StockMonitor:
         self.monitor_config = MonitorConfig()
         self.technical_analyzer = TechnicalAnalyzer()
         self.signal_generator = SignalGenerator()
+        # Brain System
+        self.brain_analyzer = BrainAnalyzer()
+        self.unhook_engine = UnhookEngine()
+        self.backtest_engine = BacktestEngine()
+        
         self.akshare_client = None
         self.dingtalk_notifier = None
         self.storage = None
@@ -120,7 +128,7 @@ class StockMonitor:
     
     def analyze_stock(self, stock_config: Dict[str, Any]) -> Optional[MonitorResult]:
         """
-        分析股票
+        分析股票 - 集成Brain系统
         
         参数:
             stock_config: 股票配置
@@ -144,9 +152,56 @@ class StockMonitor:
         # 分析技术指标
         technical_result = self.technical_analyzer.analyze_stock(history_data)
         
-        # 生成信号
+        # === Brain系统分析 ===
+        try:
+            # 准备技术数据供Brain使用
+            brain_technical_data = {
+                "rsi": technical_result.get("rsi", 50.0),
+                "macd": technical_result.get("macd", {}),
+                "kdj": technical_result.get("kdj", {}),
+                "bollinger": technical_result.get("bollinger", {}),
+                "close": history_data.get("close", [])
+            }
+            
+            # Brain分析
+            brain_decision = self.brain_analyzer.analyze(
+                code=stock_code,
+                technical_data=brain_technical_data,
+                current_price=stock_data.current_price
+            )
+            
+            logger.info(f"Brain决策 - {stock_code}: {brain_decision.action}, 置信度: {brain_decision.confidence:.2f}")
+            
+            # 如果是持仓股票，生成解套策略
+            unhook_strategy = None
+            if stock_config.get("hold", False):
+                cost_price = stock_config.get("cost_price", 0.0)
+                if cost_price > 0:
+                    unhook_strategy = self.unhook_engine.calculate_strategy(
+                        code=stock_code,
+                        current_price=stock_data.current_price,
+                        cost_price=cost_price
+                    )
+                    logger.info(f"解套策略 - {stock_code}: {unhook_strategy.suggestion}")
+            
+        except Exception as e:
+            logger.error(f"Brain分析出错: {e}")
+            brain_decision = None
+            unhook_strategy = None
+        
+        # 生成信号（保留原有逻辑，但可以结合Brain决策）
         stock_config["current_price"] = stock_data.current_price
         signal_result = self.signal_generator.generate_signal(technical_result, stock_config)
+        
+        # 如果有Brain决策，优先使用Brain的信号
+        if brain_decision:
+            signal_result = {
+                "signal": brain_decision.action,
+                "strength": int(brain_decision.confidence * 10),
+                "strength_percentage": brain_decision.confidence * 100,
+                "reasons": brain_decision.reasons,
+                "suggestion": f"Brain建议: {brain_decision.action}"
+            }
         
         # 构建监控结果
         monitor_result = MonitorResult(
@@ -169,6 +224,10 @@ class StockMonitor:
         # 存储监控历史
         self._save_monitor_history(monitor_result)
         
+        # 如果有解套策略，存储解套建议
+        if unhook_strategy:
+            self._save_unhook_strategy(unhook_strategy)
+        
         # 检查股票是否适合继续监控
         # 如果信号为hold且信号强度较低，可能意味着股票走势走坏
         if signal_result.get("signal") == "hold" and signal_result.get("strength") < 2:
@@ -180,6 +239,34 @@ class StockMonitor:
                 logger.error(f"移除股票失败: {e}")
         
         return monitor_result
+    
+    def _save_unhook_strategy(self, unhook_strategy):
+        """
+        存储解套策略
+        
+        参数:
+            unhook_strategy: 解套策略
+        """
+        try:
+            if not self.storage:
+                return
+            
+            strategy_data = {
+                "code": unhook_strategy.code,
+                "current_price": unhook_strategy.current_price,
+                "cost_price": unhook_strategy.cost_price,
+                "suggestion": unhook_strategy.suggestion,
+                "details": unhook_strategy.details,
+                "expected_recovery_time": unhook_strategy.expected_recovery_time,
+                "timestamp": unhook_strategy.timestamp
+            }
+            
+            # 存储到MongoDB
+            # 这里可以根据需要存储到特定的集合
+            logger.info(f"存储解套策略 - {unhook_strategy.code}: {unhook_strategy.suggestion}")
+            
+        except Exception as e:
+            logger.error(f"Error saving unhook strategy: {e}")
     
     def _save_monitor_history(self, monitor_result: MonitorResult):
         """
