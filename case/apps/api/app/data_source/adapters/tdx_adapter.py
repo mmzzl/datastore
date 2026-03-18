@@ -1,10 +1,12 @@
 import logging
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
 try:
+    import mootdx as md
     from mootdx.quotes import Quotes
     MOOTDX_AVAILABLE = True
 except ImportError:
@@ -30,11 +32,10 @@ class TDXAdapter(IDataSource):
             return
         
         try:
-            self._client = Quotes.factory(market='std')
-            logger.info("通达信客户端初始化成功")
+            # mootdx不需要显式初始化客户端，每次使用时创建
+            logger.info("通达信适配器初始化成功")
         except Exception as e:
-            logger.error(f"初始化通达信客户端失败: {e}")
-            self._client = None
+            logger.error(f"初始化通达信适配器失败: {e}")
     
     @property
     def name(self) -> str:
@@ -52,18 +53,94 @@ class TDXAdapter(IDataSource):
         frequency: str = "d",
         adjust_flag: str = "3"
     ) -> List[StockKLine]:
-        """通达信主要用于实时数据，K线数据获取功能有限"""
-        if not self._client:
+        """获取K线数据 - 使用mootdx"""
+        if not MOOTDX_AVAILABLE:
+            logger.warning("mootdx库不可用，无法获取K线数据")
             return []
         
         try:
-            # 转换代码格式 sh.600000 -> 600000
+            # 转换代码格式 sh.600000 -> 600000, sz.000001 -> 000001
             stock_code = code.split('.')[-1] if '.' in code else code
             
-            # 通达信主要用于实时数据，这里返回空列表
-            # 可以通过其他方式获取K线数据
-            logger.info(f"通达信主要用于实时数据，K线数据建议使用其他数据源")
-            return []
+            # 判断市场代码
+            # 沪市：60开头、688科创板、900开头（B股）
+            # 深市：00开头、300创业板、200开头（B股）
+            if stock_code.startswith('6') or stock_code.startswith('9'):
+                market = 0  # 沪市
+            else:
+                market = 1  # 深市
+            
+            # 转换频率
+            freq_map = {
+                'd': md.constants.KLINE_TYPE['D'],  # 日线
+                'w': md.constants.KLINE_TYPE['W'],  # 周线
+                'm': md.constants.KLINE_TYPE['M'],  # 月线
+                '5': md.constants.KLINE_TYPE['5'],  # 5分钟
+                '1': md.constants.KLINE_TYPE['1'],  # 1分钟
+            }
+            tdx_freq = freq_map.get(frequency.lower(), md.constants.KLINE_TYPE['D'])
+            
+            # 初始化行情接口
+            client = md.TdxHq_API(heartbeat=True)
+            
+            with client.connect():
+                # 获取K线数据
+                df = client.get_security_bars(
+                    category=tdx_freq,
+                    market=market,
+                    code=stock_code,
+                    start=0,
+                    count=1000
+                )
+                
+                if df is None or df.empty:
+                    logger.warning(f"未获取到 {code} 的K线数据")
+                    return []
+                
+                # 转换为统一格式
+                data_list = []
+                for _, row in df.iterrows():
+                    # 处理日期
+                    date_str = str(row.get('datetime', ''))
+                    if not date_str:
+                        continue
+                    
+                    # 解析日期
+                    try:
+                        if len(date_str) == 8:  # YYYYMMDD
+                            date = datetime.strptime(date_str, '%Y%m%d')
+                        elif len(date_str) == 14:  # YYYYMMDD HHMMSS
+                            date = datetime.strptime(date_str[:8], '%Y%m%d')
+                        else:
+                            continue
+                    except:
+                        continue
+                    
+                    # 筛选日期范围
+                    if start_date:
+                        start_dt = datetime.strptime(start_date, '%Y-%m-%d')
+                        if date < start_dt:
+                            continue
+                    if end_date:
+                        end_dt = datetime.strptime(end_date, '%Y-%m-%d')
+                        if date > end_dt:
+                            continue
+                    
+                    kline = StockKLine(
+                        code=code,
+                        date=date.strftime('%Y-%m-%d'),
+                        open=float(row.get('open', 0)),
+                        high=float(row.get('high', 0)),
+                        low=float(row.get('low', 0)),
+                        close=float(row.get('close', 0)),
+                        volume=int(row.get('volume', 0)),
+                        amount=float(row.get('amount', 0))
+                    )
+                    data_list.append(kline)
+                
+                # 按日期排序
+                data_list.sort(key=lambda x: x.date)
+                return data_list
             
         except Exception as e:
             logger.error(f"获取K线数据异常: {e}")
@@ -71,28 +148,37 @@ class TDXAdapter(IDataSource):
     
     def get_stock_info(self, code: str) -> Optional[StockInfo]:
         """获取股票基本信息"""
-        if not self._client:
+        if not MOOTDX_AVAILABLE:
             return None
         
         try:
             # 转换代码格式
             stock_code = code.split('.')[-1] if '.' in code else code
             
-            # 获取实时数据
-            data = self._client.quotes(symbol=stock_code)
+            # 判断市场代码
+            if stock_code.startswith('6') or stock_code.startswith('9'):
+                market = 0  # 沪市
+            else:
+                market = 1  # 深市
             
-            if data is not None and len(data) > 0:
-                row = data.iloc[0]
+            # 初始化行情接口
+            client = md.TdxHq_API(heartbeat=True)
+            
+            with client.connect():
+                # 获取实时数据
+                data = client.get_security_quotes([(market, stock_code)])
                 
-                # 确定交易所
-                market = row.get('market', 1)
-                exchange = "SH" if market == 1 else "SZ"
-                
-                return StockInfo(
-                    code=code,
-                    name=code,  # 通达信返回的数据中没有股票名称
-                    exchange=exchange
-                )
+                if data is not None and len(data) > 0:
+                    row = data.iloc[0]
+                    
+                    # 确定交易所
+                    exchange = "SH" if market == 0 else "SZ"
+                    
+                    return StockInfo(
+                        code=code,
+                        name=stock_code,  # 通达信不提供股票名称，使用代码
+                        exchange=exchange
+                    )
             return None
             
         except Exception as e:
@@ -106,37 +192,52 @@ class TDXAdapter(IDataSource):
     
     def get_realtime_data(self, code: str) -> Dict[str, Any]:
         """获取实时数据 - 通达信的主要功能"""
-        if not self._client:
+        if not MOOTDX_AVAILABLE:
             return {}
         
         try:
             # 转换代码格式
             stock_code = code.split('.')[-1] if '.' in code else code
             
-            # 获取实时数据
-            data = self._client.quotes(symbol=stock_code)
+            # 判断市场代码
+            if stock_code.startswith('6') or stock_code.startswith('9'):
+                market = 0  # 沪市
+            else:
+                market = 1  # 深市
             
-            if data is not None and len(data) > 0:
-                row = data.iloc[0]
+            # 初始化行情接口
+            client = md.TdxHq_API(heartbeat=True)
+            
+            with client.connect():
+                # 获取实时数据
+                data = client.get_security_quotes([(market, stock_code)])
                 
-                # 确定交易所
-                market = row.get('market', 1)
-                exchange = "SH" if market == 1 else "SZ"
-                
-                return {
-                    "code": f"{exchange}.{stock_code}",
-                    "name": stock_code,
-                    "price": float(row.get('price', 0)),
-                    "change": float(row.get('price', 0)) - float(row.get('last_close', 0)),
-                    "change_pct": ((float(row.get('price', 0)) - float(row.get('last_close', 0))) / float(row.get('last_close', 0)) * 100) if float(row.get('last_close', 0)) != 0 else 0,
-                    "volume": int(row.get('volume', 0)),
-                    "amount": float(row.get('amount', 0)) if 'amount' in row else 0,
-                    "open": float(row.get('open', 0)),
-                    "high": float(row.get('high', 0)),
-                    "low": float(row.get('low', 0)),
-                    "close": float(row.get('price', 0)),
-                    "last_close": float(row.get('last_close', 0))
-                }
+                if data is not None and len(data) > 0:
+                    row = data.iloc[0]
+                    
+                    # 确定交易所
+                    exchange = "SH" if market == 0 else "SZ"
+                    
+                    # 计算涨跌幅
+                    price = float(row.get('price', 0))
+                    last_close = float(row.get('last_close', 0))
+                    change = price - last_close
+                    change_pct = (change / last_close * 100) if last_close != 0 else 0
+                    
+                    return {
+                        "code": f"{exchange}.{stock_code}",
+                        "name": stock_code,
+                        "price": price,
+                        "change": change,
+                        "change_pct": change_pct,
+                        "volume": int(row.get('volume', 0)),
+                        "amount": float(row.get('amount', 0)) if 'amount' in row else 0,
+                        "open": float(row.get('open', 0)),
+                        "high": float(row.get('high', 0)),
+                        "low": float(row.get('low', 0)),
+                        "close": price,
+                        "last_close": last_close
+                    }
             return {}
             
         except Exception as e:
