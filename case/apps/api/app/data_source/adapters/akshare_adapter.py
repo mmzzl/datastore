@@ -2,6 +2,7 @@ import logging
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 import akshare as ak
+import pandas as pd
 
 from ..interface import IDataSource
 from ..models import StockKLine, StockInfo
@@ -135,27 +136,50 @@ class AkshareAdapter(IDataSource):
             return {}
     
     def get_capital_flow(self, code: str, days: int = 5) -> List[Dict[str, Any]]:
-        """Akshare资金流向数据"""
+        """获取个股历史资金流向"""
         try:
             stock_code = code.split('.')[-1] if '.' in code else code
             
-            # 获取历史K线数据
-            df = ak.stock_zh_a_hist(
-                symbol=stock_code,
-                period="daily",
-                start_date=(datetime.now() - timedelta(days=days)).strftime('%Y%m%d'),
-                end_date=datetime.now().strftime('%Y%m%d')
-            )
+            # 使用akshare获取个股资金流向
+            df = ak.stock_individual_fund_flow(stock=stock_code)
             
-            # 简化处理，返回基本的资金流向信息
-            # 注意：Akshare不直接提供资金流向，这里返回模拟数据
+            if df is None or df.empty:
+                logger.warning(f"未获取到 {code} 的资金流向数据")
+                return []
+            
             result = []
-            for _, row in df.iterrows():
-                result.append({
-                    "date": str(row['日期']),
-                    "net_inflow": 0,  # Akshare不直接提供，需要计算
-                    "code": code
-                })
+            for idx, row in df.iterrows():
+                try:
+                    # 安全地获取和转换数据
+                    date_val = row['日期']
+                    close_val = row['收盘价']
+                    change_pct_val = row['涨跌幅']
+                    main_inflow = row['主力净流入-净额']
+                    main_inflow_ratio = row['主力净流入-净占比']
+                    
+                    # 使用 .iloc 或 .at 来安全访问数据
+                    date_str = str(date_val) if pd.notna(date_val) else ""
+                    close_float = float(close_val) if pd.notna(close_val) else 0.0
+                    change_pct_float = float(change_pct_val) if pd.notna(change_pct_val) else 0.0
+                    main_inflow_float = float(main_inflow) if pd.notna(main_inflow) else 0.0
+                    main_inflow_ratio_float = float(main_inflow_ratio) if pd.notna(main_inflow_ratio) else 0.0
+                    
+                    result.append({
+                        "date": date_str,
+                        "code": code,
+                        "close": close_float,
+                        "change_pct": change_pct_float,
+                        "主力净流入_净额": main_inflow_float,
+                        "主力净流入_净占比": main_inflow_ratio_float,
+                        "net_inflow": main_inflow_float
+                    })
+                except Exception as row_error:
+                    logger.warning(f"处理资金流向数据行失败: {row_error}")
+                    continue
+            
+            # 如果指定了天数，只返回最近N天的数据
+            if days > 0 and len(result) > days:
+                result = result[:days]
             
             return result
             
