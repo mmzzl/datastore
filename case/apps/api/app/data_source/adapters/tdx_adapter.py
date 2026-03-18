@@ -6,8 +6,8 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 try:
-    import mootdx as md
-    from mootdx.quotes import Quotes
+    from mootdx import quotes
+    Quotes = quotes.Quotes
     MOOTDX_AVAILABLE = True
 except ImportError:
     MOOTDX_AVAILABLE = False
@@ -70,77 +70,63 @@ class TDXAdapter(IDataSource):
             else:
                 market = 1  # 深市
             
-            # 转换频率
-            freq_map = {
-                'd': md.constants.KLINE_TYPE['D'],  # 日线
-                'w': md.constants.KLINE_TYPE['W'],  # 周线
-                'm': md.constants.KLINE_TYPE['M'],  # 月线
-                '5': md.constants.KLINE_TYPE['5'],  # 5分钟
-                '1': md.constants.KLINE_TYPE['1'],  # 1分钟
-            }
-            tdx_freq = freq_map.get(frequency.lower(), md.constants.KLINE_TYPE['D'])
+            # 初始化行情客户端
+            client = Quotes.factory(market='std', multithread=True, heartbeat=True)
             
-            # 初始化行情接口
-            client = md.TdxHq_API(heartbeat=True)
+            # 获取K线数据
+            # 使用 bars 方法获取K线数据
+            df = client.bars(symbol=stock_code, frequency=frequency, market=market)
             
-            with client.connect():
-                # 获取K线数据
-                df = client.get_security_bars(
-                    category=tdx_freq,
-                    market=market,
-                    code=stock_code,
-                    start=0,
-                    count=1000
+            if df is None or df.empty:
+                logger.warning(f"未获取到 {code} 的K线数据")
+                return []
+            
+            # 转换为统一格式
+            data_list = []
+            for _, row in df.iterrows():
+                # 处理日期
+                date_str = str(row.get('datetime', ''))
+                if not date_str:
+                    continue
+                
+                # 解析日期
+                try:
+                    if len(date_str) == 8:  # YYYYMMDD
+                        date = datetime.strptime(date_str, '%Y%m%d')
+                    elif len(date_str) == 14:  # YYYYMMDD HHMMSS
+                        date = datetime.strptime(date_str[:8], '%Y%m%d')
+                    else:
+                        continue
+                except:
+                    continue
+                
+                # 筛选日期范围
+                if start_date:
+                    start_dt = datetime.strptime(start_date, '%Y-%m-%d')
+                    if date < start_dt:
+                        continue
+                if end_date:
+                    end_dt = datetime.strptime(end_date, '%Y-%m-%d')
+                    if date > end_dt:
+                        continue
+                
+                kline = StockKLine(
+                    code=code,
+                    date=date.strftime('%Y-%m-%d'),
+                    open=float(row.get('open', 0)),
+                    high=float(row.get('high', 0)),
+                    low=float(row.get('low', 0)),
+                    close=float(row.get('close', 0)),
+                    volume=int(row.get('volume', 0)),
+                    amount=float(row.get('amount', 0)),
+                    turnover_rate=None,  # 可选字段
+                    change_pct=None      # 可选字段
                 )
-                
-                if df is None or df.empty:
-                    logger.warning(f"未获取到 {code} 的K线数据")
-                    return []
-                
-                # 转换为统一格式
-                data_list = []
-                for _, row in df.iterrows():
-                    # 处理日期
-                    date_str = str(row.get('datetime', ''))
-                    if not date_str:
-                        continue
-                    
-                    # 解析日期
-                    try:
-                        if len(date_str) == 8:  # YYYYMMDD
-                            date = datetime.strptime(date_str, '%Y%m%d')
-                        elif len(date_str) == 14:  # YYYYMMDD HHMMSS
-                            date = datetime.strptime(date_str[:8], '%Y%m%d')
-                        else:
-                            continue
-                    except:
-                        continue
-                    
-                    # 筛选日期范围
-                    if start_date:
-                        start_dt = datetime.strptime(start_date, '%Y-%m-%d')
-                        if date < start_dt:
-                            continue
-                    if end_date:
-                        end_dt = datetime.strptime(end_date, '%Y-%m-%d')
-                        if date > end_dt:
-                            continue
-                    
-                    kline = StockKLine(
-                        code=code,
-                        date=date.strftime('%Y-%m-%d'),
-                        open=float(row.get('open', 0)),
-                        high=float(row.get('high', 0)),
-                        low=float(row.get('low', 0)),
-                        close=float(row.get('close', 0)),
-                        volume=int(row.get('volume', 0)),
-                        amount=float(row.get('amount', 0))
-                    )
-                    data_list.append(kline)
-                
-                # 按日期排序
-                data_list.sort(key=lambda x: x.date)
-                return data_list
+                data_list.append(kline)
+            
+            # 按日期排序
+            data_list.sort(key=lambda x: x.date)
+            return data_list
             
         except Exception as e:
             logger.error(f"获取K线数据异常: {e}")
@@ -161,23 +147,24 @@ class TDXAdapter(IDataSource):
             else:
                 market = 1  # 深市
             
-            # 初始化行情接口
-            client = md.TdxHq_API(heartbeat=True)
+            # 初始化行情客户端
+            client = Quotes.factory(market='std', multithread=True, heartbeat=True)
             
-            with client.connect():
-                # 获取实时数据
-                data = client.get_security_quotes([(market, stock_code)])
+            # 获取实时数据
+            data = client.quotes(symbol=stock_code, market=market)
+            
+            if data is not None and len(data) > 0:
+                row = data.iloc[0]
                 
-                if data is not None and len(data) > 0:
-                    row = data.iloc[0]
-                    
-                    # 确定交易所
-                    exchange = "SH" if market == 0 else "SZ"
-                    
+                # 确定交易所
+                exchange = "SH" if market == 0 else "SZ"
+                
                     return StockInfo(
                         code=code,
                         name=stock_code,  # 通达信不提供股票名称，使用代码
-                        exchange=exchange
+                        exchange=exchange,
+                        industry=None,
+                        market_value=None
                     )
             return None
             
@@ -205,39 +192,38 @@ class TDXAdapter(IDataSource):
             else:
                 market = 1  # 深市
             
-            # 初始化行情接口
-            client = md.TdxHq_API(heartbeat=True)
+            # 初始化行情客户端
+            client = Quotes.factory(market='std', multithread=True, heartbeat=True)
             
-            with client.connect():
-                # 获取实时数据
-                data = client.get_security_quotes([(market, stock_code)])
+            # 获取实时数据
+            data = client.quotes(symbol=stock_code, market=market)
+            
+            if data is not None and len(data) > 0:
+                row = data.iloc[0]
                 
-                if data is not None and len(data) > 0:
-                    row = data.iloc[0]
-                    
-                    # 确定交易所
-                    exchange = "SH" if market == 0 else "SZ"
-                    
-                    # 计算涨跌幅
-                    price = float(row.get('price', 0))
-                    last_close = float(row.get('last_close', 0))
-                    change = price - last_close
-                    change_pct = (change / last_close * 100) if last_close != 0 else 0
-                    
-                    return {
-                        "code": f"{exchange}.{stock_code}",
-                        "name": stock_code,
-                        "price": price,
-                        "change": change,
-                        "change_pct": change_pct,
-                        "volume": int(row.get('volume', 0)),
-                        "amount": float(row.get('amount', 0)) if 'amount' in row else 0,
-                        "open": float(row.get('open', 0)),
-                        "high": float(row.get('high', 0)),
-                        "low": float(row.get('low', 0)),
-                        "close": price,
-                        "last_close": last_close
-                    }
+                # 确定交易所
+                exchange = "SH" if market == 0 else "SZ"
+                
+                # 计算涨跌幅
+                price = float(row.get('price', 0))
+                last_close = float(row.get('last_close', 0))
+                change = price - last_close
+                change_pct = (change / last_close * 100) if last_close != 0 else 0
+                
+                return {
+                    "code": f"{exchange}.{stock_code}",
+                    "name": stock_code,
+                    "price": price,
+                    "change": change,
+                    "change_pct": change_pct,
+                    "volume": int(row.get('volume', 0)),
+                    "amount": float(row.get('amount', 0)) if 'amount' in row else 0,
+                    "open": float(row.get('open', 0)),
+                    "high": float(row.get('high', 0)),
+                    "low": float(row.get('low', 0)),
+                    "close": price,
+                    "last_close": last_close
+                }
             return {}
             
         except Exception as e:
