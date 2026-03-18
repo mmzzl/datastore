@@ -256,14 +256,39 @@ class StockMonitor:
             self._save_unhook_strategy(unhook_strategy)
         
         # 检查股票是否适合继续监控
-        # 如果信号为hold且信号强度较低，可能意味着股票走势走坏
-        if signal_result.get("signal") == "hold" and signal_result.get("strength") < 2:
-            # 从监控股票池中移除
+        # 只有在特定条件下才从监控股票池移除
+        should_remove = False
+        remove_reason = ""
+        
+        # 判断逻辑：
+        # 1. 如果是持仓股票，不应该轻易移除（除非触发止损）
+        # 2. 如果是未持仓股票，且信号很弱，可以暂时移除
+        # 3. 如果连续多次信号都很弱，可以考虑移除
+        
+        is_holding = stock_config.get("hold", False)
+        signal_strength = signal_result.get("strength", 0)
+        signal_type = signal_result.get("signal", "hold")
+        
+        if is_holding:
+            # 持仓股票：只有在明确的卖出信号或止损时才考虑移除
+            if signal_type == "sell" or signal_strength < -5:
+                should_remove = True
+                remove_reason = f"持仓股票触发卖出信号或强度过低(强度: {signal_strength})"
+        else:
+            # 未持仓股票：信号很弱且强度很低时可以移除
+            if signal_type == "hold" and signal_strength < 1:
+                # 连续弱信号才移除，避免误判
+                should_remove = False  # 暂时不移除，继续观察
+                remove_reason = f"信号较弱(强度: {signal_strength})，但继续观察"
+        
+        if should_remove:
             try:
                 self.storage.remove_monitor_stock(stock_code)
-                logger.info(f"股票 {stock_code} 走势走坏，已从监控股票池移除")
+                logger.info(f"股票 {stock_code} {remove_reason}，已从监控股票池移除")
             except Exception as e:
                 logger.error(f"移除股票失败: {e}")
+        else:
+            logger.debug(f"股票 {stock_code} 继续监控 - 信号: {signal_type}, 强度: {signal_strength}, 持仓: {is_holding}")
         
         return monitor_result
     
