@@ -45,6 +45,26 @@ case/apps/api/app/monitor/brain/
 - ✅ **数据源管理器** - DataSourceManager 负责管理多个适配器
 - ✅ **Baostock适配器** - Baostock数据源适配器
 - ✅ **MongoDB适配器** - MongoDB数据源适配器
+- ✅ **Akshare适配器** - Akshare数据源适配器（支持实时数据和资金流向）
+- ✅ **通达信适配器** - 通达信实时数据源适配器
+- ✅ **Brain系统集成** - 更新Brain系统使用统一接口
+
+**数据源优先级**:
+1. 通达信 (TDX) - 实时数据
+2. Baostock - 免费A股数据
+3. MongoDB - 缓存的历史数据
+4. Akshare - 备用数据源（支持资金流向）
+
+### 3. 资金流向功能
+
+**目标**: 通过统一接口管理多种数据源，实现数据源的灵活切换。
+
+**实现内容**:
+- ✅ **统一接口 (IDataSource)** - 定义所有数据源必须实现的方法
+- ✅ **统一数据模型** - StockKLine, StockInfo, DataSourceConfig
+- ✅ **数据源管理器** - DataSourceManager 负责管理多个适配器
+- ✅ **Baostock适配器** - Baostock数据源适配器
+- ✅ **MongoDB适配器** - MongoDB数据源适配器
 - ✅ **Brain系统集成** - 更新Brain系统使用统一接口
 
 **文件结构**:
@@ -76,13 +96,63 @@ klines = manager.get_kline(
 )
 ```
 
-### 3. Bug修复
+### 4. 资金流向功能
+
+**目标**: 提供个股历史资金流向数据，帮助判断主力动向。
+
+**实现内容**:
+- ✅ **Akshare资金流向** - 使用 `ak.stock_individual_fund_flow()` 获取历史资金流向
+- ✅ **统一接口集成** - 通过 `DataSourceManager.get_capital_flow()` 获取
+- ✅ **Brain系统集成** - CapitalFlowAnalyzer 使用统一接口
+- ✅ **多维度分析** - 主力净流入、超大单、大单、中单、小单
+
+**数据字段**:
+- 日期、收盘价、涨跌幅
+- 主力净流入-净额、主力净流入-净占比
+- 超大单/大单/中单/小单净流入及占比
+
+**使用示例**:
+```python
+manager = DataSourceManager()
+capital_flow = manager.get_capital_flow("sh.600519", days=5)
+# 返回最近5天的资金流向数据
+```
+
+### 6. Bug修复
 
 **问题**: `StockDataFetcher` 类缺少 `get_stock_data` 和 `get_stock_history` 方法
 
 **修复**: 在 `StockDataFetcher` 中添加了这两个方法，从MongoDB获取股票数据
 
 **影响**: `StockMonitor` 现在可以正常获取股票数据进行分析
+
+## 完整功能清单
+
+### 1. 智能交易大脑系统
+- ✅ 多维度分析（技术、资金、情绪）
+- ✅ 决策生成（买入/卖出/持有）
+- ✅ 价格预测（目标价、入场价、止损价）
+- ✅ 解套策略引擎
+- ✅ 策略回测验证
+
+### 2. 统一数据源接口
+- ✅ Baostock适配器（免费A股数据）
+- ✅ MongoDB适配器（缓存数据）
+- ✅ Akshare适配器（实时数据+资金流向）
+- ✅ 通达信适配器（实时数据）
+- ✅ 自动数据源切换
+
+### 3. 资金流向功能
+- ✅ 个股历史资金流向获取
+- ✅ 主力资金动向分析
+- ✅ 大单/超大单/中单/小单分析
+- ✅ 集成到Brain系统
+
+### 4. 数据获取
+- ✅ 实时行情数据
+- ✅ 历史K线数据
+- ✅ 资金流向数据
+- ✅ 股票基本信息
 
 ## 项目架构
 
@@ -161,6 +231,49 @@ tests/monitor/test_brain_system.py::TestBacktestEngine::test_backtest_moving_ave
 5. **实盘对接** - 对接券商API实现真实交易
 
 ## Git提交记录
+
+```
+feat: implement smart trading brain system with multi-dimensional analysis, unhook strategies, and backtesting
+feat: integrate brain system into StockMonitor for intelligent decision making
+docs: add Brain system documentation
+feat: implement unified data source interface with adapter pattern
+refactor: integrate unified data source interface into Brain system
+docs: add unified data source architecture documentation
+docs: add quick start guide for unified data source
+fix: add missing get_stock_data and get_stock_history methods to StockDataFetcher
+fix: resolve StockDataFetcher missing methods error
+feat: add Akshare adapter and integrate unified data source interface into StockMonitor
+fix: add missing timedelta import in stock_monitor.py
+test: verify Akshare adapter integration
+docs: add realtime data usage guide
+feat: add Tongdaxin (TDX) data source adapter for real-time data
+test: verify TDX adapter integration
+docs: add Tongdaxin (TDX) usage guide
+feat: add capital flow data retrieval using Akshare stock_individual_fund_flow
+test: verify capital flow functionality with Akshare
+docs: add capital flow usage guide
+```
+
+## 下一步工作
+
+1. **完善测试覆盖** - 增加更多单元测试和集成测试
+2. **性能优化** - 优化数据获取和分析性能
+3. **前端集成** - 将Brain系统集成到前端界面
+4. **实盘对接** - 对接券商API实现真实交易
+5. **数据缓存** - 优化数据缓存策略
+6. **错误处理** - 完善异常处理和重试机制
+
+## 总结
+
+通过本次开发，我们实现了：
+
+1. **智能交易大脑系统** - 多维度分析、决策生成、解套策略、回测验证
+2. **统一数据源接口** - 灵活切换数据源，降低系统耦合度
+3. **资金流向功能** - 提供主力资金动向分析
+4. **多数据源支持** - Baostock、MongoDB、Akshare、通达信
+5. **Bug修复** - 解决了StockDataFetcher缺失方法的问题
+
+所有测试通过，代码已提交，文档完善，系统可以正常使用！
 
 ```
 feat: implement smart trading brain system with multi-dimensional analysis, unhook strategies, and backtesting
