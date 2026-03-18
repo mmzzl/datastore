@@ -6,6 +6,7 @@ from .interface import IDataSource
 from .models import DataSourceConfig, StockKLine, StockInfo
 from .adapters.baostock_adapter import BaostockAdapter
 from .adapters.mongodb_adapter import MongoDBAdapter
+from .adapters.akshare_adapter import AkshareAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,13 @@ class DataSourceManager:
                 enabled=True,
                 priority=2,
                 config={}
+            ),
+            DataSourceConfig(
+                provider="akshare",
+                name="Akshare数据源",
+                enabled=True,
+                priority=3,
+                config={}
             )
         ]
     
@@ -50,6 +58,8 @@ class DataSourceManager:
                     adapter = BaostockAdapter()
                 elif config.provider == "mongodb":
                     adapter = MongoDBAdapter()
+                elif config.provider == "akshare":
+                    adapter = AkshareAdapter()
                 else:
                     logger.warning(f"未知的数据源提供商: {config.provider}")
                     continue

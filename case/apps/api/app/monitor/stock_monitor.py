@@ -9,6 +9,7 @@ from .models import StockData, TechnicalData, Signal, MonitorResult, MonitorNoti
 from .brain.analyzer import BrainAnalyzer
 from .brain.unhook import UnhookEngine
 from .brain.backtest import BacktestEngine
+from app.data_source import DataSourceManager
 from .data_source import get_data_source_manager, MultiDataSourceManager
 from ..notify import DingTalkNotifier
 from ..storage import MongoStorage
@@ -28,6 +29,8 @@ class StockMonitor:
         self.brain_analyzer = BrainAnalyzer()
         self.unhook_engine = UnhookEngine()
         self.backtest_engine = BacktestEngine()
+        # Unified Data Source
+        self.data_manager = DataSourceManager()
         
         self.akshare_client = None
         self.dingtalk_notifier = None
@@ -65,7 +68,7 @@ class StockMonitor:
     
     def get_stock_data(self, stock_code: str) -> Optional[StockData]:
         """
-        获取股票数据
+        获取股票数据 - 使用统一数据源接口
         
         参数:
             stock_code: 股票代码
@@ -74,25 +77,25 @@ class StockMonitor:
             股票数据
         """
         try:
-            # 这里需要根据AkshareClient的实际方法来获取股票数据
-            # 假设AkshareClient有一个get_stock_data方法
-            stock_info = self.akshare_client.fetcher.get_stock_data(stock_code)
-            if not stock_info:
+            # 使用统一数据源接口获取实时数据
+            realtime_data = self.data_manager.get_realtime_data(stock_code)
+            
+            if not realtime_data:
                 logger.warning(f"Failed to get stock data for {stock_code}")
                 return None
             
             return StockData(
                 code=stock_code,
-                name=stock_info.get("name", stock_code),
-                current_price=stock_info.get("close", 0.0),
-                high_price=stock_info.get("high", 0.0),
-                low_price=stock_info.get("low", 0.0),
-                open_price=stock_info.get("open", 0.0),
-                close_price=stock_info.get("close", 0.0),
-                change=stock_info.get("change", 0.0),
-                change_pct=stock_info.get("change_pct", 0.0),
-                volume=stock_info.get("volume", 0),
-                amount=stock_info.get("amount", 0.0)
+                name=realtime_data.get("name", stock_code),
+                current_price=realtime_data.get("close", 0.0),
+                high_price=realtime_data.get("high", 0.0),
+                low_price=realtime_data.get("low", 0.0),
+                open_price=realtime_data.get("open", 0.0),
+                close_price=realtime_data.get("close", 0.0),
+                change=realtime_data.get("change", 0.0),
+                change_pct=realtime_data.get("change_pct", 0.0),
+                volume=realtime_data.get("volume", 0),
+                amount=realtime_data.get("amount", 0.0)
             )
         except Exception as e:
             logger.error(f"Error getting stock data for {stock_code}: {e}")
@@ -100,7 +103,7 @@ class StockMonitor:
     
     def get_stock_history_data(self, stock_code: str, days: int = 30) -> Dict[str, List[float]]:
         """
-        获取股票历史数据
+        获取股票历史数据 - 使用统一数据源接口
         
         参数:
             stock_code: 股票代码
@@ -110,17 +113,24 @@ class StockMonitor:
             历史数据
         """
         try:
-            # 这里需要根据AkshareClient的实际方法来获取历史数据
-            # 假设AkshareClient有一个get_stock_history方法
-            history_data = self.akshare_client.fetcher.get_stock_history(stock_code, days)
-            if not history_data:
+            # 使用统一数据源接口获取历史K线数据
+            end_date = datetime.now().strftime("%Y-%m-%d")
+            start_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+            
+            klines = self.data_manager.get_kline(
+                code=stock_code,
+                start_date=start_date,
+                end_date=end_date
+            )
+            
+            if not klines:
                 logger.warning(f"Failed to get history data for {stock_code}")
                 return {}
             
             return {
-                "close": history_data.get("close", []),
-                "high": history_data.get("high", []),
-                "low": history_data.get("low", [])
+                "close": [k.close for k in klines],
+                "high": [k.high for k in klines],
+                "low": [k.low for k in klines]
             }
         except Exception as e:
             logger.error(f"Error getting history data for {stock_code}: {e}")
