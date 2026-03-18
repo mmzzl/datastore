@@ -214,13 +214,30 @@ class StockMonitor:
             }
         
         # 构建监控结果
+        from .models import RSI, MACD, KDJ, BollingerBands
+        
         monitor_result = MonitorResult(
             stock=stock_data,
             technical_data=TechnicalData(
-                rsi=type('obj', (object,), {"value": technical_result.get("rsi", 50.0), "period": 14})(),
-                macd=type('obj', (object,), technical_result.get("macd", {}))(),
-                kdj=type('obj', (object,), technical_result.get("kdj", {}))(),
-                bollinger=type('obj', (object,), technical_result.get("bollinger", {}))()
+                rsi=RSI(
+                    value=technical_result.get("rsi", 50.0),
+                    period=14
+                ),
+                macd=MACD(
+                    macd=technical_result.get("macd", {}).get("macd", 0.0),
+                    signal=technical_result.get("macd", {}).get("signal", 0.0),
+                    histogram=technical_result.get("macd", {}).get("histogram", 0.0)
+                ),
+                kdj=KDJ(
+                    k=technical_result.get("kdj", {}).get("k", 50.0),
+                    d=technical_result.get("kdj", {}).get("d", 50.0),
+                    j=technical_result.get("kdj", {}).get("j", 50.0)
+                ),
+                bollinger=BollingerBands(
+                    upper=technical_result.get("bollinger", {}).get("upper", 0.0),
+                    middle=technical_result.get("bollinger", {}).get("middle", 0.0),
+                    lower=technical_result.get("bollinger", {}).get("lower", 0.0)
+                )
             ),
             signal=Signal(
                 signal=signal_result.get("signal", "hold"),
