@@ -34,5 +34,9 @@ export const useHoldingsStore = defineStore('holdings', () => {
     state.unrealizedPnL = summary.unrealized_pnl ?? 0
   }
 
-  return { state, fetchHoldings, saveHolding, refreshPortfolio }
+  async function addHolding(userId: string, code: string, quantity: number, averageCost: number) {
+    await apiHoldings.upsertHolding(userId, code, quantity, averageCost)
+  }
+
+  return { state, fetchHoldings, saveHolding, refreshPortfolio, addHolding }
 })

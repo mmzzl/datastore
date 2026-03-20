@@ -1,8 +1,14 @@
 <template>
   <div class="page">
     <h1>Holdings</h1>
-    <div class="toolbar">
+    <div class="toolbar" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
       <button @click="refresh">刷新</button>
+      <form @submit.prevent="onAddHolding" class="add-form" style="display:flex;gap:8px;align-items:center;">
+        <input v-model="newHolding.code" placeholder="代码，如 SH600000" />
+        <input v-model.number="newHolding.quantity" type="number" placeholder="数量" step="0.01" />
+        <input v-model.number="newHolding.average_cost" type="number" placeholder="成本价" step="0.01" />
+        <button type="submit">添加持仓</button>
+      </form>
     </div>
     <table class="holdings-table" v-if="holdings.length">
       <thead>
@@ -31,9 +37,25 @@
 <script setup>
 import { onMounted, reactive } from 'vue'
 
-const userId = 'default'
-const state = reactive({ holdings: [] as any[] })
-
+  const userId = 'default'
+  const state = reactive({ holdings: [] as any[] })
+  const newHolding = reactive({ code: '', quantity: 0, average_cost: 0 })
+  async function onAddHolding() {
+    if (!newHolding.code || newHolding.quantity <= 0) return
+    try {
+      await fetch(`/api/holdings/${userId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: newHolding.code, quantity: newHolding.quantity, average_cost: newHolding.average_cost })
+      })
+      newHolding.code = ''
+      newHolding.quantity = 0
+      newHolding.average_cost = 0
+      fetchHoldings()
+    } catch (e) {
+      console.error('添加持仓失败', e)
+    }
+  }
 async function fetchHoldings() {
   try {
     const res = await fetch(`/api/holdings/${userId}`)
