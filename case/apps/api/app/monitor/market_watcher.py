@@ -1,6 +1,7 @@
 import logging
 import threading
 import time
+from datetime import date, timedelta
 from typing import List, Dict, Any, Optional, Callable
 
 from app.data_source import DataSourceManager
@@ -64,9 +65,10 @@ class MarketWatcher:
 
     def run_once(self):
         for item in self.watchlist:
-            code = item.get("code")
-            if not code:
+            code_val = item.get("code")
+            if not isinstance(code_val, str) or not code_val:
                 continue
+            code = code_val
             rt = self.data_manager.get_realtime_data(code)
             current_price = 0.0
             if isinstance(rt, dict):
@@ -74,8 +76,9 @@ class MarketWatcher:
                     rt.get("price") or rt.get("最新价") or rt.get("close") or 0.0
                 )
             cap_flow = self.data_manager.get_capital_flow(code, days=self.days)
+
             # gather technical data and compute scores
-            technical_data = self._gather_technical_data(code)
+            technical_data = self._gather_technical_data(str(code))
             tech_score = self._calculate_tech_score(technical_data)
             cap_score = self._calculate_capital_score(cap_flow)
             sentiment_score = 0.5
@@ -108,7 +111,6 @@ class MarketWatcher:
                 except Exception:
                     pass
 
-            # 简单执行占位：如果是买卖信号，记录日志；实际交易在这里接入
             if action in ("buy", "sell"):
                 self._logger.info(
                     f"MarketWatcher signal: {signal['code']} -> {signal['action']} @ {signal['target_price']}"
@@ -120,9 +122,12 @@ class MarketWatcher:
         self._logger.info("Starting market watcher backtest (skeleton)")
         # 这里给出一个最小实现：对历史数据逐条触发信号计算，但不执行真实交易
         for bar in historical:
-            code = bar.get("code")
+            code_val = bar.get("code")
+            if not isinstance(code_val, str) or not code_val:
+                continue
+            code = code_val
             price = bar.get("price", 0.0)
-            technical_data = self._gather_technical_data(code)
+            technical_data = self._gather_technical_data(str(code))
             tech_score = self._calculate_tech_score(technical_data)
             cap_flow = self.data_manager.get_capital_flow(code, days=self.days)
             cap_score = self._calculate_capital_score(cap_flow)

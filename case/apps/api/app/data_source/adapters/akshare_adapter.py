@@ -265,3 +265,18 @@ class AkshareAdapter(IDataSource):
     def close(self):
         """Akshare不需要关闭连接"""
         pass
+
+    def set_holdings(self, user_id: str, holdings: List[Dict[str, Any]]) -> List[str]:
+        """Akshare 不直接管理持仓，作为兼容实现返回空列表"""
+        return []
+
+    def get_portfolio_summary(self, user_id: str, price_fetcher=None) -> Dict[str, Any]:
+        """返回一个兼容的空持仓汇总数据结构，供统一接口调用"""
+        return {
+            "user_id": user_id,
+            "holdings_count": 0,
+            "total_cost": 0.0,
+            "market_value": None,
+            "unrealized_pnl": None,
+            "holdings": [],
+        }
