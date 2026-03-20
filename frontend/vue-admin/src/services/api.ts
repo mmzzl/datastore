@@ -21,3 +21,18 @@ export const apiHoldings = {
     return res.data
   }
 }
+
+export const apiSignals = {
+  async getLatest() {
+    const res = await (await fetch('/api/signals/latest')).json()
+    return res
+  },
+  async push(signal: any) {
+    const resp = await fetch('/api/signals', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(signal)
+    })
+    return resp.json()
+  }
+}

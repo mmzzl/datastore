@@ -5,6 +5,7 @@ from datetime import date, timedelta
 from typing import List, Dict, Any, Optional, Callable
 
 from app.data_source import DataSourceManager
+from app.monitor.market_signals import add_signal  # type: ignore
 from app.monitor.brain.analyzer import BrainAnalyzer
 from app.monitor.analysis.technical import TechnicalAnalyzer
 
@@ -103,7 +104,11 @@ class MarketWatcher:
                 "price": current_price,
                 "capital_flow": cap_flow,
             }
-
+            try:
+                # 将信号写入全局信号仓库，供前端仪表盘读取
+                add_signal(signal)
+            except Exception:
+                pass
             self.signals_log.append(signal)
             if self.report_callback:
                 try:
