@@ -84,6 +84,16 @@ class IDataSource(ABC):
         pass
 
     @abstractmethod
+    def set_holdings(self, user_id: str, holdings: List[Dict[str, Any]]) -> List[str]:
+        """批量设定持仓，覆盖当前用户的所有持仓记录"""
+        pass
+
+    @abstractmethod
+    def get_portfolio_summary(self, user_id: str, price_fetcher=None) -> Dict[str, Any]:
+        """获取用户持仓的汇总信息"""
+        pass
+
+    @abstractmethod
     def get_holdings(self, user_id: str) -> List[Dict[str, Any]]:
         """获取指定用户的持仓列表"""
         pass

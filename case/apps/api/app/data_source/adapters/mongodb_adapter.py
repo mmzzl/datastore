@@ -239,3 +239,33 @@ class MongoDBAdapter(IDataSource):
         if self.storage:
             self.storage.close()
             logger.info("MongoDB连接已关闭")
+
+    def set_holdings(self, user_id: str, holdings: List[Dict[str, Any]]) -> List[str]:
+        """批量设定持仓，覆盖当前用户的所有持仓记录"""
+        if not self.storage or not getattr(self.storage, "holdings_collection", None):
+            return []
+        try:
+            now = __import__("datetime").datetime.now()
+            coll = self.storage.holdings_collection
+            # 先清空该用户的现有持仓
+            coll.delete_many({"user_id": user_id})
+            # 插入新持仓
+            docs = [
+                {
+                    "user_id": user_id,
+                    "code": h.get("code"),
+                    "quantity": float(h.get("quantity", 0)),
+                    "average_cost": float(h.get("average_cost", 0)),
+                    "created_at": now,
+                    "updated_at": now,
+                }
+                for h in holdings
+                if h.get("code")
+            ]
+            if not docs:
+                return []
+            res = coll.insert_many(docs)
+            return [str(_id) for _id in res.inserted_ids]
+        except Exception as e:
+            logger.error(f"批量设定持仓失败: {e}")
+            return []
