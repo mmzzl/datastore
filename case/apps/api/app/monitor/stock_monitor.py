@@ -116,11 +116,12 @@ class StockMonitor:
             # 使用统一数据源接口获取历史K线数据
             end_date = datetime.now().strftime("%Y-%m-%d")
             start_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
-            
+    
             klines = self.data_manager.get_kline(
                 code=stock_code,
                 start_date=start_date,
-                end_date=end_date
+                end_date=end_date,
+                provider="tdx"
             )
             
             if not klines:
@@ -158,7 +159,6 @@ class StockMonitor:
         
         # 获取历史数据
         history_data = self.get_stock_history_data(stock_code)
-        
         # 分析技术指标
         technical_result = self.technical_analyzer.analyze_stock(history_data)
         

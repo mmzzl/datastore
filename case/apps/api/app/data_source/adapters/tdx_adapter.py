@@ -6,8 +6,7 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 try:
-    from mootdx import quotes
-    Quotes = quotes.Quotes
+    from mootdx.quotes import Quotes
     MOOTDX_AVAILABLE = True
 except ImportError:
     MOOTDX_AVAILABLE = False
@@ -50,8 +49,8 @@ class TDXAdapter(IDataSource):
         code: str,
         start_date: str,
         end_date: str,
-        frequency: str = "d",
-        adjust_flag: str = "3"
+        frequency: int = 9,
+        adjust_flag: str = "qfq"
     ) -> List[StockKLine]:
         """获取K线数据 - 使用mootdx"""
         if not MOOTDX_AVAILABLE:
@@ -61,22 +60,13 @@ class TDXAdapter(IDataSource):
         try:
             # 转换代码格式 sh.600000 -> 600000, sz.000001 -> 000001
             stock_code = code.split('.')[-1] if '.' in code else code
-            
-            # 判断市场代码
-            # 沪市：60开头、688科创板、900开头（B股）
-            # 深市：00开头、300创业板、200开头（B股）
-            if stock_code.startswith('6') or stock_code.startswith('9'):
-                market = 0  # 沪市
-            else:
-                market = 1  # 深市
-            
             # 初始化行情客户端
             client = Quotes.factory(market='std', multithread=True, heartbeat=True)
-            
             # 获取K线数据
             # 使用 bars 方法获取K线数据
-            df = client.bars(symbol=stock_code, frequency=frequency, market=market)
-            
+            frequency = 9
+            adjust_flag = "qfq"
+            df = client.bars(symbol=stock_code, frequency=frequency, adjust=adjust_flag, offset=100)
             if df is None or df.empty:
                 logger.warning(f"未获取到 {code} 的K线数据")
                 return []
@@ -88,7 +78,6 @@ class TDXAdapter(IDataSource):
                 date_str = str(row.get('datetime', ''))
                 if not date_str:
                     continue
-                
                 # 解析日期
                 try:
                     if len(date_str) == 8:  # YYYYMMDD
@@ -99,16 +88,6 @@ class TDXAdapter(IDataSource):
                         continue
                 except:
                     continue
-                
-                # 筛选日期范围
-                if start_date:
-                    start_dt = datetime.strptime(start_date, '%Y-%m-%d')
-                    if date < start_dt:
-                        continue
-                if end_date:
-                    end_dt = datetime.strptime(end_date, '%Y-%m-%d')
-                    if date > end_dt:
-                        continue
                 
                 kline = StockKLine(
                     code=code,
@@ -123,7 +102,6 @@ class TDXAdapter(IDataSource):
                     change_pct=None      # 可选字段
                 )
                 data_list.append(kline)
-            
             # 按日期排序
             data_list.sort(key=lambda x: x.date)
             return data_list
@@ -158,8 +136,7 @@ class TDXAdapter(IDataSource):
                 
                 # 确定交易所
                 exchange = "SH" if market == 0 else "SZ"
-                
-                    return StockInfo(
+                return StockInfo(
                         code=code,
                         name=stock_code,  # 通达信不提供股票名称，使用代码
                         exchange=exchange,

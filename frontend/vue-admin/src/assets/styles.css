@@ -1,0 +1,10 @@
+:root {
+  --bg: #f5f7fa;
+  --card: #ffffff;
+}
+* { box-sizing: border-box; }
+html, body, #app { height: 100%; }
+body { margin: 0; background: var(--bg); }
+.app-layout { display: flex; height: 100%; }
+.sidebar { width: 260px; background: #1f2937; color: #fff; padding: 16px; }
+.content { flex: 1; padding: 16px; }
