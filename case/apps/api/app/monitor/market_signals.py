@@ -1,7 +1,8 @@
 import logging
 from typing import List, Dict, Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from app.auth import get_current_user
 
 logger = logging.getLogger(__name__)
 
@@ -22,11 +23,11 @@ def get_latest_signals(n: int = 10) -> List[Dict[str, Any]]:
 
 
 @router.get("/signals/latest")
-def latest_signals(n: int = 10):
+def latest_signals(n: int = 10, current_user: str = Depends(get_current_user)):
     return get_latest_signals(n)
 
 
 @router.post("/signals")
-def push_signal(signal: Dict[str, Any]):
+def push_signal(signal: Dict[str, Any], current_user: str = Depends(get_current_user)):
     add_signal(signal)
     return {"ok": True, "count": len(_signals)}
