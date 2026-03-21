@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:7
+    container_name: marketwatch-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin123
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
+  api:
+    build:
+      context: ./case/apps/api
+      dockerfile: Dockerfile
+    container_name: marketwatch-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - MONGODB_HOST=mongodb
+      - MONGODB_PORT=27017
+      - MONGODB_DATABASE=marketwatch
+      - MONGODB_USERNAME=admin
+      - MONGODB_PASSWORD=admin123
+      - JWT_SECRET_KEY=your-secret-key-change-in-production
+      - JWT_ACCESS_TOKEN_EXPIRE_MINUTES=1440
+      - AUTH_USERNAME=admin
+      - AUTH_PASSWORD=admin123
+      - MONITOR_ENABLED=false
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  frontend:
+    build:
+      context: ./frontend/vue-admin
+      dockerfile: Dockerfile
+    container_name: marketwatch-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+
+volumes:
+  mongodb_data:
