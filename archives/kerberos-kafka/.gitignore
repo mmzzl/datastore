@@ -1,0 +1,42 @@
+# 忽略VSCode配置文件夹
+.vscode/
+
+# 忽略系统文件
+.DS_Store
+Thumbs.db
+
+# 忽略日志文件
+*.log
+
+# 忽略临时文件
+*.tmp
+*.temp
+
+# 忽略IDE文件
+.idea/
+*.swp
+*.swo
+
+# 忽略编译输出
+*.class
+*.pyc
+__pycache__/
+
+# 忽略依赖目录
+node_modules/
+venv/
+env/
+
+# 忽略环境变量文件
+.env
+.env.local
+
+# 忽略密钥和证书文件
+*.key
+*.pem
+*.crt
+*.p12
+
+# 忽略Kafka相关临时文件
+kafka-logs/
+zookeeper-data/

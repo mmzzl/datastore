@@ -1,0 +1,19 @@
+{
+  "eval_id": 0,
+  "eval_name": "get-first-10-stocks",
+  "prompt": "Get A-share stock industry classification data and show me the first 10 stocks",
+  "assertions": [
+    {
+      "name": "has_first_10_stocks",
+      "description": "Output should contain first 10 stocks from the dataset"
+    },
+    {
+      "name": "has_required_columns",
+      "description": "Output should contain code, code_name, industry, industryClassification, updateDate columns"
+    },
+    {
+      "name": "is_dataframe",
+      "description": "Output should be a pandas DataFrame or similar tabular structure"
+    }
+  ]
+}

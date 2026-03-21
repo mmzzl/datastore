@@ -1,19 +1,52 @@
 # IDE specific files
 .vscode/
+.idea/
+*.swp
+*.swo
 
-# Python virtual environment
+# Python
 .venv/
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Testing
+.pytest_cache/
+.ruff_cache/
+.coverage/
+htmlcov/
+.tox/
+.nox/
 
 # OS generated files
 .DS_Store
 Thumbs.db
+ehthumbs.db
 
 # Logs
-logs
+logs/
 *.log
 
 # Runtime data
-pids
+pids/
 *.pid
 *.seed
 *.pid.lock
@@ -29,19 +62,30 @@ node_modules/
 jspm_packages/
 
 # Optional npm cache directory
-.npm
+.npm/
 
 # Optional eslint cache
-.eslintcache
+.eslintcache/
 
 # Output of 'npm pack'
 *.tgz
 
 # Yarn Integrity file
 .yarn-integrity
-./shan_hai_jing/data/screenshots
-./screenshots
-.venv
-.vscode
-dist
+
+# Project specific
+shan_hai_jing/data/screenshots/
+screenshots/
 dist/
+
+# Data files (large)
+*.csv
+!tests/fixtures/*.csv
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Jupyter
+.ipynb_checkpoints/

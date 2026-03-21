@@ -1,0 +1,65 @@
+{
+  "skill_name": "stock-industry-classification",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Get A-share stock industry classification data and show me the first 10 stocks",
+      "expected_output": "DataFrame with stock industry data, showing first 10 rows with columns: code, code_name, industry, industryClassification, updateDate",
+      "files": [],
+      "assertions": [
+        {
+          "name": "has_first_10_stocks",
+          "description": "Output should contain first 10 stocks from the dataset"
+        },
+        {
+          "name": "has_required_columns",
+          "description": "Output should contain code, code_name, industry, industryClassification, updateDate columns"
+        },
+        {
+          "name": "is_dataframe",
+          "description": "Output should be a pandas DataFrame or similar tabular structure"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "What are the top 5 industries by number of stocks in the Chinese market?",
+      "expected_output": "List of top 5 industries with stock counts, derived from industry classification data",
+      "files": [],
+      "assertions": [
+        {
+          "name": "has_5_industries",
+          "description": "Output should list exactly 5 industries"
+        },
+        {
+          "name": "has_stock_counts",
+          "description": "Output should include number of stocks per industry"
+        },
+        {
+          "name": "sorted_by_count",
+          "description": "Industries should be sorted by stock count (descending)"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Find all stocks in the technology industry sector",
+      "expected_output": "DataFrame filtered to show only stocks in technology industry",
+      "files": [],
+      "assertions": [
+        {
+          "name": "technology_stocks_only",
+          "description": "Output should only contain stocks classified as technology"
+        },
+        {
+          "name": "has_multiple_stocks",
+          "description": "Output should contain multiple technology stocks"
+        },
+        {
+          "name": "correct_industry_filter",
+          "description": "All stocks in output should have 'technology' or similar in industry field"
+        }
+      ]
+    }
+  ]
+}
