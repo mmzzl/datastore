@@ -62,4 +62,12 @@ func main() {
 		}
 	}
 	fmt.Printf("1-100 中有 %d 个偶数，%d 个奇数\n", evenCount, oddCount)
-}
+	// 数字分解
+	num := 12345
+	for num > 0 {
+		digit := num % 10
+		fmt.Printf("%d", digit)
+		num /= 10
+	}
+	fmt.Println()
+	}
