@@ -241,3 +241,7 @@ class TDXAdapter(IDataSource):
 
     def set_settings(self, user_id: str, settings: Dict[str, Any]) -> None:
         return None
+
+    def remove_holding(self, user_id: str, code: str) -> int:
+        """TDX 不实现持仓删除，返回 0 作为兼容实现"""
+        return 0

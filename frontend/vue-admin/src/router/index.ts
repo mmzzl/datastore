@@ -9,10 +9,10 @@ import { authService } from '../services/api'
 const routes: Array<RouteRecordRaw> = [
   { path: '/login', component: Login, meta: { public: true } },
   { path: '/', redirect: '/dashboard' },
-  { path: '/dashboard', component: Dashboard },
-  { path: '/holdings', component: Holdings },
-  { path: '/market-watch', component: MarketWatch },
-  { path: '/settings', component: Settings },
+  { path: '/dashboard', component: Dashboard, name: 'dashboard' },
+  { path: '/holdings', component: Holdings, name: 'holdings' },
+  { path: '/market-watch', component: MarketWatch, name: 'market-watch' },
+  { path: '/settings', component: Settings, name: 'settings' },
 ]
 
 const router = createRouter({
@@ -25,6 +25,14 @@ router.beforeEach((to, _from, next) => {
     next()
   } else {
     next('/login')
+  }
+})
+
+// 导航后刷新Dashboard数据
+router.afterEach((to) => {
+  if (to.name === 'dashboard') {
+    // 触发一个全局事件，让Dashboard组件刷新数据
+    window.dispatchEvent(new CustomEvent('dashboard-refresh'))
   }
 })
 

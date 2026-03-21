@@ -3,10 +3,10 @@
     <div class="login-card">
       <h1>登录</h1>
       <form @submit.prevent="onLogin">
-        <div class="form-group">
-          <label>用户名</label>
-          <input v-model="form.userId" type="text" required placeholder="请输入用户名" />
-        </div>
+         <div class="form-group">
+           <label>用户名</label>
+           <input v-model="form.username" type="text" required placeholder="请输入用户名" />
+         </div>
         <div class="form-group">
           <label>密码</label>
           <input v-model="form.password" type="password" required placeholder="请输入密码" />
@@ -26,7 +26,7 @@ import { useRouter } from 'vue-router'
 import { apiAuth, authService } from '../services/api'
 
 const router = useRouter()
-const form = ref({ userId: '', password: '' })
+const form = ref({ username: '', password: '' })
 const error = ref('')
 const loading = ref(false)
 
@@ -34,7 +34,7 @@ async function onLogin() {
   error.value = ''
   loading.value = true
   try {
-    await apiAuth.login(form.value.userId, form.value.password)
+    await apiAuth.login(form.value.username, form.value.password)
     router.push('/dashboard')
   } catch (e: any) {
     error.value = e.response?.data?.detail || '登录失败'

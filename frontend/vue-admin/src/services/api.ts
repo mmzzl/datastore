@@ -1,4 +1,5 @@
 import axios from 'axios'
+import router from '../router'
 
 const api = axios.create({
   baseURL: '/api',
@@ -6,6 +7,7 @@ const api = axios.create({
 })
 
 let authToken: string | null = localStorage.getItem('auth_token')
+let currentUser: string | null = localStorage.getItem('auth_user')
 
 export const authService = {
   setToken(token: string) {
@@ -15,9 +17,18 @@ export const authService = {
   getToken() {
     return authToken
   },
+  setUser(user: string) {
+    currentUser = user
+    localStorage.setItem('auth_user', user)
+  },
+  getUser() {
+    return currentUser || 'default'
+  },
   clearToken() {
     authToken = null
+    currentUser = null
     localStorage.removeItem('auth_token')
+    localStorage.removeItem('auth_user')
   },
   isAuthenticated() {
     return !!authToken
@@ -36,16 +47,18 @@ api.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       authService.clearToken()
+      router.push('/login')
     }
     return Promise.reject(error)
   }
 )
 
 export const apiAuth = {
-  async login(userId: string, password: string) {
-    const res = await api.post('/login', { user_id: userId, password })
+  async login(username: string, password: string) {
+    const res = await api.post('/login', { username, password })
     if (res.data.token) {
       authService.setToken(res.data.token)
+      authService.setUser(username)
     }
     return res.data
   },
@@ -55,12 +68,19 @@ export const apiAuth = {
 }
 
 export const apiHoldings = {
-  async getHoldings(userId: string) {
-    const res = await api.get(`/holdings/${userId}`)
+  async getHoldings(userId: string, page: number = 1, pageSize: number = 10) {
+    const res = await api.get(`/holdings/${userId}`, { params: { page, page_size: pageSize } })
     return res.data
   },
-  async upsertHolding(userId: string, code: string, quantity: number, average_cost: number) {
+  async getHoldingsHistory(userId: string) {
+    const res = await api.get(`/holdings/${userId}/history`)
+    return res.data
+  },
+  async upsertHolding(userId: string, code: string, name: string | undefined, quantity: number, average_cost: number) {
     const payload = { code, quantity, average_cost }
+    if (name) {
+      payload.name = name
+    }
     const res = await api.post(`/holdings/${userId}`, payload)
     return res.data
   },
@@ -70,6 +90,21 @@ export const apiHoldings = {
   },
   async getPortfolio(userId: string) {
     const res = await api.get(`/portfolio/${userId}`)
+    return res.data
+  },
+  async getTransactions(userId: string, code?: string, page: number = 1, pageSize: number = 10) {
+    const params: any = { page, page_size: pageSize }
+    if (code) params.code = code
+    const res = await api.get(`/transactions/${userId}`, { params })
+    return res.data
+  },
+  async deleteTransaction(userId: string, transactionId: string) {
+    const res = await api.delete(`/transactions/${userId}/${transactionId}`)
+    return res.data
+  },
+  async getRealizedPnL(userId: string, code?: string) {
+    const params = code ? { params: { code } } : {}
+    const res = await api.get(`/pnl/${userId}`, params)
     return res.data
   }
 }

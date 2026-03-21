@@ -50,69 +50,75 @@ class MongoDBAdapter(IDataSource):
         frequency: str = "d",
         adjust_flag: str = "3",
     ) -> List[StockKLine]:
+        """从MongoDB获取K线数据"""
         if not self.storage:
             return []
-
         try:
-            kline_data = self.storage.get_kline(
-                code=code, start_date=start_date, end_date=end_date, limit=1000
-            )
-
-            data_list = []
-            for item in kline_data:
-                kline = StockKLine(
-                    code=item.get("code", code),
-                    date=item.get("date", ""),
-                    open=float(item.get("open", 0)),
-                    high=float(item.get("high", 0)),
-                    low=float(item.get("low", 0)),
-                    close=float(item.get("close", 0)),
-                    volume=int(item.get("volume", 0)),
-                    amount=float(item.get("amount", 0)),
-                    turnover_rate=float(item.get("turnover", 0))
-                    if item.get("turnover")
-                    else None,
-                    change_pct=float(item.get("pct_chg", 0))
-                    if item.get("pct_chg")
-                    else None,
+            coll = getattr(self.storage, "kline_collection", None)
+            if coll is None:
+                return []
+            query = {
+                "code": code,
+                "date": {"$gte": start_date, "$lte": end_date},
+            }
+            cursor = coll.find(query).sort("date", 1)
+            results = []
+            for doc in cursor:
+                results.append(
+                    StockKLine(
+                        code=doc.get("code"),
+                        date=doc.get("date"),
+                        open=float(doc.get("open", 0)),
+                        high=float(doc.get("high", 0)),
+                        low=float(doc.get("low", 0)),
+                        close=float(doc.get("close", 0)),
+                        volume=int(doc.get("volume", 0)),
+                        amount=float(doc.get("amount", 0)) if doc.get("amount") else 0,
+                    )
                 )
-                data_list.append(kline)
-
-            return data_list
-
+            return results
         except Exception as e:
-            logger.error(f"获取MongoDB K线数据失败: {e}")
+            logger.error(f"获取K线失败: {e}")
             return []
 
     def get_stock_info(self, code: str) -> Optional[StockInfo]:
-        # MongoDB通常存储K线数据，股票基本信息可以从其他数据源获取
-        # 这里返回基本信息
-        return StockInfo(
-            code=code, name=code, exchange=code[:2] if "." in code else "SH"
-        )
+        """从MongoDB获取股票信息"""
+        if not self.storage:
+            return None
+        try:
+            coll = getattr(self.storage, "stock_info_collection", None)
+            if coll is None:
+                return None
+            doc = coll.find_one({"code": code})
+            if doc:
+                return StockInfo(
+                    code=doc.get("code"),
+                    name=doc.get("name"),
+                    exchange=doc.get("exchange", code[:2]),
+                )
+        except Exception as e:
+            logger.error(f"获取股票信息失败: {e}")
+        return None
 
     def get_stock_list(self) -> List[StockInfo]:
-        """从K线数据中提取股票列表"""
+        """从MongoDB获取股票列表"""
         if not self.storage:
             return []
-
         try:
-            # 获取所有股票的最新数据
-            kline_data = self.storage.get_all_klines(limit=10000)
-
-            # 去重获取股票列表
-            stock_dict = {}
-            for item in kline_data:
-                code = item.get("code")
-                if code and code not in stock_dict:
-                    stock_dict[code] = StockInfo(
-                        code=code,
-                        name=item.get("name", code),
-                        exchange=code[:2] if "." in code else "SH",
+            coll = getattr(self.storage, "stock_info_collection", None)
+            if coll is None:
+                return []
+            cursor = coll.find({})
+            results = []
+            for doc in cursor:
+                results.append(
+                    StockInfo(
+                        code=doc.get("code"),
+                        name=doc.get("name"),
+                        exchange=doc.get("exchange", doc.get("code", "")[:2]),
                     )
-
-            return list(stock_dict.values())
-
+                )
+            return results
         except Exception as e:
             logger.error(f"获取股票列表失败: {e}")
             return []
@@ -125,51 +131,138 @@ class MongoDBAdapter(IDataSource):
         """从MongoDB获取资金流向数据"""
         if not self.storage:
             return []
+        return []
 
     # --------------- 持仓相关扩展 ---------------
-    def get_holdings(self, user_id: str) -> List[Dict[str, Any]]:
-        """获取某用户的持仓列表"""
-        if not self.storage or not getattr(self.storage, "holdings_collection", None):
+    def get_holdings(
+        self, user_id: str, page: int = 1, page_size: int = 10
+    ) -> Dict[str, Any]:
+        """获取某用户的持仓列表（只返回数量大于0的），支持分页"""
+        if not self.storage:
+            return {
+                "items": [],
+                "total": 0,
+                "page": page,
+                "page_size": page_size,
+                "total_pages": 0,
+            }
+        try:
+            coll = getattr(self.storage, "holdings_collection", None)
+            if coll is None:
+                return {
+                    "items": [],
+                    "total": 0,
+                    "page": page,
+                    "page_size": page_size,
+                    "total_pages": 0,
+                }
+
+            query = {"user_id": user_id, "quantity": {"$gt": 0}}
+            total = coll.count_documents(query)
+            skip = (page - 1) * page_size
+            cursor = coll.find(query).skip(skip).limit(page_size)
+
+            results = []
+            for doc in cursor:
+                doc["_id"] = str(doc.get("_id"))
+                results.append(doc)
+
+            total_pages = (total + page_size - 1) // page_size if total > 0 else 0
+            return {
+                "items": results,
+                "total": total,
+                "page": page,
+                "page_size": page_size,
+                "total_pages": total_pages,
+            }
+        except Exception as e:
+            logger.error(f"获取持仓失败: {e}")
+            return {
+                "items": [],
+                "total": 0,
+                "page": page,
+                "page_size": page_size,
+                "total_pages": 0,
+            }
+
+    def get_holdings_history(self, user_id: str) -> List[Dict[str, Any]]:
+        """获取某用户的所有持仓历史，包括已卖出的"""
+        if not self.storage:
             return []
         try:
-            cursor = self.storage.holdings_collection.find({"user_id": user_id})
+            coll = getattr(self.storage, "holdings_collection", None)
+            if coll is None:
+                return []
+            cursor = coll.find({"user_id": user_id}).sort("updated_at", -1)
             results = []
             for doc in cursor:
                 doc["_id"] = str(doc.get("_id"))
                 results.append(doc)
             return results
         except Exception as e:
-            logger.error(f"获取持仓失败: {e}")
+            logger.error(f"获取持仓历史失败: {e}")
             return []
 
     def upsert_holding(
-        self, user_id: str, code: str, quantity: float, average_cost: float
+        self, user_id: str, code: str, quantity: float, price: float
     ) -> Optional[str]:
-        """如果已有则更新，否则插入；成本按加权平均更新"""
-        if not self.storage or not getattr(self.storage, "holdings_collection", None):
+        """买入/卖出持仓处理，使用移动平均成本法（东方财富算法）"""
+        if not self.storage:
             return None
         try:
+            tx_type = "buy" if quantity > 0 else "sell"
+            self.add_transaction(user_id, code, quantity, price, tx_type)
+
+            transactions = self.get_transactions(user_id, code).get("items", [])
+
+            # 计算各项数据
+            total_buy_amount = sum(
+                t["quantity"] * t["price"] for t in transactions if t["type"] == "buy"
+            )
+            total_buy_qty = sum(
+                t["quantity"] for t in transactions if t["type"] == "buy"
+            )
+            total_sell_qty = sum(
+                t["quantity"] for t in transactions if t["type"] == "sell"
+            )
+            total_sell_amount = sum(
+                t["quantity"] * t["price"] for t in transactions if t["type"] == "sell"
+            )
+            current_qty = total_buy_qty - total_sell_qty
+
+            coll = getattr(self.storage, "holdings_collection", None)
+            if coll is None:
+                return None
+
             now = __import__("datetime").datetime.now()
-            coll = self.storage.holdings_collection
             existing = coll.find_one({"user_id": user_id, "code": code})
+
+            # 计算成本
+            avg_cost = 0.0
+            if current_qty > 0:
+                if tx_type == "sell":
+                    # 卖出时：成本价 = (总买入金额 − 卖出金额) ÷ 剩余股数
+                    avg_cost = (total_buy_amount - total_sell_amount) / current_qty
+                else:
+                    # 买入时：加权平均
+                    if existing:
+                        old_qty = existing.get("quantity", 0)
+                        old_cost = existing.get("average_cost", 0)
+                        avg_cost = (old_qty * old_cost + quantity * price) / (
+                            old_qty + quantity
+                        )
+                    else:
+                        avg_cost = price
+            else:
+                avg_cost = 0.0
+
             if existing:
-                old_qty = existing.get("quantity", 0.0)
-                old_cost = existing.get("average_cost", 0.0)
-                new_qty = old_qty + quantity
-                if new_qty <= 0:
-                    coll.delete_one({"_id": existing.get("_id")})
-                    return None
-                new_avg = (
-                    ((old_qty * old_cost) + (quantity * average_cost)) / new_qty
-                    if new_qty > 0
-                    else 0.0
-                )
                 coll.update_one(
                     {"_id": existing.get("_id")},
                     {
                         "$set": {
-                            "quantity": new_qty,
-                            "average_cost": new_avg,
+                            "quantity": current_qty,
+                            "average_cost": avg_cost,
                             "updated_at": now,
                         }
                     },
@@ -179,8 +272,297 @@ class MongoDBAdapter(IDataSource):
                 doc = {
                     "user_id": user_id,
                     "code": code,
-                    "quantity": float(quantity),
-                    "average_cost": float(average_cost),
+                    "quantity": current_qty,
+                    "average_cost": avg_cost,
+                    "created_at": now,
+                    "updated_at": now,
+                }
+                res = coll.insert_one(doc)
+                return str(res.inserted_id)
+        except Exception as e:
+            logger.error(f"Upsert 持仓失败: {e}")
+            return None
+        try:
+            tx_type = "buy" if quantity > 0 else "sell"
+            self.add_transaction(user_id, code, quantity, price, tx_type)
+
+            transactions = self.get_transactions(user_id, code)
+
+            # 计算当前持仓数量
+            total_buy_qty = sum(
+                t["quantity"] for t in transactions if t["type"] == "buy"
+            )
+            total_sell_qty = sum(
+                t["quantity"] for t in transactions if t["type"] == "sell"
+            )
+            current_qty = total_buy_qty - total_sell_qty
+
+            coll = getattr(self.storage, "holdings_collection", None)
+            if coll is None:
+                return None
+
+            now = __import__("datetime").datetime.now()
+            existing = coll.find_one({"user_id": user_id, "code": code})
+
+            # 计算成本（移动平均法）
+            avg_cost = 0.0
+            if current_qty > 0:
+                if existing and tx_type == "buy":
+                    # 买入时：加权平均
+                    old_qty = existing.get("quantity", 0)
+                    old_cost = existing.get("average_cost", 0)
+                    new_qty = quantity if quantity > 0 else 0
+                    if old_qty + new_qty > 0:
+                        avg_cost = (old_qty * old_cost + new_qty * price) / (
+                            old_qty + new_qty
+                        )
+                    else:
+                        avg_cost = old_cost
+                elif existing:
+                    # 卖出时：成本不变
+                    avg_cost = existing.get("average_cost", 0)
+                else:
+                    # 首次买入
+                    avg_cost = price
+
+            if existing:
+                coll.update_one(
+                    {"_id": existing.get("_id")},
+                    {
+                        "$set": {
+                            "quantity": current_qty,
+                            "average_cost": avg_cost,
+                            "updated_at": now,
+                        }
+                    },
+                )
+                return str(existing.get("_id"))
+            else:
+                doc = {
+                    "user_id": user_id,
+                    "code": code,
+                    "quantity": current_qty,
+                    "average_cost": avg_cost,
+                    "created_at": now,
+                    "updated_at": now,
+                }
+                res = coll.insert_one(doc)
+                return str(res.inserted_id)
+        except Exception as e:
+            logger.error(f"Upsert 持仓失败: {e}")
+            return None
+        try:
+            tx_type = "buy" if quantity > 0 else "sell"
+            self.add_transaction(user_id, code, quantity, price, tx_type)
+
+            transactions = self.get_transactions(user_id, code)
+
+            # 计算当前持仓数量
+            total_buy_qty = sum(
+                t["quantity"] for t in transactions if t["type"] == "buy"
+            )
+            total_sell_qty = sum(
+                t["quantity"] for t in transactions if t["type"] == "sell"
+            )
+            current_qty = total_buy_qty - total_sell_qty
+
+            # 计算移动平均成本
+            # 买入：加权平均 = (原金额 + 新金额) / 总数量
+            # 卖出：不改变成本，只减少数量
+            avg_cost = 0.0
+            if current_qty > 0:
+                total_cost = sum(
+                    t["quantity"] * t["price"]
+                    for t in transactions
+                    if t["type"] == "buy"
+                )
+                avg_cost = total_cost / current_qty
+
+            coll = getattr(self.storage, "holdings_collection", None)
+            if coll is None:
+                return None
+
+            now = __import__("datetime").datetime.now()
+            existing = coll.find_one({"user_id": user_id, "code": code})
+
+            if existing:
+                coll.update_one(
+                    {"_id": existing.get("_id")},
+                    {
+                        "$set": {
+                            "quantity": current_qty,
+                            "average_cost": avg_cost,
+                            "updated_at": now,
+                        }
+                    },
+                )
+                return str(existing.get("_id"))
+            else:
+                doc = {
+                    "user_id": user_id,
+                    "code": code,
+                    "quantity": current_qty,
+                    "average_cost": avg_cost,
+                    "created_at": now,
+                    "updated_at": now,
+                }
+                res = coll.insert_one(doc)
+                return str(res.inserted_id)
+        except Exception as e:
+            logger.error(f"Upsert 持仓失败: {e}")
+            return None
+        try:
+            tx_type = "buy" if quantity > 0 else "sell"
+            self.add_transaction(user_id, code, quantity, price, tx_type)
+
+            transactions = self.get_transactions(user_id, code)
+
+            # 计算当前持仓数量
+            total_buy_qty = sum(
+                t["quantity"] for t in transactions if t["type"] == "buy"
+            )
+            total_sell_qty = sum(
+                t["quantity"] for t in transactions if t["type"] == "sell"
+            )
+            current_qty = total_buy_qty - total_sell_qty
+
+            # 计算剩余持仓的加权平均成本（FIFO）
+            avg_cost = 0.0
+            if current_qty > 0:
+                # FIFO: 按时间顺序匹配卖出
+                buy_queue = [
+                    (t["quantity"], t["price"])
+                    for t in transactions
+                    if t["type"] == "buy"
+                ]
+                sell_total = total_sell_qty
+
+                # 模拟FIFO卖出，移除已卖出的部分
+                remaining_buys = []
+                for buy_qty, buy_price in buy_queue:
+                    if sell_total > 0:
+                        if sell_total >= buy_qty:
+                            sell_total -= buy_qty
+                        else:
+                            remaining_buys.append((buy_qty - sell_total, buy_price))
+                            sell_total = 0
+                    else:
+                        remaining_buys.append((buy_qty, buy_price))
+
+                # 计算剩余持仓的加权平均成本
+                total_cost = sum(q * p for q, p in remaining_buys)
+                avg_cost = total_cost / current_qty if current_qty > 0 else 0.0
+
+            coll = getattr(self.storage, "holdings_collection", None)
+            if coll is None:
+                return None
+
+            now = __import__("datetime").datetime.now()
+            existing = coll.find_one({"user_id": user_id, "code": code})
+
+            if existing:
+                coll.update_one(
+                    {"_id": existing.get("_id")},
+                    {
+                        "$set": {
+                            "quantity": current_qty,
+                            "average_cost": avg_cost,
+                            "updated_at": now,
+                        }
+                    },
+                )
+                return str(existing.get("_id"))
+            else:
+                doc = {
+                    "user_id": user_id,
+                    "code": code,
+                    "quantity": current_qty,
+                    "average_cost": avg_cost,
+                    "created_at": now,
+                    "updated_at": now,
+                }
+                res = coll.insert_one(doc)
+                return str(res.inserted_id)
+        except Exception as e:
+            logger.error(f"Upsert 持仓失败: {e}")
+            return None
+        try:
+            tx_type = "buy" if quantity > 0 else "sell"
+            self.add_transaction(user_id, code, quantity, price, tx_type)
+
+            transactions = self.get_transactions(user_id, code)
+            total_buy_qty = sum(
+                t["quantity"] for t in transactions if t["type"] == "buy"
+            )
+            total_sell_qty = sum(
+                t["quantity"] for t in transactions if t["type"] == "sell"
+            )
+            current_qty = total_buy_qty - total_sell_qty
+
+            # 计算加权平均成本
+            avg_cost = 0.0
+            if current_qty > 0:
+                weighted_sum = sum(
+                    t["quantity"] * t["price"]
+                    for t in transactions
+                    if t["type"] == "buy"
+                )
+                # 减去已卖出部分的成本（FIFO）
+                sell_qty_remaining = total_sell_qty
+                for tx in transactions:
+                    if tx["type"] == "buy":
+                        sell_qty_remaining -= tx["quantity"]
+                # 计算剩余持仓的成本
+                if sell_qty_remaining < total_buy_qty:
+                    remaining_cost = 0.0
+                    for tx in transactions:
+                        if tx["type"] == "buy":
+                            remaining_qty = min(
+                                tx["quantity"],
+                                max(
+                                    0,
+                                    total_buy_qty
+                                    - sell_qty_remaining
+                                    - (
+                                        total_buy_qty
+                                        - sell_qty_remaining
+                                        - tx["quantity"]
+                                    ),
+                                ),
+                            )
+                            if sell_qty_remaining > 0:
+                                sell_qty_remaining -= tx["quantity"]
+                                continue
+                            remaining_cost += tx["quantity"] * tx["price"]
+                    avg_cost = remaining_cost / current_qty if current_qty > 0 else 0.0
+                else:
+                    avg_cost = 0.0
+
+            coll = getattr(self.storage, "holdings_collection", None)
+            if coll is None:
+                return None
+
+            now = __import__("datetime").datetime.now()
+            existing = coll.find_one({"user_id": user_id, "code": code})
+
+            if existing:
+                coll.update_one(
+                    {"_id": existing.get("_id")},
+                    {
+                        "$set": {
+                            "quantity": current_qty,
+                            "average_cost": avg_cost,
+                            "updated_at": now,
+                        }
+                    },
+                )
+                return str(existing.get("_id"))
+            else:
+                doc = {
+                    "user_id": user_id,
+                    "code": code,
+                    "quantity": current_qty,
+                    "average_cost": avg_cost,
                     "created_at": now,
                     "updated_at": now,
                 }
@@ -192,12 +574,13 @@ class MongoDBAdapter(IDataSource):
 
     def remove_holding(self, user_id: str, code: str) -> int:
         """移除某用户的某一持仓"""
-        if not self.storage or not getattr(self.storage, "holdings_collection", None):
+        if not self.storage:
             return 0
         try:
-            result = self.storage.holdings_collection.delete_one(
-                {"user_id": user_id, "code": code}
-            )
+            coll = getattr(self.storage, "holdings_collection", None)
+            if coll is None:
+                return 0
+            result = coll.delete_one({"user_id": user_id, "code": code})
             return result.deleted_count
         except Exception as e:
             logger.error(f"移除持仓失败: {e}")
@@ -248,81 +631,244 @@ class MongoDBAdapter(IDataSource):
 
     def get_settings(self, user_id: str) -> Dict[str, Any]:
         """获取用户设置，若无则返回默认设置"""
+        if not self.storage:
+            return {"watchlist": [], "interval_sec": 60, "days": 5, "cache_ttl": 60}
         try:
             coll = getattr(self.storage, "settings_collection", None)
             if coll is None:
-                # 尝试获取或创建 settings 集合
-                if self.storage:
-                    try:
-                        coll = self.storage.db["settings"]  # type: ignore
-                    except Exception:
-                        coll = None
-            if coll is None:
                 return {"watchlist": [], "interval_sec": 60, "days": 5, "cache_ttl": 60}
-            doc = (
-                coll.find_one({"user_id": user_id})
-                if hasattr(coll, "find_one")
-                else None
-            )
-            if not doc:
-                return {"watchlist": [], "interval_sec": 60, "days": 5, "cache_ttl": 60}
-            return {
-                "watchlist": doc.get("watchlist", []),
-                "interval_sec": doc.get("interval_sec", 60),
-                "days": doc.get("days", 5),
-                "cache_ttl": doc.get("cache_ttl", 60),
-            }
+            doc = coll.find_one({"user_id": user_id})
+            if doc:
+                return {
+                    "watchlist": doc.get("watchlist", []),
+                    "interval_sec": doc.get("interval_sec", 60),
+                    "days": doc.get("days", 5),
+                    "cache_ttl": doc.get("cache_ttl", 60),
+                }
         except Exception as e:
-            logger.error(f"获取 Settings 失败: {e}")
-            return {"watchlist": [], "interval_sec": 60, "days": 5, "cache_ttl": 60}
+            logger.error(f"获取设置失败: {e}")
+        return {"watchlist": [], "interval_sec": 60, "days": 5, "cache_ttl": 60}
 
     def set_settings(self, user_id: str, settings: Dict[str, Any]) -> None:
         """保存用户设置"""
+        if not self.storage:
+            raise RuntimeError("MongoDB storage not available")
         try:
             coll = getattr(self.storage, "settings_collection", None)
             if coll is None:
-                if self.storage:
-                    try:
-                        coll = self.storage.db["settings"]  # type: ignore
-                    except Exception:
-                        coll = None
-            if coll is None:
-                return
+                raise RuntimeError("settings_collection not available")
             doc = {
                 "user_id": user_id,
                 **settings,
                 "updated_at": __import__("datetime").datetime.now(),
             }
             coll.update_one({"user_id": user_id}, {"$set": doc}, upsert=True)
+        except RuntimeError:
+            raise
         except Exception as e:
             logger.error(f"设置 Settings 失败: {e}")
+            raise RuntimeError(f"保存设置失败: {e}")
 
     def set_holdings(self, user_id: str, holdings: List[Dict[str, Any]]) -> List[str]:
-        """批量设定持仓，覆盖当前用户的所有持仓记录"""
-        if not self.storage or not getattr(self.storage, "holdings_collection", None):
+        """批量设定持仓，覆盖当前用户的所有持仓记录（只更新数量大于0的，保留历史记录）"""
+        if not self.storage:
             return []
         try:
+            coll = getattr(self.storage, "holdings_collection", None)
+            if coll is None:
+                return []
             now = __import__("datetime").datetime.now()
-            coll = self.storage.holdings_collection
-            # 先清空该用户的现有持仓
-            coll.delete_many({"user_id": user_id})
-            # 插入新持仓
-            docs = [
-                {
+            result_ids = []
+
+            # 首先删除所有数量大于0的当前持仓（保留历史记录）
+            coll.delete_many({"user_id": user_id, "quantity": {"$gt": 0}})
+
+            # 插入新的持仓
+            for h in holdings:
+                quantity = float(h.get("quantity", 0))
+                if quantity <= 0:
+                    continue
+
+                doc = {
                     "user_id": user_id,
                     "code": h.get("code"),
-                    "quantity": float(h.get("quantity", 0)),
+                    "quantity": quantity,
                     "average_cost": float(h.get("average_cost", 0)),
+                    "name": h.get("name"),
                     "created_at": now,
                     "updated_at": now,
                 }
-                for h in holdings
-                if h.get("code")
-            ]
-            if not docs:
-                return []
-            res = coll.insert_many(docs)
-            return [str(_id) for _id in res.inserted_ids]
+                result = coll.insert_one(doc)
+                result_ids.append(str(result.inserted_id))
+
+            return result_ids
         except Exception as e:
-            logger.error(f"批量设定持仓失败: {e}")
+            logger.error(f"设置持仓失败: {e}")
             return []
+
+    def add_transaction(
+        self,
+        user_id: str,
+        code: str,
+        quantity: float,
+        price: float,
+        transaction_type: str,
+    ) -> Optional[str]:
+        """添加交易记录（buy/sell）"""
+        if not self.storage:
+            return None
+        try:
+            coll = self.storage.db.get_collection("transactions")
+            now = __import__("datetime").datetime.now()
+            doc = {
+                "user_id": user_id,
+                "code": code,
+                "quantity": abs(quantity),
+                "price": float(price),
+                "type": transaction_type,
+                "created_at": now,
+            }
+            res = coll.insert_one(doc)
+            return str(res.inserted_id)
+        except Exception as e:
+            logger.error(f"添加交易记录失败: {e}")
+            return None
+
+    def get_transactions(
+        self,
+        user_id: str,
+        code: Optional[str] = None,
+        page: int = 1,
+        page_size: int = 10,
+    ) -> Dict[str, Any]:
+        """获取交易历史，支持分页"""
+        if not self.storage:
+            return {
+                "items": [],
+                "total": 0,
+                "page": page,
+                "page_size": page_size,
+                "total_pages": 0,
+            }
+        try:
+            coll = self.storage.db.get_collection("transactions")
+            query = {"user_id": user_id}
+            if code:
+                query["code"] = code
+            total = coll.count_documents(query)
+            skip = (page - 1) * page_size
+            cursor = coll.find(query).sort("created_at", 1).skip(skip).limit(page_size)
+            results = []
+            for doc in cursor:
+                doc["_id"] = str(doc.get("_id"))
+                results.append(doc)
+            total_pages = (total + page_size - 1) // page_size if total > 0 else 0
+            return {
+                "items": results,
+                "total": total,
+                "page": page,
+                "page_size": page_size,
+                "total_pages": total_pages,
+            }
+        except Exception as e:
+            logger.error(f"获取交易历史失败: {e}")
+            return {
+                "items": [],
+                "total": 0,
+                "page": page,
+                "page_size": page_size,
+                "total_pages": 0,
+            }
+
+    def calculate_realized_pnl(
+        self, user_id: str, code: Optional[str] = None
+    ) -> Dict[str, float]:
+        """计算已实现盈亏（移动平均法，与东方财富一致）"""
+        if not self.storage:
+            return {
+                "realized_pnl": 0.0,
+                "total_sell_value": 0.0,
+                "total_sell_cost": 0.0,
+            }
+        try:
+            transactions = self.get_transactions(user_id, code).get("items", [])
+            total_sell_value = 0.0
+            total_sell_cost = 0.0
+
+            # 按时间顺序计算移动平均成本
+            running_qty = 0
+            running_cost = 0.0
+
+            for tx in sorted(transactions, key=lambda x: x["created_at"]):
+                if tx["type"] == "buy":
+                    buy_qty = tx["quantity"]
+                    buy_price = tx["price"]
+                    if running_qty > 0:
+                        running_cost = (
+                            running_qty * running_cost + buy_qty * buy_price
+                        ) / (running_qty + buy_qty)
+                    else:
+                        running_cost = buy_price
+                    running_qty += buy_qty
+                else:  # sell
+                    sell_qty = tx["quantity"]
+                    sell_price = tx["price"]
+                    total_sell_value += sell_qty * sell_price
+                    total_sell_cost += sell_qty * running_cost
+                    running_qty -= sell_qty
+
+            realized_pnl = total_sell_value - total_sell_cost
+            return {
+                "realized_pnl": realized_pnl,
+                "total_sell_value": total_sell_value,
+                "total_sell_cost": total_sell_cost,
+            }
+        except Exception as e:
+            logger.error(f"计算已实现盈亏失败: {e}")
+            return {
+                "realized_pnl": 0.0,
+                "total_sell_value": 0.0,
+                "total_sell_cost": 0.0,
+            }
+        try:
+            transactions = self.get_transactions(user_id, code)
+            total_sell_value = 0.0
+            total_sell_cost = 0.0
+
+            # 模拟交易过程，按时间顺序计算
+            running_qty = 0  # 当前持股数
+            running_cost = 0.0  # 当前持股成本
+
+            for tx in sorted(transactions, key=lambda x: x["created_at"]):
+                if tx["type"] == "buy":
+                    buy_qty = tx["quantity"]
+                    buy_price = tx["price"]
+                    if running_qty > 0:
+                        # 移动平均：新的加权平均成本
+                        running_cost = (
+                            running_qty * running_cost + buy_qty * buy_price
+                        ) / (running_qty + buy_qty)
+                    else:
+                        running_cost = buy_price
+                    running_qty += buy_qty
+                else:  # sell
+                    sell_qty = tx["quantity"]
+                    sell_price = tx["price"]
+                    total_sell_value += sell_qty * sell_price
+                    # 已实现盈亏 = 卖出数量 × (卖出价格 - 卖出时的持仓成本)
+                    total_sell_cost += sell_qty * running_cost
+                    running_qty -= sell_qty
+
+            realized_pnl = total_sell_value - total_sell_cost
+            return {
+                "realized_pnl": realized_pnl,
+                "total_sell_value": total_sell_value,
+                "total_sell_cost": total_sell_cost,
+            }
+        except Exception as e:
+            logger.error(f"计算已实现盈亏失败: {e}")
+            return {
+                "realized_pnl": 0.0,
+                "total_sell_value": 0.0,
+                "total_sell_cost": 0.0,
+            }

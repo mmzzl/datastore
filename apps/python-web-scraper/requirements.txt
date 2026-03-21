@@ -1,0 +1,7 @@
+scrapy
+pymongo
+requests
+lxml
+pytz
+schedule
+baostock

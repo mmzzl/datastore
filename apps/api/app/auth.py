@@ -7,11 +7,11 @@ from typing import Optional
 SECRET_KEY = "dev-secret-please-change-when-prod"
 
 
-def create_token(user_id: str, expire_seconds: int = 3600) -> str:
+def create_token(username: str, expire_seconds: int = 3600) -> str:
     ts = int(time.time()) + expire_seconds
-    msg = f"{user_id}:{ts}"
+    msg = f"{username}:{ts}"
     sig = hmac.new(SECRET_KEY.encode(), msg.encode(), hashlib.sha256).hexdigest()
-    token = base64.urlsafe_b64encode(f"{user_id}:{ts}:{sig}".encode()).decode()
+    token = base64.urlsafe_b64encode(f"{username}:{ts}:{sig}".encode()).decode()
     return token
 
 

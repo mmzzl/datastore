@@ -16,20 +16,59 @@ _data_manager = DataSourceManager()
 
 class HoldingInput(BaseModel):
     code: str
+    name: Optional[str] = None
     quantity: float
     average_cost: float
 
 
 @router.get("/holdings/{user_id}")
-def get_holdings(user_id: str, current_user: str = Depends(get_current_user)):
+def get_holdings(
+    user_id: str,
+    page: int = 1,
+    page_size: int = 10,
+    current_user: str = Depends(get_current_user),
+):
     if current_user != user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="无权限访问此持仓"
         )
     try:
-        return _data_manager.get_holdings(user_id) or []
+        result = _data_manager.get_holdings(user_id, page, page_size)
+        if isinstance(result, dict) and "items" in result:
+            return result
+        # 兼容旧格式
+        return {
+            "items": result or [],
+            "total": len(result) if result else 0,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": 0,
+        }
     except Exception as e:
         logger.error(f"获取持仓失败: {e}")
+        return {
+            "items": [],
+            "total": 0,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": 0,
+        }
+
+
+@router.get("/holdings/{user_id}/history")
+def get_holdings_history(user_id: str, current_user: str = Depends(get_current_user)):
+    """获取用户的持仓历史，包括已卖出的"""
+    if current_user != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="无权限访问此持仓"
+        )
+    try:
+        adapter = _data_manager.get_adapter("mongodb")
+        if adapter and hasattr(adapter, "get_holdings_history"):
+            return adapter.get_holdings_history(user_id) or []
+        return []
+    except Exception as e:
+        logger.error(f"获取持仓历史失败: {e}")
         return []
 
 
@@ -41,22 +80,21 @@ def upsert_holding(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="无权限访问此持仓"
         )
-    # 使用批量设定入口，传入单条持仓
     adapter = _data_manager.get_adapter("mongodb")
     if not adapter:
-        return {"holding_id": None}
-    ids = adapter.set_holdings(
-        user_id,
-        [
-            {
-                "code": item.code,
-                "quantity": item.quantity,
-                "average_cost": item.average_cost,
-            }
-        ],
+        return {"holding_id": None, "success": False}
+
+    holding_id = adapter.upsert_holding(
+        user_id, item.code, item.quantity, item.average_cost
     )
-    holding_id = ids[0] if ids else None
-    return {"holding_id": holding_id}
+
+    return {
+        "holding_id": holding_id,
+        "success": holding_id is not None,
+        "type": "buy" if item.quantity > 0 else "sell",
+        "code": item.code,
+        "quantity": abs(item.quantity),
+    }
 
 
 @router.delete("/holdings/{user_id}/{code}")
@@ -68,8 +106,77 @@ def remove_holding(
             status_code=status.HTTP_403_FORBIDDEN, detail="无权限访问此持仓"
         )
     adapter = _data_manager.get_adapter("mongodb")
-    count = adapter.remove_holding(user_id, code) if adapter else 0
-    return {"deleted": count}
+    if not adapter:
+        raise HTTPException(status_code=500, detail="MongoDB adapter not available")
+    count = adapter.remove_holding(user_id, code)
+    if count == 0:
+        raise HTTPException(status_code=404, detail="持仓不存在或删除失败")
+    return {"deleted": count, "code": code}
+
+
+@router.get("/transactions/{user_id}")
+def get_transactions(
+    user_id: str,
+    code: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 10,
+    current_user: str = Depends(get_current_user),
+):
+    if current_user != user_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权限访问")
+    adapter = _data_manager.get_adapter("mongodb")
+    if not adapter:
+        raise HTTPException(status_code=500, detail="MongoDB adapter not available")
+    result = adapter.get_transactions(user_id, code, page, page_size)
+    if isinstance(result, dict) and "items" in result:
+        return result
+    return {
+        "items": result or [],
+        "total": len(result) if result else 0,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": 0,
+    }
+
+
+@router.get("/pnl/{user_id}")
+def get_realized_pnl(
+    user_id: str,
+    code: Optional[str] = None,
+    current_user: str = Depends(get_current_user),
+):
+    if current_user != user_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权限访问")
+    adapter = _data_manager.get_adapter("mongodb")
+    if not adapter:
+        raise HTTPException(status_code=500, detail="MongoDB adapter not available")
+    return adapter.calculate_realized_pnl(user_id, code)
+
+
+@router.delete("/transactions/{user_id}/{transaction_id}")
+def delete_transaction(
+    user_id: str,
+    transaction_id: str,
+    current_user: str = Depends(get_current_user),
+):
+    if current_user != user_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权限访问")
+    adapter = _data_manager.get_adapter("mongodb")
+    if not adapter:
+        raise HTTPException(status_code=500, detail="MongoDB adapter not available")
+    try:
+        from bson import ObjectId
+
+        coll = adapter.storage.db.get_collection("transactions")
+        result = coll.delete_one({"_id": ObjectId(transaction_id), "user_id": user_id})
+        if result.deleted_count == 0:
+            raise HTTPException(status_code=404, detail="交易记录不存在")
+        return {"deleted": True, "transaction_id": transaction_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"删除交易记录失败: {e}")
+        raise HTTPException(status_code=500, detail="删除失败")
 
 
 class PortfolioRequest(BaseModel):
@@ -94,4 +201,13 @@ def portfolio(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="无权限访问此持仓"
         )
-    return _data_manager.get_portfolio_summary(user_id, price_fetcher)
+
+    summary = _data_manager.get_portfolio_summary(user_id, price_fetcher)
+
+    mongodb_adapter = _data_manager.get_adapter("mongodb")
+    if mongodb_adapter:
+        pnl_data = mongodb_adapter.calculate_realized_pnl(user_id)
+        summary["realized_pnl"] = pnl_data.get("realized_pnl", 0.0)
+        summary["total_sell_value"] = pnl_data.get("total_sell_value", 0.0)
+
+    return summary

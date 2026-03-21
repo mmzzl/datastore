@@ -9,9 +9,17 @@ interface Holding {
   average_cost: number
 }
 
+interface PaginatedHoldings {
+  items: Holding[]
+  total: number
+  page: number
+  page_size: number
+  total_pages: number
+}
+
 export const useHoldingsStore = defineStore('holdings', () => {
   const state = reactive({
-    userId: 'default',
+    userId: authService.getUser(),
     holdings: [] as Holding[],
     totalCost: 0 as number,
     marketValue: 0 as number,
@@ -19,9 +27,14 @@ export const useHoldingsStore = defineStore('holdings', () => {
     profitRate: 0 as number,
     loading: false,
     error: null as string | null,
+    // 分页
+    currentPage: 1,
+    pageSize: 10,
+    totalPages: 0,
+    totalCount: 0,
   })
 
-  async function fetchHoldings(userId?: string) {
+  async function fetchHoldings(userId?: string, page: number = 1) {
     if (!authService.isAuthenticated()) {
       state.error = '未登录'
       return
@@ -30,8 +43,11 @@ export const useHoldingsStore = defineStore('holdings', () => {
     state.loading = true
     state.error = null
     try {
-      const res = await apiHoldings.getHoldings(id)
-      state.holdings = res || []
+      const res: PaginatedHoldings = await apiHoldings.getHoldings(id, page, state.pageSize)
+      state.holdings = res.items || []
+      state.currentPage = res.page || 1
+      state.totalPages = res.total_pages || 0
+      state.totalCount = res.total || 0
     } catch (e: any) {
       state.error = e.response?.data?.detail || '获取持仓失败'
     } finally {
@@ -39,12 +55,12 @@ export const useHoldingsStore = defineStore('holdings', () => {
     }
   }
 
-  async function saveHolding(userId: string, code: string, quantity: number, avgCost: number) {
+  async function saveHolding(userId: string, code: string, name: string | undefined, quantity: number, avgCost: number) {
     if (!authService.isAuthenticated()) {
       throw new Error('未登录')
     }
-    await apiHoldings.upsertHolding(userId, code, quantity, avgCost)
-    await fetchHoldings(userId)
+    await apiHoldings.upsertHolding(userId, code, name, quantity, avgCost)
+    await fetchHoldings(userId, state.currentPage)
   }
 
   async function removeHolding(userId: string, code: string) {
@@ -52,7 +68,7 @@ export const useHoldingsStore = defineStore('holdings', () => {
       throw new Error('未登录')
     }
     await apiHoldings.removeHolding(userId, code)
-    await fetchHoldings(userId)
+    await fetchHoldings(userId, state.currentPage)
   }
 
   async function refreshPortfolio(userId: string) {
@@ -63,12 +79,16 @@ export const useHoldingsStore = defineStore('holdings', () => {
     state.loading = true
     try {
       const summary = await apiHoldings.getPortfolio(userId)
+      const unrealized = summary.profit ?? summary.unrealized_pnl ?? 0
+      const realized = summary.realized_pnl ?? 0
       state.totalCost = summary.total_cost ?? 0
       state.marketValue = summary.market_value ?? 0
-      state.unrealizedPnL = summary.profit ?? summary.unrealized_pnl ?? 0
+      state.unrealizedPnL = unrealized + realized
       state.profitRate = summary.profit_rate ?? 0
+      return summary
     } catch (e: any) {
       state.error = e.response?.data?.detail || '获取组合失败'
+      throw e
     } finally {
       state.loading = false
     }
@@ -77,7 +97,7 @@ export const useHoldingsStore = defineStore('holdings', () => {
   return { 
     state, 
     fetchHoldings, 
-    saveHolding, 
+    saveHolding,
     removeHolding,
     refreshPortfolio 
   }

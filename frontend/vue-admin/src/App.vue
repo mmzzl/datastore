@@ -29,7 +29,7 @@ const router = useRouter()
 const route = useRoute()
 
 const isAuthenticated = computed(() => authService.isAuthenticated())
-const currentUser = ref('default')
+const currentUser = computed(() => authService.getUser())
 
 function logout() {
   apiAuth.logout()
@@ -41,8 +41,7 @@ onMounted(async () => {
     try {
       const token = authService.getToken()
       if (token) {
-        // Decode user from token or fetch from API
-        currentUser.value = 'default'
+        currentUser.value = authService.getUser()
       }
     } catch (e) {
       console.error('Failed to get user info', e)

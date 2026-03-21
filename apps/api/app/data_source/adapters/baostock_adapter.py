@@ -166,3 +166,7 @@ class BaostockAdapter(IDataSource):
     def set_settings(self, user_id: str, settings: Dict[str, Any]) -> None:
         # Baostock 不管理设置，保持接口兼容性，但不持久化
         return None
+
+    def remove_holding(self, user_id: str, code: str) -> int:
+        """无持仓删除实现的占位方法，Baostock 不提供持仓存储"""
+        return 0

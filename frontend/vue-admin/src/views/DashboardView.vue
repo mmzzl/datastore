@@ -64,6 +64,20 @@
           </div>
         </div>
       </div>
+      
+      <div class="stat-card">
+        <div class="stat-icon" :class="dashboard.state.realizedPnL >= 0 ? 'profit' : 'loss'">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+          </svg>
+        </div>
+        <div class="stat-content">
+          <div class="stat-label">已实现盈亏</div>
+          <div class="stat-value" :class="dashboard.state.realizedPnL >= 0 ? 'profit' : 'loss'">
+            {{ dashboard.state.realizedPnL >= 0 ? '+' : '' }}¥{{ dashboard.state.realizedPnL.toFixed(2) }}
+          </div>
+        </div>
+      </div>
     </div>
     
     <div class="section">
@@ -100,18 +114,39 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, onActivated, onUnmounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { useDashboardStore } from '../stores/dashboard'
 
 const dashboard = useDashboardStore()
+const route = useRoute()
 
 function refresh() {
   dashboard.fetchSummary()
 }
 
+// 组件挂载时获取数据
 onMounted(() => {
   dashboard.fetchSummary()
+  
+  // 监听全局刷新事件
+  window.addEventListener('dashboard-refresh', handleRefresh)
 })
+
+// 组件激活时（从其他页面返回时）刷新数据
+onActivated(() => {
+  dashboard.fetchSummary()
+})
+
+// 组件卸载时移除事件监听
+onUnmounted(() => {
+  window.removeEventListener('dashboard-refresh', handleRefresh)
+})
+
+// 处理刷新事件
+function handleRefresh() {
+  dashboard.fetchSummary()
+}
 </script>
 
 <style scoped>

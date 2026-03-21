@@ -286,3 +286,7 @@ class AkshareAdapter(IDataSource):
             "unrealized_pnl": None,
             "holdings": [],
         }
+
+    def remove_holding(self, user_id: str, code: str) -> int:
+        """Akshare 不直接管理持仓，作为兼容实现返回 0"""
+        return 0

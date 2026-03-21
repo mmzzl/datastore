@@ -31,6 +31,8 @@ class MongoStorage:
         self.monitor_stocks_collection = None
         # 新增 holdings 集合
         self.holdings_collection = None
+        # 新增 settings 集合
+        self.settings_collection = None
 
     def connect(self):
         try:
@@ -48,6 +50,8 @@ class MongoStorage:
             self.monitor_stocks_collection = self.db["monitor_stocks"]
             # holdings 集合
             self.holdings_collection = self.db["holdings"]
+            # settings 集合
+            self.settings_collection = self.db["settings"]
             self.client.admin.command("ping")
             logger.info(f"MongoDB connected: {self.host}:{self.port}/{self.db_name}")
         except PyMongoError as e:

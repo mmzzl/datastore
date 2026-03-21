@@ -242,14 +242,29 @@ class DataSourceManager:
         return []
 
     def get_portfolio_summary(self, user_id: str, price_fetcher=None) -> Dict[str, Any]:
-        """获取用户持仓汇总信息，若有价格回填则计算市场价值"""
+        """获取用户持仓汇总信息，优先使用 MongoDB 数据源"""
+        mongodb_adapter = self.get_adapter("mongodb")
+        if mongodb_adapter:
+            try:
+                return mongodb_adapter.get_portfolio_summary(user_id, price_fetcher)
+            except Exception as e:
+                logger.error(f"MongoDB get_portfolio_summary failed: {e}")
+        fallback_result = None
         for provider, adapter in self._adapters.items():
+            if provider == "mongodb":
+                continue
             try:
                 if hasattr(adapter, "get_portfolio_summary"):
-                    return adapter.get_portfolio_summary(user_id, price_fetcher)
+                    result = adapter.get_portfolio_summary(user_id, price_fetcher)
+                    if result and (
+                        result.get("holdings_count", 0) > 0 or result.get("holdings")
+                    ):
+                        fallback_result = result
+                        break
             except Exception:
                 continue
-        # 回退：如果没有实现，返回空结构
+        if fallback_result:
+            return fallback_result
         return {
             "user_id": user_id,
             "holdings_count": 0,
