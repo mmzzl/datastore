@@ -1,6 +1,0 @@
-{
-  "eval_id": 1,
-  "eval_name": "top-5-industries-by-count",
-  "prompt": "What are the top 5 industries by number of stocks in the Chinese market?",
-  "assertions": []
-}
