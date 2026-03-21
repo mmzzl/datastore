@@ -211,6 +211,8 @@ class MongoDBAdapter(IDataSource):
         total_cost = 0.0
         market_value = None
         unrealized_pnl = None
+        profit = 0.0
+        profit_rate = 0.0
         if holdings:
             total_cost = sum(
                 h.get("quantity", 0.0) * h.get("average_cost", 0.0) for h in holdings
@@ -222,6 +224,8 @@ class MongoDBAdapter(IDataSource):
                         for h in holdings
                     )
                     unrealized_pnl = (market_value or 0.0) - total_cost
+                    profit = unrealized_pnl
+                    profit_rate = profit / total_cost if total_cost > 0 else 0.0
                 except Exception:
                     market_value = None
                     unrealized_pnl = None
@@ -231,6 +235,8 @@ class MongoDBAdapter(IDataSource):
             "total_cost": total_cost,
             "market_value": market_value,
             "unrealized_pnl": unrealized_pnl,
+            "profit": profit,
+            "profit_rate": profit_rate,
             "holdings": holdings,
         }
 
