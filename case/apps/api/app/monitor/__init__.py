@@ -9,7 +9,7 @@ try:
     from .health import router as health_router
 except Exception:
     health_router = None
-from .auth_middleware import AuthMiddleware  # type: ignore
+from ..middleware.auth_middleware import AuthMiddleware  # type: ignore
 from .analysis.technical import TechnicalAnalyzer
 from .analysis.signal import SignalGenerator
 from .config import MonitorConfig

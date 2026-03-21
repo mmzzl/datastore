@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from case.apps.api.app.api_holdings import router as holdings_router
 from case.apps.api.app.auth import create_token
-from case.apps.api.app.monitor.auth_guard_demo import router as guard_router
+from case.apps.api.app.auth_guard_demo import router as guard_router
 
 
 def build_app():

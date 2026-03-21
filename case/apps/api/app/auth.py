@@ -32,6 +32,7 @@ def verify_token(token: str) -> Optional[str]:
 
 
 from fastapi import Header, HTTPException, status
+from app.core.security import security
 
 
 def get_current_user(authorization: Optional[str] = Header(None)) -> str:
@@ -44,7 +45,14 @@ def get_current_user(authorization: Optional[str] = Header(None)) -> str:
             status_code=status.HTTP_401_UNAUTHORIZED, detail="无效的认证头"
         )
     token = authorization.split(" ", 1)[1]
+    # Try custom token first
     user = verify_token(token)
-    if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="无效令牌")
-    return user
+    if user:
+        return user
+    # Try JWT token
+    payload = security.verify_token(token)
+    if payload:
+        sub = payload.get("sub")
+        if sub:
+            return sub
+    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="无效令牌")

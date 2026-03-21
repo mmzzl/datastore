@@ -3,7 +3,8 @@ from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
-from app.auth import verify_token
+from app.auth import verify_token as verify_custom_token
+from app.core.security import security
 
 logger = logging.getLogger(__name__)
 
@@ -24,9 +25,18 @@ class AuthMiddleware(BaseHTTPMiddleware):
         token = auth.split(" ", 1)[1]
         user = None
         try:
-            user = verify_token(token)
+            # Try custom token first
+            user = verify_custom_token(token)
         except Exception:
             user = None
+        if not user:
+            try:
+                # Try JWT token
+                payload = security.verify_token(token)
+                if payload:
+                    user = payload.get("sub")
+            except Exception:
+                pass
         if not user:
             return JSONResponse({"detail": "Invalid or expired token"}, status_code=403)
         # 这里不强制将 user 注入到请求中，后续端点仍依赖 get_current_user

@@ -10,6 +10,13 @@ import os
 import traceback
 from logging.handlers import TimedRotatingFileHandler
 
+from app.api_holdings import router as holdings_router
+from app.api_settings import router as settings_router
+from app.monitor.health import router as health_router
+from app.monitor.market_signals import router as signals_router
+from app.api_auth import router as market_auth_router
+from app.monitor import include_routers
+
 # 确保日志目录存在
 log_file = settings.logging_file
 log_dir = os.path.dirname(log_file)
@@ -18,17 +25,16 @@ if log_dir and not os.path.exists(log_dir):
 
 # 配置日志
 logging.basicConfig(
-    level=getattr(logging, settings.logging_level),
-    format=settings.logging_format
+    level=getattr(logging, settings.logging_level), format=settings.logging_format
 )
 
 # 添加按日期分割的文件日志处理器
 file_handler = TimedRotatingFileHandler(
     log_file,
-    when='midnight',
+    when="midnight",
     interval=1,
     backupCount=settings.logging_backup_count,
-    encoding='utf-8'
+    encoding="utf-8",
 )
 file_handler.setLevel(getattr(logging, settings.logging_level))
 file_handler.setFormatter(logging.Formatter(settings.logging_format))
@@ -42,7 +48,7 @@ scheduler = BackgroundScheduler()
 app = FastAPI(
     title=settings.app_name,
     description=settings.app_description,
-    version=settings.app_version
+    version=settings.app_version,
 )
 
 app.add_middleware(
@@ -59,6 +65,16 @@ app.include_router(auth.router)
 app.include_router(news.router)
 app.include_router(aftermarket.router)
 app.include_router(stock.router)
+
+# Market watching routers
+app.include_router(holdings_router, prefix="/api")
+app.include_router(settings_router, prefix="/api")
+app.include_router(health_router, prefix="/api")
+app.include_router(signals_router, prefix="/api")
+app.include_router(market_auth_router, prefix="/api")
+
+# Add auth middleware for market watching
+include_routers(app)
 
 
 def run_scheduled_job():
@@ -90,6 +106,7 @@ def run_scheduled_job():
             },
         }
         from app.scheduler import AfterMarketJob
+
         job = AfterMarketJob(config)
         job.run()
     except Exception as e:
@@ -127,6 +144,7 @@ def run_pre_cache_job():
             },
         }
         from app.scheduler import PreCacheJob
+
         job = PreCacheJob(config)
         job.run()
     except Exception as e:
@@ -164,6 +182,7 @@ def run_monitor_job():
             },
         }
         from app.scheduler import MonitorJob
+
         job = MonitorJob(config)
         job.run()
     except Exception as e:
@@ -177,41 +196,42 @@ def setup_scheduler():
     monitor_time = settings.monitor_scheduler_time
     monitor_interval = settings.monitor_interval
     timezone = settings.after_market_scheduler_timezone
-    
+
     # 添加预缓存任务
-    pre_cache_hour, pre_cache_minute = map(int, pre_cache_time.split(':'))
+    pre_cache_hour, pre_cache_minute = map(int, pre_cache_time.split(":"))
     scheduler.add_job(
         run_pre_cache_job,
-        'cron',
+        "cron",
         hour=pre_cache_hour,
         minute=pre_cache_minute,
         timezone=timezone,
-        id='pre_cache_job'
+        id="pre_cache_job",
     )
-    logging.info(f"Pre-cache scheduler configured to run at {pre_cache_time} ({timezone})")
-    
+    logging.info(
+        f"Pre-cache scheduler configured to run at {pre_cache_time} ({timezone})"
+    )
+
     # 添加主任务
-    hour, minute = map(int, job_time.split(':'))
+    hour, minute = map(int, job_time.split(":"))
     scheduler.add_job(
         run_scheduled_job,
-        'cron',
+        "cron",
         hour=hour,
         minute=minute,
         timezone=timezone,
-        id='after_market_job'
+        id="after_market_job",
     )
     logging.info(f"Main scheduler configured to run at {job_time} ({timezone})")
-    
+
     # 添加盯盘任务
     if settings.monitor_enabled:
         # 使用interval类型，按指定间隔执行
         scheduler.add_job(
-            run_monitor_job,
-            'interval',
-            seconds=monitor_interval,
-            id='monitor_job'
+            run_monitor_job, "interval", seconds=monitor_interval, id="monitor_job"
         )
-        logging.info(f"Monitor scheduler configured to run every {monitor_interval} seconds")
+        logging.info(
+            f"Monitor scheduler configured to run every {monitor_interval} seconds"
+        )
 
 
 @app.on_event("startup")
