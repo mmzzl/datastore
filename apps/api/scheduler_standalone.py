@@ -9,6 +9,7 @@ from logging.handlers import TimedRotatingFileHandler
 import traceback
 import time
 import signal
+from datetime import datetime
 
 from apscheduler.schedulers.blocking import BlockingScheduler
 from app.core.config import settings
@@ -65,6 +66,9 @@ def build_config():
 
 
 def run_pre_cache_job():
+    if datetime.now().weekday() >= 5:
+        logging.info("Skipping pre-cache job: weekend")
+        return
     try:
         from app.scheduler import PreCacheJob
 
@@ -76,6 +80,9 @@ def run_pre_cache_job():
 
 
 def run_scheduled_job():
+    if datetime.now().weekday() >= 5:
+        logging.info("Skipping after-market job: weekend")
+        return
     try:
         from app.scheduler import AfterMarketJob
 
@@ -87,6 +94,9 @@ def run_scheduled_job():
 
 
 def run_monitor_job():
+    if datetime.now().weekday() >= 5:
+        logging.info("Skipping monitor job: weekend")
+        return
     try:
         from app.scheduler import MonitorJob
 
@@ -94,6 +104,32 @@ def run_monitor_job():
         job.run()
     except Exception as e:
         logging.error(f"Monitor job failed: {e}")
+        logging.error(traceback.format_exc())
+
+
+def run_daily_kline_job():
+    if datetime.now().weekday() >= 5:
+        logging.info("Skipping daily kline job: weekend")
+        return
+    try:
+        from stock_kline_scraper import run_daily_job
+
+        run_daily_job()
+    except Exception as e:
+        logging.error(f"Daily kline scraper failed: {e}")
+        logging.error(traceback.format_exc())
+
+
+def run_5min_kline_job():
+    if datetime.now().weekday() >= 5:
+        logging.info("Skipping 5min kline job: weekend")
+        return
+    try:
+        from stock_kline_scraper import run_5min_job
+
+        run_5min_job()
+    except Exception as e:
+        logging.error(f"5min kline scraper failed: {e}")
         logging.error(traceback.format_exc())
 
 
@@ -140,6 +176,26 @@ def setup_scheduler():
         logging.info(
             f"Monitor scheduler configured to run every {monitor_interval} seconds"
         )
+
+    scheduler.add_job(
+        run_daily_kline_job,
+        "cron",
+        hour=15,
+        minute=30,
+        timezone=timezone,
+        id="daily_kline_job",
+        misfire_grace_time=3600,
+    )
+    logging.info(f"Daily kline scraper configured to run at 15:30 ({timezone})")
+
+    scheduler.add_job(
+        run_5min_kline_job,
+        "interval",
+        minutes=5,
+        id="5min_kline_job",
+        misfire_grace_time=300,
+    )
+    logging.info("5min kline scraper configured to run every 5 minutes")
 
 
 def shutdown_handler(signum, frame):

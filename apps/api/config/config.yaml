@@ -22,7 +22,7 @@ jwt:
 # 认证配置
 auth:
   username: "admin"
-  password: "sip@1234"
+  password: "7ac117d63b4b25369703699267104fb4dcf192cb"
 
 # 日志配置
 logging:

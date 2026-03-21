@@ -49,7 +49,7 @@
     "stock_codes_file": "stock_codes.csv"
   },
   "kline_spider": {
-    "enabled": true,
+    "enabled": false,
     "run_time": "15:30",
     "batch_size": 50,
     "batch_delay": 10,
@@ -57,14 +57,14 @@
     "stock_codes_file": "all_stock.csv"
   },
   "akshare_kline": {
-    "enabled": true,
+    "enabled": false,
     "run_time": "15:30",
     "batch_size": 50,
     "default_days": 60,
     "stock_codes_file": "stock_zh_a_spot.csv"
   },
   "capital_flow_spider": {
-    "enabled": true,
+    "enabled": false,
     "run_time": "15:01"
   }
 }

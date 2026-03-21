@@ -6,9 +6,9 @@ After=network.target
 Type=simple
 User=root
 Group=root
-WorkingDirectory=/home/fantom/datastore/case/apps/api
+WorkingDirectory=/home/fantom/datastore/apps/api
 Environment="PATH=/usr/bin:/usr/local/bin"
-Environment="PYTHONPATH=/home/fantom/datastore/case/apps/api"
+Environment="PYTHONPATH=/home/fantom/datastore/apps/api"
 ExecStart=/root/.pyenv/shims/python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 Restart=always
 RestartSec=5s

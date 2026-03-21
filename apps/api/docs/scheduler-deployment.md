@@ -101,6 +101,34 @@ supervisorctl update
 supervisorctl start scheduler
 ```
 
+## 定时任务
+
+| 任务 | 调度方式 | 默认时间 |
+|------|---------|---------|
+| 预缓存任务 | cron | 17:00 |
+| 盘后分析任务 | cron | 20:00 |
+| 盯盘任务 | interval | 每5分钟 |
+| 日线K线采集 | cron | 15:30 |
+| 5分钟K线采集 | interval | 每5分钟 |
+
+## 手动运行K线采集
+
+```bash
+cd apps/api
+
+# 日线（前复权，100天）
+python stock_kline_scraper.py --mode daily --offset 100
+
+# 5分钟线（前复权）
+python stock_kline_scraper.py --mode 5min --offset 100
+
+# 两者都采集
+python stock_kline_scraper.py --mode both
+
+# 指定股票代码
+python stock_kline_scraper.py --mode daily --codes 600519,000858
+```
+
 ## 定时任务配置
 
 修改 `config/config.yaml` 中的相关配置：
@@ -178,6 +206,9 @@ run_pre_cache_job()
 ## 注意事项
 
 1. 定时任务和 API 服务**共用同一份配置**（`config/config.yaml`）
+2. K线采集依赖 `mootdx`，需先安装：`pip install mootdx`
+3. K线数据保存到 `stock_kline` 集合，已存在的股票会自动跳过（`skip_existing=True`）
+4. 日线在 **15:30** 收盘后采集（前复权），5分钟线每5分钟采集
 2. 定时任务使用 `BlockingScheduler`，会阻塞当前进程
 3. 盯盘任务在非交易时间（周末、节假日）仍然会运行，但会跳过实际监控逻辑
 4. 如果服务器重启，需要确保定时任务服务设置了自启动

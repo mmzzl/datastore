@@ -45,7 +45,16 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const status = error.response?.status
+    const detail: string = error.response?.data?.detail || ''
+
+    if (
+      status === 401 ||
+      status === 403 ||
+      detail.includes('Invalid or expired token') ||
+      detail.includes('Not authenticated') ||
+      detail.includes('token')
+    ) {
       authService.clearToken()
       router.push('/login')
     }
