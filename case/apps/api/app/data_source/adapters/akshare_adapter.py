@@ -266,6 +266,12 @@ class AkshareAdapter(IDataSource):
         """Akshare不需要关闭连接"""
         pass
 
+    def get_settings(self, user_id: str) -> Dict[str, Any]:
+        return {"watchlist": [], "interval_sec": 60, "days": 5, "cache_ttl": 60}
+
+    def set_settings(self, user_id: str, settings: Dict[str, Any]) -> None:
+        return None
+
     def set_holdings(self, user_id: str, holdings: List[Dict[str, Any]]) -> List[str]:
         """Akshare 不直接管理持仓，作为兼容实现返回空列表"""
         return []

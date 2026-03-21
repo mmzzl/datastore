@@ -9,6 +9,11 @@ from .analysis.technical import TechnicalAnalyzer
 from .analysis.signal import SignalGenerator
 from .config import MonitorConfig
 
+try:
+    from .health import router as health_router
+except Exception:
+    health_router = None
+
 __all__ = [
     "StockMonitor",
     "MarketWatcher",
@@ -24,5 +29,10 @@ def include_routers(app=None):
     if market_signals_router is not None:
         try:
             app.include_router(market_signals_router, prefix="/api")
+        except Exception:
+            pass
+    if health_router is not None:
+        try:
+            app.include_router(health_router, prefix="/api")
         except Exception:
             pass

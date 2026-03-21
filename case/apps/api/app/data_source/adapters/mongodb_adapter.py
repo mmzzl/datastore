@@ -240,6 +240,57 @@ class MongoDBAdapter(IDataSource):
             self.storage.close()
             logger.info("MongoDB连接已关闭")
 
+    def get_settings(self, user_id: str) -> Dict[str, Any]:
+        """获取用户设置，若无则返回默认设置"""
+        try:
+            coll = getattr(self.storage, "settings_collection", None)
+            if coll is None:
+                # 尝试获取或创建 settings 集合
+                if self.storage:
+                    try:
+                        coll = self.storage.db["settings"]  # type: ignore
+                    except Exception:
+                        coll = None
+            if coll is None:
+                return {"watchlist": [], "interval_sec": 60, "days": 5, "cache_ttl": 60}
+            doc = (
+                coll.find_one({"user_id": user_id})
+                if hasattr(coll, "find_one")
+                else None
+            )
+            if not doc:
+                return {"watchlist": [], "interval_sec": 60, "days": 5, "cache_ttl": 60}
+            return {
+                "watchlist": doc.get("watchlist", []),
+                "interval_sec": doc.get("interval_sec", 60),
+                "days": doc.get("days", 5),
+                "cache_ttl": doc.get("cache_ttl", 60),
+            }
+        except Exception as e:
+            logger.error(f"获取 Settings 失败: {e}")
+            return {"watchlist": [], "interval_sec": 60, "days": 5, "cache_ttl": 60}
+
+    def set_settings(self, user_id: str, settings: Dict[str, Any]) -> None:
+        """保存用户设置"""
+        try:
+            coll = getattr(self.storage, "settings_collection", None)
+            if coll is None:
+                if self.storage:
+                    try:
+                        coll = self.storage.db["settings"]  # type: ignore
+                    except Exception:
+                        coll = None
+            if coll is None:
+                return
+            doc = {
+                "user_id": user_id,
+                **settings,
+                "updated_at": __import__("datetime").datetime.now(),
+            }
+            coll.update_one({"user_id": user_id}, {"$set": doc}, upsert=True)
+        except Exception as e:
+            logger.error(f"设置 Settings 失败: {e}")
+
     def set_holdings(self, user_id: str, holdings: List[Dict[str, Any]]) -> List[str]:
         """批量设定持仓，覆盖当前用户的所有持仓记录"""
         if not self.storage or not getattr(self.storage, "holdings_collection", None):

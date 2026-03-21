@@ -235,3 +235,9 @@ class TDXAdapter(IDataSource):
         if self._client:
             # mootdx不需要显式关闭
             logger.info("通达信客户端已关闭")
+
+    def get_settings(self, user_id: str) -> Dict[str, Any]:
+        return {"watchlist": [], "interval_sec": 60, "days": 5, "cache_ttl": 60}
+
+    def set_settings(self, user_id: str, settings: Dict[str, Any]) -> None:
+        return None

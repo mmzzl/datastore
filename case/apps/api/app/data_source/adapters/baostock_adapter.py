@@ -153,3 +153,16 @@ class BaostockAdapter(IDataSource):
     def __del__(self):
         """析构函数中关闭连接"""
         self.close()
+
+    # 兼容性接口：Settings 相关
+    def get_settings(self, user_id: str) -> Dict[str, Any]:
+        return {
+            "watchlist": [],
+            "interval_sec": 60,
+            "days": 5,
+            "cache_ttl": 60,
+        }
+
+    def set_settings(self, user_id: str, settings: Dict[str, Any]) -> None:
+        # Baostock 不管理设置，保持接口兼容性，但不持久化
+        return None

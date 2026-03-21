@@ -259,6 +259,18 @@ class DataSourceManager:
             "holdings": [],
         }
 
+    def get_settings(self, user_id: str) -> Dict[str, Any]:
+        for provider, adapter in self._adapters.items():
+            if hasattr(adapter, "get_settings"):
+                return adapter.get_settings(user_id)
+        return {"watchlist": [], "interval_sec": 60, "days": 5, "cache_ttl": 60}
+
+    def set_settings(self, user_id: str, settings: Dict[str, Any]) -> None:
+        for provider, adapter in self._adapters.items():
+            if hasattr(adapter, "set_settings"):
+                adapter.set_settings(user_id, settings)
+                return
+
     def close_all(self):
         """关闭所有数据源连接"""
         for provider, adapter in self._adapters.items():

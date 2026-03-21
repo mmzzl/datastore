@@ -42,6 +42,16 @@ class IDataSource(ABC):
         pass
 
     @abstractmethod
+    def get_settings(self, user_id: str) -> Dict[str, Any]:
+        """获取用户的设置（如 watchlist、interval、days、cache TTL 等）"""
+        pass
+
+    @abstractmethod
+    def set_settings(self, user_id: str, settings: Dict[str, Any]) -> None:
+        """保存用户设置"""
+        pass
+
+    @abstractmethod
     def remove_holding(self, user_id: str, code: str) -> int:
         pass
 
