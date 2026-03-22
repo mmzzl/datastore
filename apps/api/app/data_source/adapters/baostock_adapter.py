@@ -4,7 +4,7 @@ from datetime import datetime
 import baostock as bs
 
 from ..interface import IDataSource
-from ..models import StockKLine, StockInfo
+from ..models import StockKLine, StockInfo, MarketBreadth, CorrelatedAssets
 
 logger = logging.getLogger(__name__)
 
@@ -170,3 +170,14 @@ class BaostockAdapter(IDataSource):
     def remove_holding(self, user_id: str, code: str) -> int:
         """无持仓删除实现的占位方法，Baostock 不提供持仓存储"""
         return 0
+
+    def get_market_breadth(self) -> Optional[MarketBreadth]:
+        return None
+
+    def get_correlated_assets(self) -> Optional[CorrelatedAssets]:
+        return None
+
+    def get_minute_kline(
+        self, code: str, frequency: str = "5", days: int = 5
+    ) -> List[StockKLine]:
+        return []

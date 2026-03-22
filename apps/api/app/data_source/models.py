@@ -2,16 +2,21 @@ from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
+from dataclasses import dataclass
+
 
 class DataSourceType(Enum):
     """数据源类型"""
+
     BAOSTOCK = "baostock"
     AKSHARE = "akshare"
     MONGODB = "mongodb"
     CUSTOM = "custom"
 
+
 class StockKLine(BaseModel):
     """统一K线数据模型"""
+
     code: str = Field(..., description="股票代码")
     date: str = Field(..., description="日期 YYYY-MM-DD")
     open: float = Field(..., description="开盘价")
@@ -22,7 +27,7 @@ class StockKLine(BaseModel):
     amount: float = Field(..., description="成交额")
     turnover_rate: Optional[float] = Field(None, description="换手率")
     change_pct: Optional[float] = Field(None, description="涨跌幅")
-    
+
     class Config:
         json_schema_extra = {
             "example": {
@@ -33,41 +38,67 @@ class StockKLine(BaseModel):
                 "low": 9.8,
                 "close": 10.2,
                 "volume": 1000000,
-                "amount": 10000000.0
+                "amount": 10000000.0,
             }
         }
 
+
 class StockInfo(BaseModel):
     """统一股票信息模型"""
+
     code: str = Field(..., description="股票代码")
     name: str = Field(..., description="股票名称")
     exchange: str = Field(..., description="交易所 SH/SZ")
     industry: Optional[str] = Field(None, description="行业")
     market_value: Optional[float] = Field(None, description="市值")
-    
+
     class Config:
         json_schema_extra = {
-            "example": {
-                "code": "sh.600000",
-                "name": "浦发银行",
-                "exchange": "SH"
-            }
+            "example": {"code": "sh.600000", "name": "浦发银行", "exchange": "SH"}
         }
+
 
 class DataSourceConfig(BaseModel):
     """数据源配置模型"""
+
     provider: str = Field(..., description="数据源提供商")
     name: str = Field(..., description="数据源名称")
     enabled: bool = Field(True, description="是否启用")
     priority: int = Field(1, description="优先级，数字越小优先级越高")
-    config: Dict[str, Any] = Field(default_factory=dict, description=" provider-specific配置")
-    
+    config: Dict[str, Any] = Field(
+        default_factory=dict, description=" provider-specific配置"
+    )
+
     class Config:
         json_schema_extra = {
             "example": {
                 "provider": "baostock",
                 "name": "Baostock免费数据源",
                 "enabled": True,
-                "priority": 1
+                "priority": 1,
             }
         }
+
+
+@dataclass
+class MarketBreadth:
+    """市场广度数据"""
+
+    timestamp: datetime
+    advance_count: int
+    decline_count: int
+    advance_decline_ratio: float
+    sector_rankings: List[Dict[str, Any]]
+    north_bound_flow: float
+    vix: float
+
+
+@dataclass
+class CorrelatedAssets:
+    """关联资产数据"""
+
+    timestamp: datetime
+    a50_future: float
+    a50_change_pct: float
+    usdcnh: float
+    dxy: float

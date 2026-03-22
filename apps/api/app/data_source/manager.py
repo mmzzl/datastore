@@ -3,7 +3,13 @@ from typing import Dict, Optional, List, Any
 from contextlib import contextmanager
 
 from .interface import IDataSource
-from .models import DataSourceConfig, StockKLine, StockInfo
+from .models import (
+    DataSourceConfig,
+    StockKLine,
+    StockInfo,
+    MarketBreadth,
+    CorrelatedAssets,
+)
 from .adapters.baostock_adapter import BaostockAdapter
 from .adapters.mongodb_adapter import MongoDBAdapter
 from .adapters.akshare_adapter import AkshareAdapter
@@ -285,6 +291,53 @@ class DataSourceManager:
             if hasattr(adapter, "set_settings"):
                 adapter.set_settings(user_id, settings)
                 return
+
+    def get_market_breadth(self, provider: str = None) -> Optional[MarketBreadth]:
+        """获取市场广度数据"""
+        if provider:
+            adapter = self._adapters.get(provider)
+            if adapter and hasattr(adapter, "get_market_breadth"):
+                return adapter.get_market_breadth()
+        for adapter in self._adapters.values():
+            try:
+                result = adapter.get_market_breadth()
+                if result:
+                    return result
+            except Exception:
+                continue
+        return None
+
+    def get_correlated_assets(self, provider: str = None) -> Optional[CorrelatedAssets]:
+        """获取关联资产数据"""
+        if provider:
+            adapter = self._adapters.get(provider)
+            if adapter and hasattr(adapter, "get_correlated_assets"):
+                return adapter.get_correlated_assets()
+        for adapter in self._adapters.values():
+            try:
+                result = adapter.get_correlated_assets()
+                if result:
+                    return result
+            except Exception:
+                continue
+        return None
+
+    def get_minute_kline(
+        self, code: str, frequency: str = "5", days: int = 5, provider: str = None
+    ) -> List[StockKLine]:
+        """获取分钟K线数据"""
+        if provider:
+            adapter = self._adapters.get(provider)
+            if adapter and hasattr(adapter, "get_minute_kline"):
+                return adapter.get_minute_kline(code, frequency, days)
+        for adapter in self._adapters.values():
+            try:
+                result = adapter.get_minute_kline(code, frequency, days)
+                if result:
+                    return result
+            except Exception:
+                continue
+        return []
 
     def close_all(self):
         """关闭所有数据源连接"""

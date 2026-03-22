@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional, Dict, Any
-from .models import StockKLine, StockInfo
+from .models import StockKLine, StockInfo, MarketBreadth, CorrelatedAssets
 
 
 class IDataSource(ABC):
@@ -54,6 +54,20 @@ class IDataSource(ABC):
     @abstractmethod
     def remove_holding(self, user_id: str, code: str) -> int:
         pass
+
+    @abstractmethod
+    def get_market_breadth(self) -> Optional[MarketBreadth]:
+        """获取市场广度数据"""
+
+    @abstractmethod
+    def get_correlated_assets(self) -> Optional[CorrelatedAssets]:
+        """获取关联资产数据"""
+
+    @abstractmethod
+    def get_minute_kline(
+        self, code: str, frequency: str = "5", days: int = 5
+    ) -> List[StockKLine]:
+        """获取分钟K线数据, frequency: 1/5/15/30/60"""
 
     @property
     @abstractmethod

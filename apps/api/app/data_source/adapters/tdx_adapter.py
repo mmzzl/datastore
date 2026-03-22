@@ -14,7 +14,7 @@ except ImportError:
     logger.warning("mootdx library not available, TDX adapter will not work")
 
 from ..interface import IDataSource
-from ..models import StockKLine, StockInfo
+from ..models import StockKLine, StockInfo, MarketBreadth, CorrelatedAssets
 
 
 class TDXAdapter(IDataSource):
@@ -245,3 +245,14 @@ class TDXAdapter(IDataSource):
     def remove_holding(self, user_id: str, code: str) -> int:
         """TDX 不实现持仓删除，返回 0 作为兼容实现"""
         return 0
+
+    def get_market_breadth(self) -> Optional[MarketBreadth]:
+        return None
+
+    def get_correlated_assets(self) -> Optional[CorrelatedAssets]:
+        return None
+
+    def get_minute_kline(
+        self, code: str, frequency: str = "5", days: int = 5
+    ) -> List[StockKLine]:
+        return []

@@ -3,7 +3,7 @@ from typing import List, Optional, Dict, Any, Callable
 from datetime import datetime, timedelta
 
 from ..interface import IDataSource
-from ..models import StockKLine, StockInfo
+from ..models import StockKLine, StockInfo, MarketBreadth, CorrelatedAssets
 from ...storage.mongo_client import MongoStorage
 from ...core.config import settings
 
@@ -585,6 +585,17 @@ class MongoDBAdapter(IDataSource):
         except Exception as e:
             logger.error(f"移除持仓失败: {e}")
             return 0
+
+    def get_market_breadth(self) -> Optional[MarketBreadth]:
+        return None
+
+    def get_correlated_assets(self) -> Optional[CorrelatedAssets]:
+        return None
+
+    def get_minute_kline(
+        self, code: str, frequency: str = "5", days: int = 5
+    ) -> List[StockKLine]:
+        return []
 
     def get_portfolio_summary(
         self, user_id: str, price_fetcher: Optional[Callable[[str], float]] = None
