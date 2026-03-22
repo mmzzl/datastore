@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from app.core.security import security
 from datetime import timedelta
 from app.core.config import settings
-
+import hashlib 
 router = APIRouter(prefix="/api/auth", tags=["authentication"])
 
 class TokenRequest(BaseModel):
@@ -18,7 +18,10 @@ class TokenResponse(BaseModel):
 def login_for_access_token(request: TokenRequest):
     """获取访问令牌"""
     # 使用配置文件中的用户名和密码进行验证
-    if request.username != settings.auth_username or request.password != settings.auth_password:
+    # 密码进行MD5哈希
+    password = f"{request.password}sangfornetwork"
+    hashed_password = hashlib.sha1(password.encode("utf-8")).hexdigest()
+    if request.username != settings.auth_username or hashed_password != settings.auth_password:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="用户名或密码错误",

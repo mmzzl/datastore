@@ -12,7 +12,14 @@ logger = logging.getLogger(__name__)
 class AuthMiddleware(BaseHTTPMiddleware):
     def __init__(self, app):
         super().__init__(app)
-        self.exempt_paths = ["/api/login", "/api/health"]
+        self.exempt_paths = [
+            "/api/login",
+            "/api/health",
+            "/api/auth/token",
+            "/api/docs",
+            "/api/redoc",
+            "/api/openapi.json",
+        ]
 
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
