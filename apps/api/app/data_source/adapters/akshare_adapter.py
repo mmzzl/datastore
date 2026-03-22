@@ -9,6 +9,10 @@ from ..models import StockKLine, StockInfo, MarketBreadth, CorrelatedAssets
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_VIX = 18.0
+DEFAULT_USDCNH = 7.25
+DEFAULT_DXY = 104.0
+
 
 class AkshareAdapter(IDataSource):
     """Akshare数据源适配器"""
@@ -320,9 +324,10 @@ class AkshareAdapter(IDataSource):
                 else 99.0,
                 sector_rankings=sector_rankings,
                 north_bound_flow=north_flow,
-                vix=15.0,
+                vix=DEFAULT_VIX,
             )
-        except Exception:
+        except Exception as e:
+            logger.warning(f"get_market_breadth failed: {e}")
             return None
 
     def get_correlated_assets(self) -> Optional[CorrelatedAssets]:
@@ -346,16 +351,18 @@ class AkshareAdapter(IDataSource):
                 usdcnh = (
                     float(usdcnh_df["中行折算价"].iloc[-1])
                     if not usdcnh_df.empty
-                    else 7.25
+                    else DEFAULT_USDCNH
                 )
             except Exception:
-                usdcnh = 7.25
+                usdcnh = DEFAULT_USDCNH
 
             try:
                 dxy_df = ak.currency_usdkline()
-                dxy = float(dxy_df["close"].iloc[-1]) if not dxy_df.empty else 104.0
+                dxy = (
+                    float(dxy_df["close"].iloc[-1]) if not dxy_df.empty else DEFAULT_DXY
+                )
             except Exception:
-                dxy = 104.0
+                dxy = DEFAULT_DXY
 
             return CorrelatedAssets(
                 timestamp=datetime.now(),
@@ -364,7 +371,8 @@ class AkshareAdapter(IDataSource):
                 usdcnh=usdcnh,
                 dxy=dxy,
             )
-        except Exception:
+        except Exception as e:
+            logger.warning(f"get_correlated_assets failed: {e}")
             return None
 
     def get_minute_kline(
@@ -419,5 +427,6 @@ class AkshareAdapter(IDataSource):
                 except Exception:
                     continue
             return result
-        except Exception:
+        except Exception as e:
+            logger.warning(f"get_minute_kline({code}, {frequency}) failed: {e}")
             return []
