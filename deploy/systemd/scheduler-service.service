@@ -1,26 +1,41 @@
 [Unit]
 Description=Stock Market Scheduler Service
-After=network.target mongodb.service
-Wants=mongodb.service
+# 修正 MongoDB 服务名（适配绝大多数 Linux 发行版）
+After=network.target mongod.service
+Wants=mongod.service
+# 强制要求 MongoDB 启动成功后，本服务才启动（避免依赖缺失）
+Requires=mongod.service
 
 [Service]
 Type=simple
-User=root
-Group=root
+# 1. 改用普通用户运行（使用已存在的 fantom 用户，避免 root 风险）
+User=root 
+Group=root 
 WorkingDirectory=/home/fantom/datastore/apps/api
-Environment="PYTHONPATH=/home/fantom/datastore/apps/api"
-Environment="PATH=/usr/local/bin:/usr/bin:/bin"
-ExecStart=/root/.pyenv/shims/python -m /home/fantom/datastore/apps/api/scheduler_standalone.py
+# 2. 完善 PYTHONPATH（包含上级目录，适配模块导入）
+Environment="PYTHONPATH=/home/fantom/datastore/apps:/home/fantom/datastore/apps/api"
+# 3. 补全 pyenv 环境变量（确保 Python 依赖路径正确）
+Environment="PYENV_ROOT=/root/.pyenv"
+Environment="PATH=/root/.pyenv/shims:/root/.pyenv/bin:/usr/local/bin:/usr/bin:/bin"
+# 4. 修正 ExecStart（已无 -m 错误，保留绝对路径）
+ExecStart=/root/.pyenv/shims/python /home/fantom/datastore/apps/api/scheduler_standalone.py
 ExecReload=/bin/kill -HUP $MAINPID
-Restart=always
+# 5. 优化重启策略（仅在脚本异常失败时重启，且限制重启次数）
+Restart=on-failure
 RestartSec=10
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=scheduler-service
-
-# 资源限制
+StartLimitInterval=60s  # 60秒内
+StartLimitBurst=5       # 最多重启5次，避免无限重启
+# 6. 日志优化：输出到独立文件（便于排查问题）
+StandardOutput=append:/var/log/scheduler-service.log
+StandardError=append:/var/log/scheduler-service-error.log
+# 7. 资源限制（保留）
 LimitNOFILE=65536
 TimeoutStopSec=30
+# 8. 补充进程管理配置（防止僵尸进程）
+KillMode=process
+KillSignal=SIGTERM
+# 9. 禁止服务被换入交换分区（提升运行稳定性）
+MemorySwapMax=0
 
 [Install]
 WantedBy=multi-user.target

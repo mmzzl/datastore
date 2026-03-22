@@ -133,6 +133,21 @@ def run_5min_kline_job():
         logging.error(traceback.format_exc())
 
 
+def run_alert_orchestrator_job():
+    if datetime.now().weekday() >= 5:
+        logging.info("Skipping alert orchestrator job: weekend")
+        return
+    try:
+        from app.scheduler import AlertOrchestratorJob
+
+        job = AlertOrchestratorJob(build_config())
+        result = job.run()
+        logging.info(f"Alert orchestrator job result: {result}")
+    except Exception as e:
+        logging.error(f"Alert orchestrator job failed: {e}")
+        logging.error(traceback.format_exc())
+
+
 def setup_scheduler():
     job_time = settings.after_market_scheduler_time
     pre_cache_time = settings.after_market_pre_cache_scheduler_time
@@ -196,6 +211,16 @@ def setup_scheduler():
         misfire_grace_time=300,
     )
     logging.info("5min kline scraper configured to run every 5 minutes")
+
+    # Alert Orchestrator Job - 交易时间每5分钟执行一次
+    scheduler.add_job(
+        run_alert_orchestrator_job,
+        "interval",
+        minutes=5,
+        id="alert_orchestrator_job",
+        misfire_grace_time=300,
+    )
+    logging.info("Alert orchestrator configured to run every 5 minutes")
 
 
 def shutdown_handler(signum, frame):

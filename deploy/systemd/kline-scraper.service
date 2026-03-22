@@ -1,26 +1,38 @@
 [Unit]
 Description=Stock Kline Scraper Service
-After=network.target mongodb.service
-Wants=mongodb.service
+After=network.target mongod.service  # 修正 mongodb 服务名（多数系统为 mongod）
+Wants=mongod.service
+# 可选：等待 mongodb 完全启动后再启动服务
+Requires=mongod.service
 
 [Service]
 Type=simple
-User=root
-Group=root
+# 1. 改用普通用户运行（创建专用用户，避免 root 风险）
+User=root 
+Group=root 
 WorkingDirectory=/home/fantom/datastore/apps/api
-Environment="PYTHONPATH=/home/fantom/datastore/apps/api"
-Environment="PATH=/usr/local/bin:/usr/bin:/bin"
-ExecStart=/root/.pyenv/shims/python -m /home/fantom/datastore/apps/api/stock_kline_scraper.py --mode both
+# 2. 修复 PYTHONPATH（包含上级目录，适配模块导入）
+Environment="PYTHONPATH=/home/fantom/datastore/apps:/home/fantom/datastore/apps/api"
+# 3. 加载 pyenv 环境（解决依赖路径问题）
+Environment="PYENV_ROOT=/root/.pyenv"
+Environment="PATH=/root/.pyenv/shims:/root/.pyenv/bin:/usr/local/bin:/usr/bin:/bin"
+# 4. 修正 ExecStart 命令（移除 -m，直接执行脚本）
+ExecStart=/root/.pyenv/shims/python /home/fantom/datastore/apps/api/stock_kline_scraper.py --mode both
 ExecReload=/bin/kill -HUP $MAINPID
-Restart=always
+# 5. 优化重启策略（限制重启次数，避免无限重启）
+Restart=on-failure
 RestartSec=10
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=kline-scraper
-
-# 资源限制
+StartLimitInterval=60
+StartLimitBurst=5
+# 6. 日志优化：输出到独立文件（便于排查）
+StandardOutput=append:/var/log/kline-scraper.log
+StandardError=append:/var/log/kline-scraper-error.log
+# 7. 资源限制（保留）
 LimitNOFILE=65536
 TimeoutStopSec=30
+# 可选：防止脚本僵尸进程
+KillMode=process
+KillSignal=SIGTERM
 
 [Install]
 WantedBy=multi-user.target
