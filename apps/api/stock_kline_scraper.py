@@ -116,7 +116,7 @@ class StockKlineScraper:
                 for code in index_codes:
                     codes.add(code)
                 sh_codes = [f"{i:06d}" for i in range(600000, 604000)]
-                sz_codes = [f"{i:06d}" for i in range(000001, 003000)]
+                sz_codes = [f"{i:06d}" for i in range(1, 3000)]
                 codes.update(sh_codes[:100])
                 codes.update(sz_codes[:100])
             except Exception as e:
