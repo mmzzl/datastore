@@ -1,0 +1,26 @@
+[Unit]
+Description=Stock Kline Scraper Service
+After=network.target mongodb.service
+Wants=mongodb.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/home/fantom/datastore/apps/api
+Environment="PYTHONPATH=/home/fantom/datastore/apps/api"
+Environment="PATH=/usr/local/bin:/usr/bin:/bin"
+ExecStart=/root/.pyenv/shims/python -m /home/fantom/datastore/apps/api/stock_kline_scraper.py --mode both
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=kline-scraper
+
+# 资源限制
+LimitNOFILE=65536
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

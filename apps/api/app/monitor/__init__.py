@@ -1,5 +1,15 @@
 from .stock_monitor import StockMonitor
 from .market_watcher import MarketWatcher
+from .alert_orchestrator import AlertOrchestrator
+from .analysis.aggregator import AlertAggregator
+from .watchers import (
+    BaseWatcher,
+    MarketBreadthWatcher,
+    CorrelatedAssetWatcher,
+    StockAlertWatcher,
+    NewsEventWatcher,
+    MinuteKlineWatcher,
+)
 
 try:
     from .market_signals import router as market_signals_router
@@ -22,6 +32,14 @@ except Exception:
 __all__ = [
     "StockMonitor",
     "MarketWatcher",
+    "AlertOrchestrator",
+    "AlertAggregator",
+    "BaseWatcher",
+    "MarketBreadthWatcher",
+    "CorrelatedAssetWatcher",
+    "StockAlertWatcher",
+    "NewsEventWatcher",
+    "MinuteKlineWatcher",
     "TechnicalAnalyzer",
     "SignalGenerator",
     "MonitorConfig",
