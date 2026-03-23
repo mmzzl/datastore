@@ -136,13 +136,13 @@ class StockKlineScraper:
             df = self.client.bars(
                 symbol=code,
                 freq=frequency,
-                offset=offset,
-                adjust=adjust,
+                offset=offset
             )
             if df is None or df.empty:
                 return []
 
-            if isinstance(df.columns, range(len(df.columns))):
+            import pandas as pd
+            if isinstance(df.columns, pd.RangeIndex):
                 df.columns = ["date", "open", "high", "low", "close", "amount", "volume"]
 
             records = []
