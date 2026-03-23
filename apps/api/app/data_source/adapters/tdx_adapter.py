@@ -69,7 +69,7 @@ class TDXAdapter(IDataSource):
             frequency = 9
             adjust_flag = "qfq"
             df = client.bars(
-                symbol=stock_code, frequency=frequency, adjust=adjust_flag, offset=100
+                symbol=stock_code, frequency=frequency, offset=100
             )
             if df is None or df.empty:
                 logger.warning(f"未获取到 {code} 的K线数据")

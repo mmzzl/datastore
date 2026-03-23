@@ -3,7 +3,7 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 os.environ.setdefault("PYTHONPATH", os.path.dirname(os.path.abspath(__file__)))
-
+import pandas as pd
 import logging
 from logging.handlers import TimedRotatingFileHandler
 from datetime import datetime, timedelta
@@ -133,39 +133,53 @@ class StockKlineScraper:
     ) -> List[Dict[str, Any]]:
         self._ensure_client()
         try:
+            code = code.split('.')[-1]
             df = self.client.bars(
                 symbol=code,
                 freq=frequency,
                 offset=offset,
-                adjust=adjust,
+                # adjust=adjust,
             )
             if df is None or df.empty:
                 return []
 
-            if isinstance(df.columns, range(len(df.columns))):
-                df.columns = ["date", "open", "high", "low", "close", "amount", "volume"]
+            # 选择并重命名需要的列
+            column_map = {
+                "datetime": "date",
+                "open": "open",
+                "high": "high", 
+                "low": "low",
+                "close": "close",
+                "amount": "amount",
+                "volume": "volume",  # 或 "vol"，看哪个是手数
+            }
+            
+            # 只保留存在的列
+            available_cols = [c for c in column_map.keys() if c in df.columns]
+            df = df[available_cols].rename(columns=column_map)
 
             records = []
             for _, row in df.iterrows():
                 try:
                     records.append({
                         "code": code,
-                        "date": str(row.get("date", "")),
-                        "open": float(row.get("open", 0) or 0),
-                        "high": float(row.get("high", 0) or 0),
-                        "low": float(row.get("low", 0) or 0),
-                        "close": float(row.get("close", 0) or 0),
-                        "volume": int(row.get("volume", 0) or 0),
-                        "amount": float(row.get("amount", 0) or 0),
+                        "date": str(row["date"]),
+                        "open": float(row["open"]),
+                        "high": float(row["high"]),
+                        "low": float(row["low"]),
+                        "close": float(row["close"]),
+                        "volume": int(row["volume"]) if pd.notna(row["volume"]) else 0,
+                        "amount": float(row["amount"]) if pd.notna(row["amount"]) else 0.0,
                         "frequency": frequency,
                         "adjust": adjust,
-                        "crawl_time": datetime.now(),
+                        "crawl_time": datetime.now().isoformat(),
                     })
-                except (ValueError, TypeError):
+                except (ValueError, TypeError, KeyError) as e:
+                    logger.error(f"Parse error for {code}: {e}")
                     continue
             return records
         except Exception as e:
-            logger.debug(f"Failed to fetch kline for {code}: {e}")
+            logger.error(f"Failed to fetch kline for {code}: {e}")
             return []
 
     def _need_fetch(self, code: str, frequency: int = 9) -> bool:
