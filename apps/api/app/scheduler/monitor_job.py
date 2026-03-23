@@ -52,8 +52,8 @@ class MonitorJob:
             执行结果消息
         """
         # 检查是否为交易时间
-        # if not self.is_trading_time():
-        #     return "当前非交易时间，跳过盯盘任务"
+        if not self.is_trading_time():
+            return "当前非交易时间，跳过盯盘任务"
         
         if target_date:
             target = datetime.strptime(target_date, "%Y-%m-%d")

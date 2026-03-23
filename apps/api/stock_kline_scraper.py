@@ -15,8 +15,7 @@ from app.core.config import settings
 from app.storage.mongo_client import MongoStorage
 
 try:
-    import mootdx
-    from mootdx import Stock
+    from mootdx.quotes import Quotes
     MOOTDX_AVAILABLE = True
 except ImportError:
     MOOTDX_AVAILABLE = False
@@ -64,7 +63,7 @@ class StockKlineScraper:
         if self.client is None:
             if not MOOTDX_AVAILABLE:
                 raise RuntimeError("mootdx is not installed")
-            self.client = Stock()
+            self.client = Quotes.factory(market="std", multithread=True, heartbeat=True)
 
     def _get_all_stock_codes(self) -> List[str]:
         self._ensure_storage()
@@ -134,7 +133,7 @@ class StockKlineScraper:
     ) -> List[Dict[str, Any]]:
         self._ensure_client()
         try:
-            df = self.client.stock(
+            df = self.client.bars(
                 symbol=code,
                 freq=frequency,
                 offset=offset,

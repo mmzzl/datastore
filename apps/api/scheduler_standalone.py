@@ -4,6 +4,9 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 os.environ.setdefault("PYTHONPATH", os.path.dirname(os.path.abspath(__file__)))
 
+# Apply pandas compatibility patch before any other imports
+from app.core.pandas_compat import _patched_fillna
+
 import logging
 from logging.handlers import TimedRotatingFileHandler
 import traceback

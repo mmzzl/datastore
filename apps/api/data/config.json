@@ -116,11 +116,7 @@
       },
       nvidia: {
         baseUrl: 'https://integrate.api.nvidia.com/v1',
-        apiKey: {
-          source: 'file',
-          provider: 'nvidia-provider',
-          id: '__OPENCLAW_REDACTED__',
-        },
+        apiKey: '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',
         api: 'openai-completions',
         models: [
           {

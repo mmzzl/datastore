@@ -1,3 +1,6 @@
+# Apply pandas compatibility patch before any other imports
+from app.core.pandas_compat import _patched_fillna
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.endpoints import auth, news, aftermarket, stock
