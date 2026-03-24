@@ -17,7 +17,7 @@ from datetime import datetime
 from apscheduler.schedulers.blocking import BlockingScheduler
 from app.core.config import settings
 
-log_file = settings.logging_file
+log_file = "logs/scheduler.log"
 log_dir = os.path.dirname(log_file)
 if log_dir and not os.path.exists(log_dir):
     os.makedirs(log_dir)
@@ -206,14 +206,14 @@ def setup_scheduler():
     )
     logging.info(f"Daily kline scraper configured to run at 15:30 ({timezone})")
 
-    scheduler.add_job(
-        run_5min_kline_job,
-        "interval",
-        minutes=5,
-        id="5min_kline_job",
-        misfire_grace_time=300,
-    )
-    logging.info("5min kline scraper configured to run every 5 minutes")
+    # scheduler.add_job(
+    #     run_5min_kline_job,
+    #     "interval",
+    #     minutes=5,
+    #     id="5min_kline_job",
+    #     misfire_grace_time=300,
+    # )
+    # logging.info("5min kline scraper configured to run every 5 minutes")
 
     # Alert Orchestrator Job - 交易时间每5分钟执行一次
     scheduler.add_job(
