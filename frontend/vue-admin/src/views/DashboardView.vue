@@ -85,9 +85,9 @@
         <h2>持仓明细</h2>
       </div>
       <table class="holdings-table">
-<thead>
+      <thead>
         <tr>
-          <th>代码</th>
+          <th>名称</th>
           <th>数量</th>
           <th>成本价</th>
           <th>现价</th>
@@ -97,9 +97,9 @@
           <th>操作</th>
         </tr>
       </thead>
-        <tbody>
-      <tr v-for="h in dashboard.state.holdings" :key="h.code">
-          <td class="code-cell link-cell" @click="showKline(h.code)">{{ h.code }}</td>
+      <tbody>
+        <tr v-for="h in dashboard.state.holdings" :key="h.code">
+          <td class="name-cell link-cell" @click="showKline(h.code)">{{ h.name || h.code }}</td>
           <td class="number-cell">{{ h.quantity }}</td>
           <td class="number-cell">¥{{ h.average_cost?.toFixed(2) }}</td>
           <td class="number-cell" :class="h.change >= 0 ? 'profit' : 'loss'">

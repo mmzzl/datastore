@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { reactive } from 'vue'
-import { apiHoldings, authService } from '../services/api'
+import { apiHoldings, apiStocks, authService } from '../services/api'
 
 interface Holding {
   code: string
@@ -44,7 +44,28 @@ export const useHoldingsStore = defineStore('holdings', () => {
     state.error = null
     try {
       const res: PaginatedHoldings = await apiHoldings.getHoldings(id, page, state.pageSize)
-      state.holdings = res.items || []
+      let holdings = res.items || []
+      
+      // 获取股票名称
+      if (holdings.length > 0) {
+        const codes = holdings.map((h: Holding) => h.code)
+        try {
+          const priceRes = await apiStocks.getRealtimePrices(codes)
+          if (priceRes?.data) {
+            holdings = holdings.map((h: Holding) => {
+              const priceData = priceRes.data[h.code]
+              if (priceData && priceData.name) {
+                return { ...h, name: priceData.name }
+              }
+              return h
+            })
+          }
+        } catch (e) {
+          console.warn('获取股票名称失败:', e)
+        }
+      }
+      
+      state.holdings = holdings
       state.currentPage = res.page || 1
       state.totalPages = res.total_pages || 0
       state.totalCount = res.total || 0
