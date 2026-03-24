@@ -139,6 +139,7 @@ class MongoDBAdapter(IDataSource):
     ) -> Dict[str, Any]:
         """获取某用户的持仓列表（只返回数量大于0的），支持分页"""
         if not self.storage:
+            logger.warning("Storage is None in get_holdings")
             return {
                 "items": [],
                 "total": 0,
@@ -149,6 +150,7 @@ class MongoDBAdapter(IDataSource):
         try:
             coll = getattr(self.storage, "holdings_collection", None)
             if coll is None:
+                logger.warning("holdings_collection is None")
                 return {
                     "items": [],
                     "total": 0,
@@ -159,6 +161,7 @@ class MongoDBAdapter(IDataSource):
 
             query = {"user_id": user_id, "quantity": {"$gt": 0}}
             total = coll.count_documents(query)
+            logger.info(f"get_holdings query: user_id={user_id}, total={total}")
             skip = (page - 1) * page_size
             cursor = coll.find(query).skip(skip).limit(page_size)
 
@@ -168,6 +171,7 @@ class MongoDBAdapter(IDataSource):
                 results.append(doc)
 
             total_pages = (total + page_size - 1) // page_size if total > 0 else 0
+            logger.info(f"get_holdings returning {len(results)} items, total={total}")
             return {
                 "items": results,
                 "total": total,
@@ -601,7 +605,11 @@ class MongoDBAdapter(IDataSource):
         self, user_id: str, price_fetcher: Optional[Callable[[str], float]] = None
     ) -> Dict[str, Any]:
         """计算用户持仓总成本、市场价值与未实现盈亏。price_fetcher 用于获取最新价格"""
-        holdings = self.get_holdings(user_id)
+        result = self.get_holdings(user_id, page=1, page_size=100)
+        holdings = result.get("items", []) if isinstance(result, dict) else []
+        logger.info(
+            f"get_portfolio_summary: user_id={user_id}, holdings_count={len(holdings)}"
+        )
         total_cost = 0.0
         market_value = None
         unrealized_pnl = None

@@ -33,13 +33,21 @@ def get_holdings(
             status_code=status.HTTP_403_FORBIDDEN, detail="无权限访问此持仓"
         )
     try:
-        result = _data_manager.get_holdings(user_id, page, page_size)
-        if isinstance(result, dict) and "items" in result:
-            return result
-        # 兼容旧格式
+        adapter = _data_manager.get_adapter("mongodb")
+        if adapter and hasattr(adapter, "get_holdings"):
+            return adapter.get_holdings(user_id, page, page_size)
         return {
-            "items": result or [],
-            "total": len(result) if result else 0,
+            "items": [],
+            "total": 0,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": 0,
+        }
+    except Exception as e:
+        logger.error(f"获取持仓失败: {e}")
+        return {
+            "items": [],
+            "total": 0,
             "page": page,
             "page_size": page_size,
             "total_pages": 0,

@@ -19,6 +19,10 @@ class AuthMiddleware(BaseHTTPMiddleware):
             "/api/docs",
             "/api/redoc",
             "/api/openapi.json",
+            "/api/stock/kline",
+            "/api/stock/realtime",
+            "/api/stock/list",
+            "/api/stock/search",
         ]
 
     async def dispatch(self, request: Request, call_next):

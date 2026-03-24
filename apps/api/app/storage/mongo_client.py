@@ -205,8 +205,9 @@ class MongoStorage:
             results = []
             for doc in cursor:
                 doc["_id"] = str(doc["_id"])
-                if doc.get("crawl_time"):
-                    doc["crawl_time"] = doc["crawl_time"].isoformat()
+                crawl_time = doc.get("crawl_time")
+                if crawl_time and hasattr(crawl_time, "isoformat"):
+                    doc["crawl_time"] = crawl_time.isoformat()
                 results.append(doc)
             return results
         except PyMongoError as e:

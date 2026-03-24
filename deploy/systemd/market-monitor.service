@@ -1,0 +1,30 @@
+[Unit]
+Description=Stock Market Monitor Service
+After=network.target mongod.service
+Wants=mongod.service
+Requires=mongod.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/home/fantom/datastore/apps/api
+Environment="PYTHONPATH=/home/fantom/datastore/apps:/home/fantom/datastore/apps/api"
+Environment="PYENV_ROOT=/root/.pyenv"
+Environment="PATH=/root/.pyenv/shims:/root/.pyenv/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=/root/.pyenv/shims/python /home/fantom/datastore/apps/api/market_monitor_service.py --interval 300
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=10
+StartLimitInterval=60s
+StartLimitBurst=5
+StandardOutput=append:/var/log/market-monitor.log
+StandardError=append:/var/log/market-monitor-error.log
+LimitNOFILE=65536
+TimeoutStopSec=30
+KillMode=process
+KillSignal=SIGTERM
+MemorySwapMax=0
+
+[Install]
+WantedBy=multi-user.target

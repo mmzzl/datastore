@@ -58,7 +58,7 @@ setup_error_handlers(app)
 app.include_router(auth.router)
 app.include_router(news.router)
 app.include_router(aftermarket.router)
-app.include_router(stock.router)
+app.include_router(stock.router, prefix="/api")
 
 app.include_router(holdings_router, prefix="/api")
 app.include_router(settings_router, prefix="/api")

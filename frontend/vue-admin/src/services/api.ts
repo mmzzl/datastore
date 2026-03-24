@@ -140,6 +140,25 @@ export const apiSettings = {
   }
 }
 
+export const apiStocks = {
+  async searchStocks(keyword: string, limit: number = 20) {
+    const res = await api.get('/stock/search', { params: { q: keyword, limit } })
+    return res.data
+  },
+  async getStockList(params?: { keyword?: string; market?: string; type?: string; limit?: number }) {
+    const res = await api.get('/stock/list', { params })
+    return res.data
+  },
+  async getRealtimePrices(codes: string[]) {
+    const res = await api.get('/stock/realtime', { params: { codes: codes.join(',') } })
+    return res.data
+  },
+  async getRealtimePrice(code: string) {
+    const res = await api.get(`/stock/realtime/${code}`)
+    return res.data
+  }
+}
+
 export const apiHealth = {
   async check() {
     const res = await api.get('/health')
