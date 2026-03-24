@@ -321,17 +321,25 @@ class StockKlineScraper:
             return
         self._ensure_storage()
         try:
+            saved_count = 0
             for record in records:
-                self.storage.kline_collection.update_one(
+                record_frequency = record.get("frequency", frequency)
+                result = self.storage.kline_collection.update_one(
                     {
                         "code": record["code"],
                         "date": record["date"],
-                        "frequency": frequency,
+                        "frequency": record_frequency,
                     },
                     {"$set": record},
                     upsert=True,
                 )
-            logger.debug(f"Saved {len(records)} kline records for {records[0]['code']}")
+                if result.upserted_id or result.modified_count > 0:
+                    saved_count += 1
+            logger.debug(
+                f"Saved {saved_count}/{len(records)} kline records for {records[0]['code']}"
+            )
+        except Exception as e:
+            logger.error(f"Failed to save klines: {e}")
         except Exception as e:
             logger.error(f"Failed to save klines: {e}")
 
