@@ -58,55 +58,54 @@ class QlibPredictor:
     def predict(
         self,
         model_id: str,
-        instruments: List[str],
+        instruments: Optional[List[str]] = None,
         date: Optional[str] = None,
         topk: int = 50,
-    ) -> Dict[str, Any]:
+    ) -> List[Dict[str, Any]]:
         """
         Generate stock predictions using a trained model.
-        
+
         Args:
             model_id: Trained model identifier
-            instruments: List of stock codes to predict
+            instruments: List of stock codes to predict (default: CSI 300)
             date: Prediction date (default: today)
             topk: Number of top stocks to return
-        
+
         Returns:
-            Dictionary containing:
-            - model_id: Model used for prediction
-            - date: Prediction date
-            - predictions: List of {code, name, score, rank}
-            - total_stocks: Total number of stocks analyzed
+            List of dictionaries containing:
+            - code: Stock code
+            - name: Stock name
+            - score: Prediction score
+            - rank: Ranking position
         """
+        from .config import get_csi300_instruments
+
+        if instruments is None:
+            instruments = get_csi300_instruments()
+
         if date is None:
             date = datetime.now().strftime("%Y-%m-%d")
-        
+
         cache_key = f"{model_id}_{date}_{topk}"
-        
+
         if self.cache_enabled:
             cached_result = self._get_cached(cache_key)
             if cached_result:
                 logger.debug(f"Returning cached prediction for {cache_key}")
-                return cached_result
-        
+                return cached_result.get("predictions", [])
+
         model = self.model_manager.load_model(model_id)
         if model is None:
             logger.error(f"Model not found: {model_id}")
-            return {
-                "model_id": model_id,
-                "date": date,
-                "predictions": [],
-                "total_stocks": 0,
-                "error": "Model not found",
-            }
-        
+            return []
+
         try:
             scores = self._generate_predictions(model, instruments, date)
-            
+
             sorted_scores = scores.sort_values(ascending=False)
-            
+
             top_stocks = sorted_scores.head(min(topk, len(sorted_scores)))
-            
+
             predictions = []
             for rank, (instrument, score) in enumerate(top_stocks.items(), 1):
                 predictions.append({
@@ -115,7 +114,7 @@ class QlibPredictor:
                     "score": float(score),
                     "rank": rank,
                 })
-            
+
             result = {
                 "model_id": model_id,
                 "date": date,
@@ -123,24 +122,18 @@ class QlibPredictor:
                 "total_stocks": len(instruments),
                 "generated_at": datetime.now().isoformat(),
             }
-            
+
             if self.cache_enabled:
                 self._set_cached(cache_key, result)
-            
+
             logger.info(f"Generated predictions for {len(predictions)} stocks using model {model_id}")
-            return result
-            
+            return predictions
+
         except Exception as e:
             logger.error(f"Prediction failed: {e}")
             import traceback
             logger.error(traceback.format_exc())
-            return {
-                "model_id": model_id,
-                "date": date,
-                "predictions": [],
-                "total_stocks": len(instruments),
-                "error": str(e),
-            }
+            return []
     
     def _generate_predictions(
         self,

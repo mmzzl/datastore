@@ -3,7 +3,7 @@ from app.core.pandas_compat import _patched_fillna
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.endpoints import auth, news, aftermarket, stock
+from app.api.endpoints import auth, news, aftermarket, stock, qlib
 from app.core.config import settings
 from app.core.error import setup_error_handlers
 import logging
@@ -39,6 +39,8 @@ file_handler.suffix = "%Y-%m-%d"
 
 logging.getLogger().addHandler(file_handler)
 
+logger = logging.getLogger(__name__)
+
 app = FastAPI(
     title=settings.app_name,
     description=settings.app_description,
@@ -59,6 +61,7 @@ app.include_router(auth.router)
 app.include_router(news.router)
 app.include_router(aftermarket.router)
 app.include_router(stock.router)
+app.include_router(qlib.router, prefix="/api")
 
 app.include_router(holdings_router, prefix="/api")
 app.include_router(settings_router, prefix="/api")
@@ -67,6 +70,45 @@ app.include_router(signals_router, prefix="/api")
 app.include_router(market_auth_router, prefix="/api")
 
 include_routers(app)
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize services on application startup."""
+    logger.info("Starting up application...")
+
+    _qlib_initialized = False
+
+    try:
+        import qlib
+        from qlib.config import REG_CN
+        from app.qlib import MongoDataProvider
+        from app.data_source import DataSourceManager
+
+        qlib.init(
+            provider_uri={"class": "LocalProvider", "module_path": "qlib.data"},
+            region=REG_CN,
+            verbose=False,
+        )
+
+        data_manager = DataSourceManager()
+        app.state.qlib_data_provider = MongoDataProvider(data_manager=data_manager)
+
+        _qlib_initialized = True
+        logger.info("Qlib initialized with MongoDataProvider")
+    except ImportError as e:
+        logger.warning(f"Qlib not installed ({e}). ML features will be disabled.")
+    except Exception as e:
+        logger.warning(f"Failed to initialize Qlib: {e}. ML features may be limited.")
+
+    app.state.qlib_initialized = _qlib_initialized
+    logger.info("Application startup complete")
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Cleanup on application shutdown."""
+    logger.info("Shutting down application...")
 
 
 @app.get("/")

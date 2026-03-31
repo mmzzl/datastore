@@ -124,6 +124,19 @@ class MongoDataProvider:
         logger.info(f"Loaded {len(df)} records for {len(instruments)} instruments")
         return df
     
+    def _normalize_code(self, code: str) -> str:
+        """Normalize stock code by removing exchange prefix.
+
+        Args:
+            code: Stock code (e.g., "SH600000" or "000001")
+
+        Returns:
+            Normalized code without prefix (e.g., "600000" or "000001")
+        """
+        if code.startswith(("SH", "SZ", "sh", "sz")):
+            return code[2:]
+        return code
+
     def _get_klines_for_instrument(
         self,
         code: str,
@@ -134,30 +147,32 @@ class MongoDataProvider:
     ) -> List[StockKLine]:
         """
         Get K-line data for a single instrument.
-        
+
         Priority:
         1. Use mongo_adapter directly if available
         2. Use data_manager.get_kline() with provider="mongodb"
         """
+        normalized_code = self._normalize_code(code)
+
         if self.mongo_adapter:
             return self.mongo_adapter.get_kline(
-                code=code,
+                code=normalized_code,
                 start_date=start_date,
                 end_date=end_date,
                 frequency=frequency,
                 adjust_flag=adjust_flag,
             )
-        
+
         if self.data_manager:
             return self.data_manager.get_kline(
-                code=code,
+                code=normalized_code,
                 start_date=start_date,
                 end_date=end_date,
                 frequency=frequency,
                 adjust_flag=adjust_flag,
                 provider="mongodb",
             )
-        
+
         return []
     
     def get_instruments_df(self, instruments: List[str]) -> pd.DataFrame:

@@ -9,28 +9,28 @@
 - [x] 1.5 Implement ModelManager class in `app/qlib/model_manager.py`
 - [x] 1.6 Implement QlibPredictor class in `app/qlib/predictor.py`
 - [x] 1.7 Create Qlib configuration module in `app/qlib/config.py`
-- [ ] 1.8 Initialize Qlib in FastAPI startup (apps/api/main.py)
-- [ ] 1.9 Create MongoDB collection: `qlib_models`
-- [ ] 1.10 Test MongoDataProvider with CSI 300 data loading
+- [x] 1.8 Initialize Qlib in FastAPI startup (apps/api/main.py)
+- [x] 1.9 Create MongoDB collection: `qlib_models`
+- [x] 1.10 Test MongoDataProvider with CSI 300 data loading
 
 ## 2. Backend - Training API
 
-- [ ] 2.1 Create `app/api/endpoints/qlib.py`
-- [ ] 2.2 Implement POST /api/qlib/train endpoint
-- [ ] 2.3 Implement GET /api/qlib/train/{id} endpoint for status tracking
-- [ ] 2.4 Implement GET /api/qlib/models endpoint
-- [ ] 2.5 Implement GET /api/qlib/models/{id} endpoint
+- [x] 2.1 Create `app/api/endpoints/qlib.py`
+- [x] 2.2 Implement POST /api/qlib/train endpoint
+- [x] 2.3 Implement GET /api/qlib/train/{id} endpoint for status tracking
+- [x] 2.4 Implement GET /api/qlib/models endpoint
+- [x] 2.5 Implement GET /api/qlib/models/{id} endpoint
 - [ ] 2.6 Test training flow end-to-end with CSI 300 data
-- [ ] 2.7 Add error handling for training failures
+- [x] 2.7 Add error handling for training failures
 - [ ] 2.8 Integrate DingTalk notification for training completion
 
 ## 3. Backend - Stock Selection API
 
-- [ ] 3.1 Implement POST /api/qlib/select endpoint in `qlib.py`
-- [ ] 3.2 Add selection result caching in MongoDB `selection_results` collection
-- [ ] 3.3 Implement topk parameter validation
-- [ ] 3.4 Add model loading and prediction logic
-- [ ] 3.5 Format response with {code, name, score, rank} structure
+- [x] 3.1 Implement POST /api/qlib/select endpoint in `qlib.py`
+- [x] 3.2 Add selection result caching in MongoDB `selection_results` collection
+- [x] 3.3 Implement topk parameter validation
+- [x] 3.4 Add model loading and prediction logic
+- [x] 3.5 Format response with {code, name, score, rank} structure
 - [ ] 3.6 Test selection with trained model
 
 ## 4. Backend - Async Backtest Engine
