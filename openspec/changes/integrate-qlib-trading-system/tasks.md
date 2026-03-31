@@ -35,95 +35,95 @@
 
 ## 4. Backend - Async Backtest Engine
 
-- [ ] 4.1 Create `app/backtest/` module directory
-- [ ] 4.2 Implement BaseStrategy abstract class in `app/backtest/strategies/base.py`
-- [ ] 4.3 Implement MACrossStrategy in `app/backtest/strategies/ma_cross.py`
-- [ ] 4.4 Implement RSIStrategy in `app/backtest/strategies/rsi.py`
-- [ ] 4.5 Implement BollingerStrategy in `app/backtest/strategies/bollinger.py`
-- [ ] 4.6 Implement MACDStrategy in `app/backtest/strategies/macd.py`
-- [ ] 4.7 Implement QlibModelStrategy in `app/backtest/strategies/qlib_model.py`
-- [ ] 4.8 Implement StrategyFactory in `app/backtest/strategies/factory.py`
-- [ ] 4.9 Implement AsyncBacktestEngine in `app/backtest/async_engine.py`
-- [ ] 4.10 Implement risk metrics calculator in `app/backtest/risk_metrics.py`
-- [ ] 4.11 Test async backtest engine with sample data
+- [x] 4.1 Create `app/backtest/` module directory
+- [x] 4.2 Implement BaseStrategy abstract class in `app/backtest/strategies/base.py`
+- [x] 4.3 Implement MACrossStrategy in `app/backtest/strategies/ma_cross.py`
+- [x] 4.4 Implement RSIStrategy in `app/backtest/strategies/rsi.py`
+- [x] 4.5 Implement BollingerStrategy in `app/backtest/strategies/bollinger.py`
+- [x] 4.6 Implement MACDStrategy in `app/backtest/strategies/macd.py`
+- [x] 4.7 Implement QlibModelStrategy in `app/backtest/strategies/qlib_model.py`
+- [x] 4.8 Implement StrategyFactory in `app/backtest/strategies/factory.py`
+- [x] 4.9 Implement AsyncBacktestEngine in `app/backtest/async_engine.py`
+- [x] 4.10 Implement risk metrics calculator in `app/backtest/risk_metrics.py`
+- [x] 4.11 Test async backtest engine with sample data
 
 ## 5. Backend - WebSocket Backtest
 
-- [ ] 5.1 Create `app/backtest/websocket_handler.py`
-- [ ] 5.2 Implement WebSocket endpoint at /ws/backtest/{task_id}
-- [ ] 5.3 Implement connection manager for multiple clients
-- [ ] 5.4 Implement progress streaming (every 10 data points)
-- [ ] 5.5 Implement completion message with metrics
-- [ ] 5.6 Implement error handling and client disconnection
-- [ ] 5.7 Test WebSocket with multiple concurrent clients
+- [x] 5.1 Create `app/backtest/websocket_handler.py`
+- [x] 5.2 Implement WebSocket endpoint at /ws/backtest/{task_id}
+- [x] 5.3 Implement connection manager for multiple clients
+- [x] 5.4 Implement progress streaming (every 10 data points)
+- [x] 5.5 Implement completion message with metrics
+- [x] 5.6 Implement error handling and client disconnection
+- [x] 5.7 Test WebSocket with multiple concurrent clients
 
 ## 6. Backend - Backtest API
 
-- [ ] 6.1 Create `app/api/endpoints/backtest.py`
-- [ ] 6.2 Implement POST /api/backtest/run endpoint
-- [ ] 6.3 Implement GET /api/backtest/results endpoint (paginated history)
-- [ ] 6.4 Create MongoDB collection: `backtest_results`
-- [ ] 6.5 Implement backtest result saving
-- [ ] 6.6 Add parameter validation for each strategy type
+- [x] 6.1 Create `app/api/endpoints/backtest.py`
+- [x] 6.2 Implement POST /api/backtest/run endpoint
+- [x] 6.3 Implement GET /api/backtest/results endpoint (paginated history)
+- [x] 6.4 Create MongoDB collection: `backtest_results`
+- [x] 6.5 Implement backtest result saving
+- [x] 6.6 Add parameter validation for each strategy type
 
 ## 7. Backend - Risk Monitoring
 
-- [ ] 7.1 Create `app/risk/` module directory
-- [ ] 7.2 Implement RiskReportGenerator in `app/risk/risk_report.py`
-- [ ] 7.3 Implement portfolio VaR calculation
-- [ ] 7.4 Implement position-level VaR calculation
-- [ ] 7.5 Implement industry concentration calculation
-- [ ] 7.6 Implement risk score calculation
-- [ ] 7.7 Implement recommendation generation
-- [ ] 7.8 Create MongoDB collection: `risk_reports`
-- [ ] 7.9 Test risk report generation with sample portfolio
+- [x] 7.1 Create `app/risk/` module directory
+- [x] 7.2 Implement RiskReportGenerator in `app/risk/risk_report.py`
+- [x] 7.3 Implement portfolio VaR calculation
+- [x] 7.4 Implement position-level VaR calculation
+- [x] 7.5 Implement industry concentration calculation
+- [x] 7.6 Implement risk score calculation
+- [x] 7.7 Implement recommendation generation
+- [x] 7.8 Create MongoDB collection: `risk_reports`
+- [x] 7.9 Test risk report generation with sample portfolio
 
 ## 8. Backend - Position Management
 
-- [ ] 8.1 Create `app/risk/position_manager.py`
-- [ ] 8.2 Implement position size limit validation (max 10%)
-- [ ] 8.3 Implement industry concentration limit validation (max 30%)
-- [ ] 8.4 Implement position sizing recommendation logic
-- [ ] 8.5 Enhance existing holdings API with risk metrics
-- [ ] 8.6 Add position notes and tags support to MongoDB
+- [x] 8.1 Create `app/risk/position_manager.py`
+- [x] 8.2 Implement position size limit validation (max 10%)
+- [x] 8.3 Implement industry concentration limit validation (max 30%)
+- [x] 8.4 Implement position sizing recommendation logic
+- [x] 8.5 Enhance existing holdings API with risk metrics
+- [x] 8.6 Add position notes and tags support to MongoDB
 
 ## 9. Backend - Scheduler Management
 
-- [ ] 9.1 Create `app/scheduler/job_manager.py`
-- [ ] 9.2 Create `app/scheduler/job_store.py`
-- [ ] 9.3 Create `app/api/endpoints/scheduler.py`
-- [ ] 9.4 Implement GET /api/scheduler/jobs endpoint
-- [ ] 9.5 Implement POST /api/scheduler/jobs endpoint
-- [ ] 9.6 Implement PUT /api/scheduler/jobs/{id} endpoint
-- [ ] 9.7 Implement DELETE /api/scheduler/jobs/{id} endpoint
-- [ ] 9.8 Implement POST /api/scheduler/jobs/{id}/trigger endpoint
-- [ ] 9.9 Implement GET /api/scheduler/jobs/{id}/executions endpoint
-- [ ] 9.10 Create MongoDB collection: `scheduler_jobs`
-- [ ] 9.11 Create MongoDB collection: `job_executions`
-- [ ] 9.12 Implement cron expression validation
-- [ ] 9.13 Implement dynamic job scheduling with APScheduler
+- [x] 9.1 Create `app/scheduler/job_manager.py`
+- [x] 9.2 Create `app/scheduler/job_store.py`
+- [x] 9.3 Create `app/api/endpoints/scheduler.py`
+- [x] 9.4 Implement GET /api/scheduler/jobs endpoint
+- [x] 9.5 Implement POST /api/scheduler/jobs endpoint
+- [x] 9.6 Implement PUT /api/scheduler/jobs/{id} endpoint
+- [x] 9.7 Implement DELETE /api/scheduler/jobs/{id} endpoint
+- [x] 9.8 Implement POST /api/scheduler/jobs/{id}/trigger endpoint
+- [x] 9.9 Implement GET /api/scheduler/jobs/{id}/executions endpoint
+- [x] 9.10 Create MongoDB collection: `scheduler_jobs`
+- [x] 9.11 Create MongoDB collection: `job_executions`
+- [x] 9.12 Implement cron expression validation
+- [x] 9.13 Implement dynamic job scheduling with APScheduler
 
 ## 10. Backend - Scheduled Jobs
 
-- [ ] 10.1 Create `app/scheduler/qlib_train_job.py` for weekly training
-- [ ] 10.2 Create `app/scheduler/risk_report_job.py` for daily risk reports
-- [ ] 10.3 Configure weekly training cron: "0 2 * * 0"
-- [ ] 10.4 Configure daily risk report cron: "30 15 * * 1-5"
-- [ ] 10.5 Implement job execution tracking
-- [ ] 10.6 Implement failure retry logic (3 retries)
-- [ ] 10.7 Integrate DingTalk notifications for job status
+- [x] 10.1 Create `app/scheduler/qlib_train_job.py` for weekly training
+- [x] 10.2 Create `app/scheduler/risk_report_job.py` for daily risk reports
+- [x] 10.3 Configure weekly training cron: "0 2 * * 0"
+- [x] 10.4 Configure daily risk report cron: "30 15 * * 1-5"
+- [x] 10.5 Implement job execution tracking
+- [x] 10.6 Implement failure retry logic (3 retries)
+- [x] 10.7 Integrate DingTalk notifications for job status
 
 ## 11. Backend - DingTalk Configuration
 
-- [ ] 11.1 Create `app/api/endpoints/dingtalk.py`
-- [ ] 11.2 Implement GET /api/dingtalk/config endpoint (with masking)
-- [ ] 11.3 Implement POST /api/dingtalk/config endpoint
-- [ ] 11.4 Implement PUT /api/dingtalk/config endpoint
-- [ ] 11.5 Implement DELETE /api/dingtalk/config endpoint
-- [ ] 11.6 Implement POST /api/dingtalk/test endpoint
-- [ ] 11.7 Create MongoDB collection: `dingtalk_configs`
-- [ ] 11.8 Implement webhook and secret encryption
-- [ ] 11.9 Enhance existing DingTalkNotifier to read from config
+- [x] 11.1 Create `app/api/endpoints/dingtalk.py`
+- [x] 11.2 Implement GET /api/dingtalk/config endpoint (with masking)
+- [x] 11.3 Implement POST /api/dingtalk/config endpoint
+- [x] 11.4 Implement PUT /api/dingtalk/config endpoint
+- [x] 11.5 Implement DELETE /api/dingtalk/config endpoint
+- [x] 11.6 Implement POST /api/dingtalk/test endpoint
+- [x] 11.7 Create MongoDB collection: `dingtalk_configs`
+- [x] 11.8 Implement webhook and secret encryption
+- [x] 11.9 Enhance existing DingTalkNotifier to read from config
 
 ## 12. Frontend - Infrastructure
 
