@@ -8,15 +8,17 @@
     "preview": "vite preview --port 5000"
   },
   "dependencies": {
-    "vue": "^3.4.0",
-    "vue-router": "^4.0.0",
-    "pinia": "^2.0.0",
     "axios": "^0.28.0",
-    "naive-ui": "^2.38.0"
+    "echarts": "^6.0.0",
+    "naive-ui": "^2.38.0",
+    "pinia": "^2.0.0",
+    "vue": "^3.4.0",
+    "vue-echarts": "^8.0.1",
+    "vue-router": "^4.0.0"
   },
   "devDependencies": {
-    "vite": "^4.3.9",
     "@vitejs/plugin-vue": "^4.0.0",
-    "typescript": "^5.0.4"
+    "typescript": "^5.0.4",
+    "vite": "^4.3.9"
   }
 }

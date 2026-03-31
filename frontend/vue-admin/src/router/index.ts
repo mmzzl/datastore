@@ -4,6 +4,11 @@ import Holdings from '../views/HoldingsView.vue'
 import MarketWatch from '../views/MarketWatchView.vue'
 import Settings from '../views/SettingsView.vue'
 import Login from '../views/LoginView.vue'
+import QlibSelectView from '../views/QlibSelectView.vue'
+import BacktestView from '../views/BacktestView.vue'
+import RiskReportView from '../views/RiskReportView.vue'
+import SchedulerView from '../views/SchedulerView.vue'
+import DingtalkConfigView from '../views/DingtalkConfigView.vue'
 import { authService } from '../services/api'
 
 const routes: Array<RouteRecordRaw> = [
@@ -13,6 +18,11 @@ const routes: Array<RouteRecordRaw> = [
   { path: '/holdings', component: Holdings, name: 'holdings' },
   { path: '/market-watch', component: MarketWatch, name: 'market-watch' },
   { path: '/settings', component: Settings, name: 'settings' },
+  { path: '/qlib/select', component: QlibSelectView, name: 'qlib-select' },
+  { path: '/backtest', component: BacktestView, name: 'backtest' },
+  { path: '/risk-report', component: RiskReportView, name: 'risk-report' },
+  { path: '/scheduler', component: SchedulerView, name: 'scheduler' },
+  { path: '/dingtalk-config', component: DingtalkConfigView, name: 'dingtalk-config' },
 ]
 
 const router = createRouter({
