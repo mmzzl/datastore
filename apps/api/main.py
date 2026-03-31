@@ -104,6 +104,17 @@ async def startup_event():
         logger.warning(f"Failed to initialize Qlib: {e}. ML features may be limited.")
 
     app.state.qlib_initialized = _qlib_initialized
+
+    try:
+        from app.api.endpoints.scheduler import get_job_manager, register_default_jobs
+
+        job_manager = get_job_manager()
+        await job_manager.start()
+        await register_default_jobs(job_manager)
+        logger.info("Scheduler started and default jobs registered")
+    except Exception as e:
+        logger.warning(f"Failed to start scheduler: {e}")
+
     logger.info("Application startup complete")
 
 
@@ -111,6 +122,15 @@ async def startup_event():
 async def shutdown_event():
     """Cleanup on application shutdown."""
     logger.info("Shutting down application...")
+
+    try:
+        from app.api.endpoints.scheduler import get_job_manager
+
+        job_manager = get_job_manager()
+        await job_manager.stop()
+        logger.info("Scheduler stopped")
+    except Exception as e:
+        logger.warning(f"Failed to stop scheduler: {e}")
 
 
 @app.get("/")

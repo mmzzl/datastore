@@ -5,6 +5,7 @@ import logging
 from app.core.config import settings
 from app.scheduler.job_store import JobStore
 from app.scheduler.job_manager import JobManager, CronValidator, JOB_TYPES
+from app.scheduler import qlib_train_handler, risk_report_handler
 from app.schemas.scheduler import (
     JobCreate, JobUpdate, JobResponse, JobListResponse,
     ExecutionResponse, ExecutionListResponse,
@@ -29,13 +30,21 @@ def get_job_manager() -> JobManager:
             client = MongoClient(connection_string)
         else:
             client = MongoClient(settings.mongodb_host, settings.mongodb_port)
-        
+
         job_store = JobStore(client, settings.mongodb_database)
         _job_manager = JobManager(
             job_store=job_store,
             timezone=settings.after_market_scheduler_timezone
         )
+        _register_handlers(_job_manager)
     return _job_manager
+
+
+def _register_handlers(job_manager: JobManager):
+    """Register job type handlers."""
+    job_manager.register_handler("qlib_train", qlib_train_handler)
+    job_manager.register_handler("risk_report", risk_report_handler)
+    logger.info("Registered qlib_train and risk_report handlers")
 
 
 @router.get("/jobs", response_model=JobListResponse)
@@ -202,3 +211,47 @@ async def validate_cron(request: CronValidateRequest):
 async def get_job_types():
     """Get available job types."""
     return {"job_types": JOB_TYPES}
+
+
+async def register_default_jobs(job_manager: JobManager):
+    """Register default scheduled jobs if they don't exist."""
+    default_jobs = [
+        {
+            "name": "Qlib模型训练",
+            "job_type": "qlib_train",
+            "cron_expression": "0 2 * * 0",
+            "config": {
+                "model_type": "lgbm",
+                "instruments": "csi300",
+                "factor_type": "alpha158",
+            },
+            "enabled": True,
+        },
+        {
+            "name": "风险报告生成",
+            "job_type": "risk_report",
+            "cron_expression": "30 15 * * 1-5",
+            "config": {},
+            "enabled": True,
+        },
+    ]
+
+    jobs, total = await job_manager.list_jobs()
+
+    for default_job in default_jobs:
+        existing = any(
+            j.get("job_type") == default_job["job_type"]
+            for j in jobs
+        )
+        if not existing:
+            try:
+                await job_manager.create_job(
+                    name=default_job["name"],
+                    job_type=default_job["job_type"],
+                    cron_expression=default_job["cron_expression"],
+                    config=default_job["config"],
+                    enabled=default_job["enabled"],
+                )
+                logger.info(f"Created default job: {default_job['name']}")
+            except Exception as e:
+                logger.warning(f"Failed to create default job {default_job['name']}: {e}")
