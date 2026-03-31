@@ -1,3 +1,4 @@
+import asyncio
 import requests
 import hmac
 import hashlib
@@ -6,10 +7,48 @@ import urllib.parse
 from datetime import datetime
 from typing import Dict, Any, Optional
 import logging
+from cryptography.fernet import InvalidToken
 
 from ..collector import AkshareClient
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+async def get_config_for_user(user_id: str) -> Optional[Dict[str, str]]:
+    from app.storage import MongoStorage
+    from app.core.encryption import decrypt_value
+    from fastapi import HTTPException
+
+    storage = MongoStorage(
+        host=settings.mongodb_host,
+        port=settings.mongodb_port,
+        db_name=settings.mongodb_database,
+        username=settings.mongodb_username,
+        password=settings.mongodb_password,
+    )
+
+    try:
+        await asyncio.to_thread(storage.connect)
+        collection = storage.db["dingtalk_configs"]
+
+        doc = await asyncio.to_thread(
+            collection.find_one, {"user_id": user_id, "is_active": True}
+        )
+        if not doc:
+            return None
+
+        try:
+            return {
+                "webhook": decrypt_value(doc["webhook"]),
+                "secret": decrypt_value(doc["secret"]) if doc.get("secret") else "",
+                "name": doc["name"],
+            }
+        except InvalidToken:
+            logger.error("Failed to decrypt value - corrupted data")
+            raise HTTPException(status_code=500, detail="Failed to decrypt configuration")
+    finally:
+        await asyncio.to_thread(storage.close)
 
 
 class DingTalkNotifier:

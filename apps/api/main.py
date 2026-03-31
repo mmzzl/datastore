@@ -3,7 +3,7 @@ from app.core.pandas_compat import _patched_fillna
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.endpoints import auth, news, aftermarket, stock, qlib, backtest, scheduler
+from app.api.endpoints import auth, news, aftermarket, stock, qlib, backtest, scheduler, dingtalk
 from app.core.config import settings
 from app.core.error import setup_error_handlers
 import logging
@@ -57,6 +57,7 @@ app.add_middleware(
 
 setup_error_handlers(app)
 
+app.include_router(dingtalk.router)
 app.include_router(auth.router)
 app.include_router(news.router)
 app.include_router(aftermarket.router)
