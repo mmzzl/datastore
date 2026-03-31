@@ -3,7 +3,7 @@ from app.core.pandas_compat import _patched_fillna
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.endpoints import auth, news, aftermarket, stock, qlib
+from app.api.endpoints import auth, news, aftermarket, stock, qlib, backtest
 from app.core.config import settings
 from app.core.error import setup_error_handlers
 import logging
@@ -62,6 +62,7 @@ app.include_router(news.router)
 app.include_router(aftermarket.router)
 app.include_router(stock.router)
 app.include_router(qlib.router, prefix="/api")
+app.include_router(backtest.router)
 
 app.include_router(holdings_router, prefix="/api")
 app.include_router(settings_router, prefix="/api")

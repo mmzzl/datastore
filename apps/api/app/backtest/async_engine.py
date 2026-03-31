@@ -107,25 +107,26 @@ class BacktestConfig:
 class AsyncBacktestEngine:
     """
     Asynchronous backtest engine.
-    
+
     Runs backtests in background with:
     - Progress updates every 10 data points
     - Position tracking
     - Portfolio value calculation
     - Risk metrics computation
-    
+
     Example:
-        >>> engine = AsyncBacktestEngine()
-        >>> task_id = await engine.run_backtest(config)
-        >>> status = await engine.get_status(task_id)
+    >>> engine = AsyncBacktestEngine()
+    >>> task_id = await engine.run_backtest(config)
+    >>> status = await engine.get_status(task_id)
     """
-    
+
     PROGRESS_UPDATE_INTERVAL = 10
-    
+
     def __init__(self):
         self._tasks: Dict[str, BacktestResult] = {}
         self._running_tasks: Dict[str, asyncio.Task] = {}
         self._storage = None
+        self._total_data_points: Dict[str, int] = {}
     
     def _get_storage(self):
         """Get MongoDB storage lazily."""
@@ -194,12 +195,15 @@ class AsyncBacktestEngine:
                 **config.strategy_params
             )
             
-            data = await self._fetch_data(config)
-            
-            if data.empty:
-                raise ValueError(f"No data found for instruments: {config.instruments}")
-            
-            await self._execute_backtest(task_id, config, strategy, data)
+        data = await self._fetch_data(config)
+
+        if data.empty:
+            raise ValueError(f"No data found for instruments: {config.instruments}")
+
+        total_data_points = len(data.groupby("date")) if "date" in data.columns else 1
+        self._total_data_points[task_id] = total_data_points
+
+        await self._execute_backtest(task_id, config, strategy, data)
             
             result.status = BacktestStatus.COMPLETED
             result.end_time = datetime.now()
@@ -464,6 +468,7 @@ class AsyncBacktestEngine:
             "start_time": result.start_time.isoformat() if result.start_time else None,
             "end_time": result.end_time.isoformat() if result.end_time else None,
             "error": result.error,
+            "total_data_points": self._total_data_points.get(task_id, 0),
         }
         
         if result.status == BacktestStatus.COMPLETED:
@@ -526,6 +531,18 @@ class AsyncBacktestEngine:
         
         return True
     
+    def get_task_result(self, task_id: str) -> Optional[BacktestResult]:
+        """
+        Get backtest result object for a task.
+
+        Args:
+            task_id: Task identifier
+
+        Returns:
+            BacktestResult or None if not found
+        """
+        return self._tasks.get(task_id)
+
     def get_all_tasks(self) -> List[Dict[str, Any]]:
         """
         Get all task statuses.

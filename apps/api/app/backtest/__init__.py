@@ -30,6 +30,12 @@ from .risk_metrics import (
     RiskMetricsCalculator,
 )
 
+from .websocket_handler import (
+    ConnectionManager,
+    websocket_backtest_endpoint,
+    get_connection_manager,
+)
+
 __all__ = [
     "BaseStrategy",
     "Signal",
@@ -48,4 +54,7 @@ __all__ = [
     "Trade",
     "RiskMetrics",
     "RiskMetricsCalculator",
+    "ConnectionManager",
+    "websocket_backtest_endpoint",
+    "get_connection_manager",
 ]
