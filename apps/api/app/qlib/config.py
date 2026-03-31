@@ -1,0 +1,215 @@
+"""
+Qlib Configuration Module
+
+This module provides configuration constants and default settings
+for Qlib integration with OpenClaw.
+"""
+
+from typing import Dict, Any, List
+from dataclasses import dataclass, field
+
+
+@dataclass
+class QlibConfig:
+    """
+    Qlib configuration settings.
+    
+    Attributes:
+        provider_uri: Qlib data provider URI
+        region: Market region (REG_CN for China)
+        model_dir: Directory for storing trained models
+        default_model_type: Default model type for training
+        default_factor_type: Default factor type
+        default_instruments: Default stock pool
+        min_sharpe_ratio: Minimum Sharpe ratio for approval
+        training_config: Training configuration
+    """
+    
+    provider_uri: str = "~/.qlib/qlib_data/cn_data"
+    region: str = "CN"
+    model_dir: str = "./models"
+    default_model_type: str = "lgbm"
+    default_factor_type: str = "alpha158"
+    default_instruments: str = "csi300"
+    min_sharpe_ratio: float = 1.5
+    
+    training_config: Dict[str, Any] = field(default_factory=lambda: {
+        "model_type": "lgbm",
+        "factor_type": "alpha158",
+        "start_time": "2015-01-01",
+        "end_time": "2026-01-01",
+    })
+    
+    prediction_config: Dict[str, Any] = field(default_factory=lambda: {
+        "topk": 50,
+        "n_drop": 0,
+    })
+
+
+CSI_300_STOCKS: List[str] = [
+    "SH600000", "SH600004", "SH600009", "SH600010", "SH600011",
+    "SH600012", "SH600015", "SH600016", "SH600018", "SH600019",
+    "SH600020", "SH600021", "SH600023", "SH600025", "SH600026",
+    "SH600027", "SH600028", "SH600029", "SH600030", "SH600031",
+    "SH600033", "SH600036", "SH600037", "SH600038", "SH600039",
+    "SH600048", "SH600050", "SH600061", "SH600066", "SH600068",
+    "SH600069", "SH600070", "SH600079", "SH600085", "SH600089",
+    "SH600095", "SH600096", "SH600100", "SH600104", "SH600109",
+    "SH600111", "SH600112", "SH600115", "SH600118", "SH600119",
+    "SH600121", "SH600122", "SH600123", "SH600125", "SH600126",
+    "SH600127", "SH600128", "SH600129", "SH600131", "SH600132",
+    "SH600133", "SH600135", "SH600136", "SH600138", "SH600141",
+    "SH600143", "SH600146", "SH600148", "SH600149", "SH600150",
+    "SH600153", "SH600155", "SH600157", "SH600158", "SH600159",
+    "SH600160", "SH600161", "SH600162", "SH600163", "SH600166",
+    "SH600167", "SH600168", "SH600169", "SH600170", "SH600171",
+    "SH600172", "SH600176", "SH600177", "SH600178", "SH600183",
+    "SH600184", "SH600185", "SH600186", "SH600187", "SH600188",
+    "SH600189", "SH600190", "SH600191", "SH600192", "SH600193",
+    "SH600195", "SH600196", "SH600197", "SH600198", "SH600199",
+]
+
+
+DEFAULT_MODEL_CONFIG: Dict[str, Any] = {
+    "lgbm": {
+        "class": "qlib.contrib.model.gbdt.LGBModel",
+        "module_path": "qlib.contrib.model.gbdt",
+        "kwargs": {
+            "loss": "mse",
+            "colsample_bytree": 0.8,
+            "learning_rate": 0.01,
+            "n_estimators": 1000,
+            "num_leaves": 63,
+            "subsample": 0.8,
+            "early_stopping_rounds": 50,
+        },
+    },
+    "mlp": {
+        "class": "qlib.contrib.model.pytorch_mlp.PytorchMLPModel",
+        "module_path": "qlib.contrib.model.pytorch_mlp",
+        "kwargs": {
+            "hidden_sizes": [256, 128, 64],
+            "lr": 0.001,
+            "batch_size": 4096,
+            "epochs": 100,
+        },
+    },
+}
+
+
+DEFAULT_FACTOR_CONFIG: Dict[str, Any] = {
+    "alpha158": {
+        "class": "qlib.contrib.data.handler.Alpha158",
+        "module_path": "qlib.contrib.data.handler",
+    },
+    "alpha360": {
+        "class": "qlib.contrib.data.handler.Alpha360",
+        "module_path": "qlib.contrib.data.handler",
+    },
+}
+
+
+TRAINING_TIME_SEGMENTS: Dict[str, tuple] = {
+    "train": ("2015-01-01", "2022-12-31"),
+    "valid": ("2023-01-01", "2024-06-30"),
+    "test": ("2024-07-01", "2026-01-01"),
+}
+
+
+CRON_SCHEDULES: Dict[str, str] = {
+    "weekly_training": "0 2 * * 0",
+    "daily_risk_report": "30 15 * * 1-5",
+}
+
+
+def get_model_config(model_type: str) -> Dict[str, Any]:
+    """
+    Get model configuration by type.
+    
+    Args:
+        model_type: Model type identifier
+    
+    Returns:
+        Model configuration dictionary
+    """
+    return DEFAULT_MODEL_CONFIG.get(model_type, DEFAULT_MODEL_CONFIG["lgbm"])
+
+
+def get_factor_config(factor_type: str) -> Dict[str, Any]:
+    """
+    Get factor configuration by type.
+    
+    Args:
+        factor_type: Factor type identifier
+    
+    Returns:
+        Factor configuration dictionary
+    """
+    return DEFAULT_FACTOR_CONFIG.get(factor_type, DEFAULT_FACTOR_CONFIG["alpha158"])
+
+
+def get_csi300_instruments() -> List[str]:
+    """
+    Get CSI 300 stock list.
+    
+    Returns:
+        List of stock codes
+    """
+    return CSI_300_STOCKS.copy()
+
+
+def create_dataset_config(
+    instruments: List[str],
+    start_time: str,
+    end_time: str,
+    factor_type: str = "alpha158",
+    train_ratio: float = 0.6,
+    valid_ratio: float = 0.2,
+) -> Dict[str, Any]:
+    """
+    Create Qlib Dataset configuration.
+    
+    Args:
+        instruments: List of stock codes
+        start_time: Start date
+        end_time: End date
+        factor_type: Factor type (alpha158, alpha360)
+        train_ratio: Training data ratio
+        valid_ratio: Validation data ratio
+    
+    Returns:
+        Dataset configuration dictionary
+    """
+    factor_config = get_factor_config(factor_type)
+    
+    from datetime import datetime
+    import pandas as pd
+    
+    start_dt = pd.to_datetime(start_time)
+    end_dt = pd.to_datetime(end_time)
+    total_days = (end_dt - start_dt).days
+    
+    train_end = start_dt + pd.Timedelta(days=int(total_days * train_ratio))
+    valid_end = start_dt + pd.Timedelta(days=int(total_days * (train_ratio + valid_ratio)))
+    
+    return {
+        "class": "qlib.data.dataset.DatasetH",
+        "module_path": "qlib.data.dataset",
+        "kwargs": {
+            "handler": {
+                **factor_config,
+                "kwargs": {
+                    "start_time": start_time,
+                    "end_time": end_time,
+                    "fit_start_time": start_time,
+                    "fit_end_time": end_time,
+                    "instruments": instruments,
+                },
+            },
+            "segments": {
+                "train": (start_time, train_end.strftime("%Y-%m-%d")),
+                "valid": (train_end.strftime("%Y-%m-%d"), valid_end.strftime("%Y-%m-%d")),
+                "test": (valid_end.strftime("%Y-%m-%d"), end_time),
+            },
+        },
+    }
