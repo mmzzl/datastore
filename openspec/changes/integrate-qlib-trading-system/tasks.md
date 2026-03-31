@@ -127,83 +127,83 @@
 
 ## 12. Frontend - Infrastructure
 
-- [ ] 12.1 Add ECharts dependency: `npm install echarts vue-echarts`
-- [ ] 12.2 Add WebSocket client dependency (native WebSocket or socket.io-client)
-- [ ] 12.3 Create `frontend/vue-admin/src/services/api_qlib.ts`
-- [ ] 12.4 Create `frontend/vue-admin/src/services/api_backtest.ts`
-- [ ] 12.5 Create `frontend/vue-admin/src/services/api_risk.ts`
-- [ ] 12.6 Create `frontend/vue-admin/src/services/api_scheduler.ts`
-- [ ] 12.7 Create `frontend/vue-admin/src/services/websocket.ts`
-- [ ] 12.8 Create `frontend/vue-admin/src/stores/qlib.ts`
-- [ ] 12.9 Create `frontend/vue-admin/src/stores/backtest.ts`
-- [ ] 12.10 Create `frontend/vue-admin/src/stores/risk.ts`
-- [ ] 12.11 Update router to add new routes
+- [x] 12.1 Add ECharts dependency: `npm install echarts vue-echarts`
+- [x] 12.2 Add WebSocket client dependency (native WebSocket or socket.io-client)
+- [x] 12.3 Create `frontend/vue-admin/src/services/api_qlib.ts`
+- [x] 12.4 Create `frontend/vue-admin/src/services/api_backtest.ts`
+- [x] 12.5 Create `frontend/vue-admin/src/services/api_risk.ts`
+- [x] 12.6 Create `frontend/vue-admin/src/services/api_scheduler.ts`
+- [x] 12.7 Create `frontend/vue-admin/src/services/websocket.ts`
+- [x] 12.8 Create `frontend/vue-admin/src/stores/qlib.ts`
+- [x] 12.9 Create `frontend/vue-admin/src/stores/backtest.ts`
+- [x] 12.10 Create `frontend/vue-admin/src/stores/risk.ts`
+- [x] 12.11 Update router to add new routes
 
 ## 13. Frontend - Stock Selection Page (Priority)
 
-- [ ] 13.1 Create `frontend/vue-admin/src/views/QlibSelectView.vue`
-- [ ] 13.2 Implement model selector dropdown component
-- [ ] 13.3 Implement date picker for selection date
-- [ ] 13.4 Implement "Run Selection" button with loading state
-- [ ] 13.5 Implement results table with columns: Rank, Code, Name, Score
-- [ ] 13.6 Implement table sorting functionality
-- [ ] 13.7 Add router entry: {path: '/qlib/select', component: QlibSelectView}
-- [ ] 13.8 Test stock selection flow end-to-end
+- [x] 13.1 Create `frontend/vue-admin/src/views/QlibSelectView.vue`
+- [x] 13.2 Implement model selector dropdown component
+- [x] 13.3 Implement date picker for selection date
+- [x] 13.4 Implement "Run Selection" button with loading state
+- [x] 13.5 Implement results table with columns: Rank, Code, Name, Score
+- [x] 13.6 Implement table sorting functionality
+- [x] 13.7 Add router entry: {path: '/qlib/select', component: QlibSelectView}
+- [x] 13.8 Test stock selection flow end-to-end
 
 ## 14. Frontend - Backtest Page
 
-- [ ] 14.1 Create `frontend/vue-admin/src/views/BacktestView.vue`
-- [ ] 14.2 Implement strategy selector dropdown
-- [ ] 14.3 Implement parameter configuration form (dynamic based on strategy)
-- [ ] 14.4 Implement date range picker
-- [ ] 14.5 Implement initial capital input
-- [ ] 14.6 Implement "Start Backtest" button
-- [ ] 14.7 Create `frontend/vue-admin/src/components/BacktestChart.vue`
-- [ ] 14.8 Implement return curve chart with ECharts
-- [ ] 14.9 Implement drawdown chart with ECharts
-- [ ] 14.10 Implement WebSocket client for real-time updates
-- [ ] 14.11 Implement progress bar component
-- [ ] 14.12 Implement risk metrics dashboard panel
-- [ ] 14.13 Add router entry: {path: '/backtest', component: BacktestView}
-- [ ] 14.14 Test real-time backtest visualization
+- [x] 14.1 Create `frontend/vue-admin/src/views/BacktestView.vue`
+- [x] 14.2 Implement strategy selector dropdown
+- [x] 14.3 Implement parameter configuration form (dynamic based on strategy)
+- [x] 14.4 Implement date range picker
+- [x] 14.5 Implement initial capital input
+- [x] 14.6 Implement "Start Backtest" button
+- [x] 14.7 Create `frontend/vue-admin/src/components/BacktestChart.vue`
+- [x] 14.8 Implement return curve chart with ECharts
+- [x] 14.9 Implement drawdown chart with ECharts
+- [x] 14.10 Implement WebSocket client for real-time updates
+- [x] 14.11 Implement progress bar component
+- [x] 14.12 Implement risk metrics dashboard panel
+- [x] 14.13 Add router entry: {path: '/backtest', component: BacktestView}
+- [x] 14.14 Test real-time backtest visualization
 
 ## 15. Frontend - Risk Report Page
 
-- [ ] 15.1 Create `frontend/vue-admin/src/views/RiskReportView.vue`
-- [ ] 15.2 Implement date picker for historical reports
-- [ ] 15.3 Implement risk score gauge chart (0-100)
-- [ ] 15.4 Implement risk level badge component
-- [ ] 15.5 Implement holdings risk table
-- [ ] 15.6 Implement industry concentration pie chart
-- [ ] 15.7 Implement recommendations list component
-- [ ] 15.8 Create `frontend/vue-admin/src/components/RiskDashboard.vue`
-- [ ] 15.9 Add router entry: {path: '/risk-report', component: RiskReportView}
-- [ ] 15.10 Test risk report display
+- [x] 15.1 Create `frontend/vue-admin/src/views/RiskReportView.vue`
+- [x] 15.2 Implement date picker for historical reports
+- [x] 15.3 Implement risk score gauge chart (0-100)
+- [x] 15.4 Implement risk level badge component
+- [x] 15.5 Implement holdings risk table
+- [x] 15.6 Implement industry concentration pie chart
+- [x] 15.7 Implement recommendations list component
+- [x] 15.8 Create `frontend/vue-admin/src/components/RiskDashboard.vue`
+- [x] 15.9 Add router entry: {path: '/risk-report', component: RiskReportView}
+- [x] 15.10 Test risk report display
 
 ## 16. Frontend - Scheduler Management Page
 
-- [ ] 16.1 Create `frontend/vue-admin/src/views/SchedulerView.vue`
-- [ ] 16.2 Implement jobs table with columns: Name, Type, Schedule, Enabled, Last Run, Next Run
-- [ ] 16.3 Implement "New Job" button and modal
-- [ ] 16.4 Implement job creation form with: Name, Type, Cron Expression, Config
-- [ ] 16.5 Implement job edit modal
-- [ ] 16.6 Implement job delete with confirmation
-- [ ] 16.7 Implement enable/disable toggle
-- [ ] 16.8 Implement "Trigger Now" button
-- [ ] 16.9 Implement execution history modal
-- [ ] 16.10 Add router entry: {path: '/scheduler', component: SchedulerView}
-- [ ] 16.11 Test scheduler management flow
+- [x] 16.1 Create `frontend/vue-admin/src/views/SchedulerView.vue`
+- [x] 16.2 Implement jobs table with columns: Name, Type, Schedule, Enabled, Last Run, Next Run
+- [x] 16.3 Implement "New Job" button and modal
+- [x] 16.4 Implement job creation form with: Name, Type, Cron Expression, Config
+- [x] 16.5 Implement job edit modal
+- [x] 16.6 Implement job delete with confirmation
+- [x] 16.7 Implement enable/disable toggle
+- [x] 16.8 Implement "Trigger Now" button
+- [x] 16.9 Implement execution history modal
+- [x] 16.10 Add router entry: {path: '/scheduler', component: SchedulerView}
+- [x] 16.11 Test scheduler management flow
 
 ## 17. Frontend - DingTalk Config Page
 
-- [ ] 17.1 Create `frontend/vue-admin/src/views/DingtalkConfigView.vue`
-- [ ] 17.2 Implement webhook URL input field
-- [ ] 17.3 Implement secret input field
-- [ ] 17.4 Implement enabled toggle
-- [ ] 17.5 Implement "Save" button
-- [ ] 17.6 Implement "Test Notification" button
-- [ ] 17.7 Add router entry: {path: '/dingtalk-config', component: DingtalkConfigView}
-- [ ] 17.8 Test DingTalk configuration flow
+- [x] 17.1 Create `frontend/vue-admin/src/views/DingtalkConfigView.vue`
+- [x] 17.2 Implement webhook URL input field
+- [x] 17.3 Implement secret input field
+- [x] 17.4 Implement enabled toggle
+- [x] 17.5 Implement "Save" button
+- [x] 17.6 Implement "Test Notification" button
+- [x] 17.7 Add router entry: {path: '/dingtalk-config', component: DingtalkConfigView}
+- [x] 17.8 Test DingTalk configuration flow
 
 ## 18. Integration Testing
 
