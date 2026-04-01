@@ -26,15 +26,15 @@
       <h3>买入</h3>
       <form @submit.prevent="onAddHolding">
         <div class="form-row">
-          <div class="input-group">
-            <label>股票代码</label>
-            <input 
-              v-model="newHolding.code" 
-              placeholder="如 SH600000" 
-              required 
-              class="input-code"
-            />
-          </div>
+              <div class="input-group">
+                <label>代码 (股票/指数/ETF)</label>
+                <input
+                  v-model="newHolding.code"
+                  placeholder="输入6位数字，如 600000、159930"
+                  required
+                  class="input-code"
+                />
+              </div>
           <div class="input-group">
             <label>股票名称</label>
             <input 
@@ -80,9 +80,10 @@
             {{ queryingName ? '查询中...' : '查名称' }}
           </button>
         </div>
-        <div class="form-hints">
-          <span class="hint-item">💡 输入股票代码后点击"查名称"按钮自动获取股票名称</span>
-        </div>
+<div class="form-hints">
+      <span class="hint-item">💡 输入6位数字后点击"查名称"自动补全代码和名称</span>
+      <span class="hint-item">📈 支持股票(600000)、指数(000001)、ETF(510300、159930)</span>
+    </div>
       </form>
     </div>
     
@@ -207,12 +208,15 @@
         </thead>
         <tbody>
           <tr v-for="h in store.state.holdings" :key="h.code">
-            <td class="code-cell">{{ h.code }}</td>
+            <td class="code-cell link-cell" @click="showKline(h.code, h.name)">{{ h.code }}</td>
             <td>{{ h.name || h.code }}</td>
             <td class="number-cell">{{ h.quantity }}</td>
             <td class="number-cell">¥{{ h.average_cost?.toFixed(2) }}</td>
             <td class="number-cell">¥{{ (h.quantity * h.average_cost).toFixed(2) }}</td>
             <td>
+              <button @click="showKline(h.code, h.name)" class="btn btn-primary btn-sm">
+                K线
+              </button>
               <button @click="openSellForm(h)" class="btn btn-warning btn-sm">
                 卖出
               </button>
@@ -263,12 +267,29 @@
       </div>
     </div>
   </div>
+
+  <div class="kline-modal" v-if="showKlineModal" @click.self="closeKlineModal">
+    <div class="kline-modal-content">
+      <div class="kline-modal-header">
+        <h3>{{ klineName }} ({{ klineCode }})</h3>
+        <button @click="closeKlineModal" class="btn btn-secondary btn-sm">关闭</button>
+      </div>
+        <div class="kline-modal-body">
+          <div v-if="loadingKline" class="loading-state">加载中...</div>
+          <div v-else-if="klineData.length === 0" class="empty-state">暂无K线数据</div>
+          <div v-else class="kline-chart-container">
+            <div ref="klineChartRef" class="kline-chart" style="width: 100%; height: 450px;"></div>
+          </div>
+        </div>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, nextTick } from 'vue'
 import { useHoldingsStore } from '../stores/holdings'
-import { authService, apiHoldings, apiSignals } from '../services/api'
+import { authService, apiHoldings, apiSignals, apiStocks } from '../services/api'
+import * as echarts from 'echarts'
 
 const store = useHoldingsStore()
 const userId = ref(authService.getUser())
@@ -281,42 +302,238 @@ const loadingHistory = ref(false)
 const showSellForm = ref(false)
 const sellHolding = ref({ code: '', name: '', availableQty: 0, quantity: 0, price: 0 })
 const realizedPnL = ref(0)
-// 交易记录分页
+const showKlineModal = ref(false)
+const klineCode = ref('')
+const klineName = ref('')
+const klineData = ref<any[]>([])
+const loadingKline = ref(false)
+const klineChartRef = ref<HTMLElement | null>(null)
+let klineChart: echarts.ECharts | null = null
 const txCurrentPage = ref(1)
 const txTotalPages = ref(0)
 const txTotalCount = ref(0)
 const txPageSize = 10
 
+async function showKline(code: string, name: string) {
+  klineCode.value = code
+  klineName.value = name || code
+  showKlineModal.value = true
+  loadingKline.value = true
+  klineData.value = []
+  
+  try {
+    const pureCode = code.replace(/^(SH|SZ|sh|sz)/, '')
+    const res = await fetch(`/api/stock/kline/${pureCode}?limit=120`)
+    const data = await res.json()
+    if (data.success && data.data) {
+      klineData.value = data.data.reverse()
+      loadingKline.value = false
+      await nextTick()
+      setTimeout(() => renderKlineChart(), 100)
+    }
+  } catch (e) {
+    console.error('获取K线数据失败:', e)
+    loadingKline.value = false
+  }
+}
+
+function renderKlineChart() {
+  if (!klineChartRef.value || klineData.value.length === 0) return
+  
+  if (klineChart) {
+    klineChart.dispose()
+  }
+  
+  klineChart = echarts.init(klineChartRef.value)
+  
+  const dates = klineData.value.map(d => d.date)
+  const ohlc = klineData.value.map(d => [d.open, d.close, d.low, d.high])
+  const volumes = klineData.value.map(d => d.volume)
+  const closes = klineData.value.map(d => d.close)
+  
+  const ma5 = calculateMA(5, closes)
+  const ma10 = calculateMA(10, closes)
+  const ma20 = calculateMA(20, closes)
+  
+  const option = {
+    title: {
+      text: `${klineName.value} (${klineCode.value})`,
+      left: 'center',
+      top: 10,
+      textStyle: { fontSize: 16, fontWeight: 'bold' }
+    },
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'cross' },
+      backgroundColor: 'rgba(255,255,255,0.95)',
+      borderColor: '#ddd',
+      borderWidth: 1,
+      textStyle: { color: '#333' },
+      formatter: function(params: any) {
+        const data = klineData.value[params[0].dataIndex]
+        const vol = params.find((p: any) => p.seriesType === 'bar')
+        let result = `日期: ${data.date}<br/>`
+        result += `开盘: ${data.open?.toFixed(2)}<br/>`
+        result += `收盘: ${data.close?.toFixed(2)}<br/>`
+        result += `最高: ${data.high?.toFixed(2)}<br/>`
+        result += `最低: ${data.low?.toFixed(2)}<br/>`
+        if (vol) result += `成交量: ${(vol.data / 10000).toFixed(2)}万<br/>`
+        result += `MA5: ${ma5[params[0].dataIndex]?.toFixed(2) || '-'}<br/>`
+        result += `MA10: ${ma10[params[0].dataIndex]?.toFixed(2) || '-'}<br/>`
+        result += `MA20: ${ma20[params[0].dataIndex]?.toFixed(2) || '-'}`
+        return result
+      }
+    },
+    legend: {
+      data: ['K线', 'MA5', 'MA10', 'MA20', '成交量'],
+      bottom: 10
+    },
+    grid: [
+      { left: '10%', right: '8%', top: '15%', height: '50%' },
+      { left: '10%', right: '8%', top: '70%', height: '15%' }
+    ],
+    xAxis: [
+      {
+        type: 'category',
+        data: dates,
+        axisLine: { lineStyle: { color: '#ccc' } },
+        axisLabel: { color: '#666', fontSize: 10 }
+      },
+      {
+        type: 'category',
+        gridIndex: 1,
+        data: dates,
+        axisLine: { lineStyle: { color: '#ccc' } },
+        axisLabel: { show: false }
+      }
+    ],
+    yAxis: [
+      {
+        scale: true,
+        axisLine: { lineStyle: { color: '#ccc' } },
+        axisLabel: { color: '#666' },
+        splitLine: { lineStyle: { color: '#eee' } }
+      },
+      {
+        scale: true,
+        gridIndex: 1,
+        splitNumber: 2,
+        axisLine: { lineStyle: { color: '#ccc' } },
+        axisLabel: { color: '#666', formatter: (val: number) => (val / 10000).toFixed(0) + '万' },
+        splitLine: { lineStyle: { color: '#eee' } }
+      }
+    ],
+    dataZoom: [
+      { type: 'inside', xAxisIndex: [0, 1], start: 50, end: 100 },
+      { type: 'slider', xAxisIndex: [0, 1], bottom: 40, start: 50, end: 100 }
+    ],
+    series: [
+      {
+        name: 'K线',
+        type: 'candlestick',
+        data: ohlc,
+        itemStyle: {
+          color: '#ef5350',
+          color0: '#26a69a',
+          borderColor: '#ef5350',
+          borderColor0: '#26a69a'
+        }
+      },
+      {
+        name: 'MA5',
+        type: 'line',
+        data: ma5,
+        smooth: true,
+        lineStyle: { width: 1 },
+        symbol: 'none',
+        itemStyle: { color: '#f5a623' }
+      },
+      {
+        name: 'MA10',
+        type: 'line',
+        data: ma10,
+        smooth: true,
+        lineStyle: { width: 1 },
+        symbol: 'none',
+        itemStyle: { color: '#7b68ee' }
+      },
+      {
+        name: 'MA20',
+        type: 'line',
+        data: ma20,
+        smooth: true,
+        lineStyle: { width: 1 },
+        symbol: 'none',
+        itemStyle: { color: '#16a085' }
+      },
+      {
+        name: '成交量',
+        type: 'bar',
+        xAxisIndex: 1,
+        yAxisIndex: 1,
+        data: volumes,
+        itemStyle: {
+          color: function(params: any) {
+            const idx = params.dataIndex
+            if (idx === 0) return '#ccc'
+            const prev = klineData.value[idx - 1]
+            const curr = klineData.value[idx]
+            return curr.close >= prev.close ? '#ef5350' : '#26a69a'
+          }
+        }
+      }
+    ]
+  }
+  
+  klineChart.setOption(option)
+}
+
+function calculateMA(dayCount: number, data: number[]) {
+  const result: (number | null)[] = []
+  for (let i = 0; i < data.length; i++) {
+    if (i < dayCount - 1) {
+      result.push(null)
+    } else {
+      let sum = 0
+      for (let j = 0; j < dayCount; j++) {
+        sum += data[i - j]
+      }
+      result.push(sum / dayCount)
+    }
+  }
+  return result
+}
+
+function closeKlineModal() {
+  showKlineModal.value = false
+  klineData.value = []
+  if (klineChart) {
+    klineChart.dispose()
+    klineChart = null
+  }
+}
+
 async function queryStockName() {
   const code = newHolding.value.code.trim()
   if (!code) {
-    alert('请先输入股票代码')
+    alert('请先输入代码')
     return
   }
-  
+
   queryingName.value = true
   try {
-    // 简单的股票名称映射（临时方案）
-    const stockNames: Record<string, string> = {
-      'SH600000': '浦发银行',
-      'SH600519': '贵州茅台',
-      'SH600036': '招商银行',
-      'SH601318': '中国平安',
-      'SZ000001': '平安银行',
-      'SZ000002': '万科A',
-      'SZ000858': '五粮液',
-    }
-    
-    const name = stockNames[code]
-    if (name) {
-      newHolding.value.name = name
-      alert(`查询成功：${code} - ${name}`)
+    const res = await apiStocks.searchStocks(code, 10)
+    if (res.success && res.data && res.data.length > 0) {
+      const firstMatch = res.data[0]
+      newHolding.value.name = firstMatch.name
+      newHolding.value.code = firstMatch.code
+      alert(`查询成功：${firstMatch.code} - ${firstMatch.name}`)
     } else {
-      alert(`未找到股票代码 ${code} 的名称信息，请手动输入`)
+      alert(`未找到代码 ${code} 的信息，请手动输入名称`)
     }
   } catch (e: any) {
-    console.error('查询股票名称失败:', e)
-    alert('查询股票名称失败，请手动输入')
+    console.error('查询名称失败:', e)
+    alert('查询名称失败，请手动输入')
   } finally {
     queryingName.value = false
   }
@@ -384,6 +601,41 @@ async function deleteTransaction(transactionId: string) {
 function hideTransactions() {
   showingTransactions.value = false
   transactions.value = []
+}
+
+async function onAddHolding() {
+  if (!newHolding.value.code) {
+    alert('请输入代码')
+    return
+  }
+  if (!newHolding.value.quantity || newHolding.value.quantity < 100) {
+    alert('买入数量不能少于100股')
+    return
+  }
+  if (newHolding.value.quantity % 100 !== 0) {
+    alert('买入数量必须是100的整数倍')
+    return
+  }
+  if (!newHolding.value.average_cost || newHolding.value.average_cost <= 0) {
+    alert('请输入有效的买入价格')
+    return
+  }
+  
+  try {
+    await store.saveHolding(
+      userId.value,
+      newHolding.value.code,
+      newHolding.value.name,
+      newHolding.value.quantity,
+      newHolding.value.average_cost
+    )
+    alert('买入成功')
+    newHolding.value = { code: '', name: '', quantity: 0, average_cost: 0 }
+    await fetchHoldings()
+    await fetchPortfolio()
+  } catch (e: any) {
+    alert(e.message || '买入失败')
+  }
 }
 
 function openSellForm(holding: any) {
@@ -555,8 +807,8 @@ onMounted(() => {
   opacity: 0.6;
   cursor: not-allowed;
 }
-.input-code { 
-  width: 140px; 
+.input-code {
+  width: 220px;
   font-family: monospace;
 }
 .input-name {
@@ -764,5 +1016,63 @@ onMounted(() => {
 .type-sell {
   color: #dc2626;
   font-weight: 600;
+}
+.link-cell {
+  cursor: pointer;
+  color: #3b82f6;
+}
+.link-cell:hover {
+  text-decoration: underline;
+}
+.kline-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.kline-modal-content {
+  background: white;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 800px;
+  max-height: 80vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.kline-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e5e7eb;
+}
+.kline-modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  color: #1e293b;
+}
+.kline-modal-body {
+  padding: 20px;
+  overflow-y: auto;
+}
+.loading-state {
+  text-align: center;
+  padding: 40px;
+  color: #64748b;
+}
+.kline-chart-container {
+  width: 100%;
+  height: 450px;
+}
+.kline-chart {
+  width: 100%;
+  height: 100%;
 }
 </style>
