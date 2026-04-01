@@ -194,26 +194,26 @@ class AsyncBacktestEngine:
                 config.strategy_type,
                 **config.strategy_params
             )
-            
-        data = await self._fetch_data(config)
 
-        if data.empty:
-            raise ValueError(f"No data found for instruments: {config.instruments}")
+            data = await self._fetch_data(config)
 
-        total_data_points = len(data.groupby("date")) if "date" in data.columns else 1
-        self._total_data_points[task_id] = total_data_points
+            if data.empty:
+                raise ValueError(f"No data found for instruments: {config.instruments}")
 
-        await self._execute_backtest(task_id, config, strategy, data)
-            
+            total_data_points = len(data.groupby("date")) if "date" in data.columns else 1
+            self._total_data_points[task_id] = total_data_points
+
+            await self._execute_backtest(task_id, config, strategy, data)
+
             result.status = BacktestStatus.COMPLETED
             result.end_time = datetime.now()
             result.metrics = RiskMetricsCalculator.calculate(
                 result.portfolio_values,
                 trades=[t for t in result.trades],
             )
-            
+
             logger.info(f"Backtest {task_id} completed with {len(result.trades)} trades")
-            
+
         except asyncio.CancelledError:
             result.status = BacktestStatus.CANCELLED
             result.end_time = datetime.now()
