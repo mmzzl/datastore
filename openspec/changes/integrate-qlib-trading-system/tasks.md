@@ -207,33 +207,33 @@
 
 ## 18. Integration Testing
 
-- [ ] 18.1 Test end-to-end: Configure DingTalk → Weekly training → Receive notification
-- [ ] 18.2 Test end-to-end: Train model → Select stocks → View results
-- [ ] 18.3 Test end-to-end: Configure backtest → Run → View real-time charts
-- [ ] 18.4 Test end-to-end: Add positions → Wait for risk report → View in frontend
-- [ ] 18.5 Test: Scheduler job creation → Trigger → Verify execution
-- [ ] 18.6 Test: WebSocket connection stability (disconnect/reconnect)
-- [ ] 18.7 Test: Multiple concurrent backtests
-- [ ] 18.8 Test: Position size limit enforcement
-- [ ] 18.9 Test: Industry concentration limit enforcement
+- [x] 18.1 Test end-to-end: Configure DingTalk → Weekly training → Receive notification
+- [x] 18.2 Test end-to-end: Train model → Select stocks → View results
+- [x] 18.3 Test end-to-end: Configure backtest → Run → View real-time charts
+- [x] 18.4 Test end-to-end: Add positions → Wait for risk report → View in frontend
+- [x] 18.5 Test: Scheduler job creation → Trigger → Verify execution
+- [x] 18.6 Test: WebSocket connection stability (disconnect/reconnect)
+- [x] 18.7 Test: Multiple concurrent backtests
+- [x] 18.8 Test: Position size limit enforcement
+- [x] 18.9 Test: Industry concentration limit enforcement
 
 ## 19. Documentation
 
-- [ ] 19.1 Update API documentation (OpenAPI/Swagger)
-- [ ] 19.2 Write developer setup guide
-- [ ] 19.3 Write deployment guide
-- [ ] 19.4 Document Qlib integration architecture
-- [ ] 19.5 Document scheduler configuration
-- [ ] 19.6 Document risk metrics calculation methodology
-- [ ] 19.7 Create user guide for frontend features
+- [x] 19.1 Update API documentation (OpenAPI/Swagger)
+- [x] 19.2 Write developer setup guide
+- [x] 19.3 Write deployment guide
+- [x] 19.4 Document Qlib integration architecture
+- [x] 19.5 Document scheduler configuration
+- [x] 19.6 Document risk metrics calculation methodology
+- [x] 19.7 Create user guide for frontend features
 
 ## 20. Deployment & Monitoring
 
-- [ ] 20.1 Create MongoDB indexes for new collections
-- [ ] 20.2 Configure environment variables for Qlib settings
-- [ ] 20.3 Set up log rotation for training jobs
-- [ ] 20.4 Configure monitoring for scheduled jobs
-- [ ] 20.5 Set up alerts for job failures
-- [ ] 20.6 Configure backup strategy for MongoDB collections
-- [ ] 20.7 Test rollback procedure
-- [ ] 20.8 Deploy to production environment
+- [x] 20.1 Create MongoDB indexes for new collections
+- [x] 20.2 Configure environment variables for Qlib settings
+- [x] 20.3 Set up log rotation for training jobs
+- [x] 20.4 Configure monitoring for scheduled jobs
+- [x] 20.5 Set up alerts for job failures
+- [x] 20.6 Configure backup strategy for MongoDB collections
+- [x] 20.7 Test rollback procedure
+- [x] 20.8 Deploy to production environment
