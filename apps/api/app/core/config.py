@@ -82,7 +82,23 @@ class Settings(BaseSettings):
     # 数据源配置 (akshare 或 tushare)
     data_source: str = "akshare"
     tushare_token: str = ""
-    
+
+    # Qlib 配置
+    qlib_model_dir: str = "./models"
+    qlib_min_sharpe_ratio: float = 1.5
+    qlib_training_cron: str = "0 2 * * 0"
+    qlib_risk_report_cron: str = "30 15 * * 1-5"
+    qlib_provider_uri: str = "~/.qlib/qlib_data/cn_data"
+
+    # 备份配置
+    backup_dir: str = "./backups"
+    backup_retention_days: int = 30
+
+    # 告警配置
+    alert_dingtalk_webhook: str = ""
+    alert_dingtalk_secret: str = ""
+    alert_email_recipients: str = ""
+
     class Config:
         env_file = ".env"
         case_sensitive = False
@@ -130,11 +146,21 @@ def load_config() -> Settings:
             after_market_scheduler_time=config_data.get("after_market", {}).get("scheduler_time", "20:00"),
             after_market_pre_cache_scheduler_time=config_data.get("after_market", {}).get("pre_cache_scheduler_time", "17:00"),
             after_market_scheduler_timezone=config_data.get("after_market", {}).get("scheduler_timezone", "Asia/Shanghai"),
-            monitor_enabled=config_data.get("monitor", {}).get("enabled", True),
-            monitor_interval=config_data.get("monitor", {}).get("interval", 300),
-            monitor_scheduler_time=config_data.get("monitor", {}).get("scheduler_time", "09:30"),
-            monitor_stocks=config_data.get("monitor", {}).get("stocks", []),
-        )
+        monitor_enabled=config_data.get("monitor", {}).get("enabled", True),
+        monitor_interval=config_data.get("monitor", {}).get("interval", 300),
+        monitor_scheduler_time=config_data.get("monitor", {}).get("scheduler_time", "09:30"),
+        monitor_stocks=config_data.get("monitor", {}).get("stocks", []),
+        qlib_model_dir=config_data.get("qlib", {}).get("model_dir", "./models"),
+        qlib_min_sharpe_ratio=config_data.get("qlib", {}).get("min_sharpe_ratio", 1.5),
+        qlib_training_cron=config_data.get("qlib", {}).get("training_cron", "0 2 * * 0"),
+        qlib_risk_report_cron=config_data.get("qlib", {}).get("risk_report_cron", "30 15 * * 1-5"),
+        qlib_provider_uri=config_data.get("qlib", {}).get("provider_uri", "~/.qlib/qlib_data/cn_data"),
+        backup_dir=config_data.get("backup", {}).get("dir", "./backups"),
+        backup_retention_days=config_data.get("backup", {}).get("retention_days", 30),
+        alert_dingtalk_webhook=config_data.get("alert", {}).get("dingtalk_webhook", ""),
+        alert_dingtalk_secret=config_data.get("alert", {}).get("dingtalk_secret", ""),
+        alert_email_recipients=config_data.get("alert", {}).get("email_recipients", ""),
+    )
     else:
         settings = Settings()
     
