@@ -3,9 +3,19 @@ from pymongo.errors import PyMongoError
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
 from urllib.parse import quote_plus
+from bson.objectid import ObjectId
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def _serialize_datetime(value: Any) -> Optional[str]:
+    """Serialize a datetime object to ISO format string."""
+    if value is None:
+        return None
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return None
 
 
 class MongoStorage:
@@ -29,12 +39,11 @@ class MongoStorage:
         self.capital_flow_collection = None
         self.news_stocks_collection = None
         self.monitor_stocks_collection = None
-        # 新增 holdings 集合
         self.holdings_collection = None
-        # 新增 settings 集合
         self.settings_collection = None
-        # 新增策略插件集合
         self.strategy_plugins_collection = None
+        self.users_collection = None
+        self.roles_collection = None
 
     def connect(self):
         try:
@@ -50,12 +59,13 @@ class MongoStorage:
             self.capital_flow_collection = self.db["capital_flow"]
             self.news_stocks_collection = self.db["news_stocks"]
             self.monitor_stocks_collection = self.db["monitor_stocks"]
-            # holdings 集合
             self.holdings_collection = self.db["holdings"]
-            # settings 集合
             self.settings_collection = self.db["settings"]
-            # strategy_plugins 集合
             self.strategy_plugins_collection = self.db["strategy_plugins"]
+            self.users_collection = self.db["users"]
+            self.roles_collection = self.db["roles"]
+            self._create_user_indexes()
+            self._create_role_indexes()
             self.client.admin.command("ping")
             logger.info(f"MongoDB connected: {self.host}:{self.port}/{self.db_name}")
         except PyMongoError as e:
@@ -70,7 +80,6 @@ class MongoStorage:
     def save(self, data: Any) -> Optional[str]:
         if self.collection is None:
             self.connect()
-        # Always create a new dictionary to avoid modifying the input
         save_data = {}
         save_data["created_at"] = datetime.now()
         save_data["data"] = data
@@ -87,20 +96,10 @@ class MongoStorage:
             raise
 
     def load(self, date_str: Optional[str] = None) -> Optional[Dict[str, Any]]:
-        """
-        根据日期字符串加载数据
-
-        参数:
-            date_str: 日期字符串，格式为 YYYY-MM-DD
-
-        返回:
-            数据字典，如果未找到返回None
-        """
         if self.collection is None:
             self.connect()
 
         try:
-            # 查询指定日期的数据
             if not date_str:
                 start_date = datetime.now().replace(
                     hour=0, minute=0, second=0, microsecond=0
@@ -133,23 +132,13 @@ class MongoStorage:
             raise
 
     def save_strategy_plugin(self, plugin_data: Dict[str, Any]) -> str:
-        """
-        保存策略插件到MongoDB
-
-        参数:
-            plugin_data: 策略插件数据
-
-        返回:
-            插件ID
-        """
         if self.strategy_plugins_collection is None:
             self.connect()
 
         try:
-            # 确保插件数据包含必要字段
             plugin_data["created_at"] = datetime.now()
             plugin_data["updated_at"] = datetime.now()
-            
+
             result = self.strategy_plugins_collection.insert_one(plugin_data)
             return str(result.inserted_id)
         except PyMongoError as e:
@@ -157,32 +146,16 @@ class MongoStorage:
             raise
 
     def get_strategy_plugin(self, plugin_id: str) -> Optional[Dict[str, Any]]:
-        """
-        根据ID获取策略插件
-
-        参数:
-            plugin_id: 插件ID
-
-        返回:
-            插件数据，如果未找到返回None
-        """
         if self.strategy_plugins_collection is None:
             self.connect()
 
         try:
-            from bson.objectid import ObjectId
             return self.strategy_plugins_collection.find_one({"_id": ObjectId(plugin_id)})
         except PyMongoError as e:
             logger.error(f"Get strategy plugin failed: {e}")
             raise
 
     def get_all_strategy_plugins(self) -> List[Dict[str, Any]]:
-        """
-        获取所有策略插件
-
-        返回:
-            策略插件列表
-        """
         if self.strategy_plugins_collection is None:
             self.connect()
 
@@ -193,20 +166,10 @@ class MongoStorage:
             raise
 
     def delete_strategy_plugin(self, plugin_id: str) -> bool:
-        """
-        删除策略插件
-
-        参数:
-            plugin_id: 插件ID
-
-        返回:
-            是否删除成功
-        """
         if self.strategy_plugins_collection is None:
             self.connect()
 
         try:
-            from bson.objectid import ObjectId
             result = self.strategy_plugins_collection.delete_one({"_id": ObjectId(plugin_id)})
             return result.deleted_count > 0
         except PyMongoError as e:
@@ -222,8 +185,7 @@ class MongoStorage:
             results = []
             for doc in cursor:
                 doc["_id"] = str(doc["_id"])
-                if doc.get("created_at"):
-                    doc["created_at"] = doc["created_at"].isoformat()
+                doc["created_at"] = _serialize_datetime(doc.get("created_at"))
                 results.append(doc)
             return results
         except PyMongoError as e:
@@ -244,7 +206,6 @@ class MongoStorage:
     def get_kline_by_name(
         self, name: str, start_date: str = None, end_date: str = None, limit: int = 100
     ) -> List[Dict]:
-        """根据股票名称获取K线数据"""
         if self.kline_collection is None:
             self.connect()
 
@@ -262,8 +223,7 @@ class MongoStorage:
             results = []
             for doc in cursor:
                 doc["_id"] = str(doc["_id"])
-                if doc.get("crawl_time"):
-                    doc["crawl_time"] = doc["crawl_time"].isoformat()
+                doc["crawl_time"] = _serialize_datetime(doc.get("crawl_time"))
                 results.append(doc)
             return results
         except PyMongoError as e:
@@ -290,9 +250,7 @@ class MongoStorage:
             results = []
             for doc in cursor:
                 doc["_id"] = str(doc["_id"])
-                crawl_time = doc.get("crawl_time")
-                if crawl_time and hasattr(crawl_time, "isoformat"):
-                    doc["crawl_time"] = crawl_time.isoformat()
+                doc["crawl_time"] = _serialize_datetime(doc.get("crawl_time"))
                 results.append(doc)
             return results
         except PyMongoError as e:
@@ -307,8 +265,7 @@ class MongoStorage:
             doc = self.kline_collection.find_one({"code": code, "date": date})
             if doc:
                 doc["_id"] = str(doc["_id"])
-                if doc.get("crawl_time"):
-                    doc["crawl_time"] = doc["crawl_time"].isoformat()
+                doc["crawl_time"] = _serialize_datetime(doc.get("crawl_time"))
             return doc
         except PyMongoError as e:
             logger.error(f"MongoDB kline query failed: {e}")
@@ -336,8 +293,7 @@ class MongoStorage:
             results = []
             for doc in cursor:
                 doc["_id"] = str(doc["_id"])
-                if doc.get("crawl_time"):
-                    doc["crawl_time"] = doc["crawl_time"].isoformat()
+                doc["crawl_time"] = _serialize_datetime(doc.get("crawl_time"))
                 results.append(doc)
             return results
         except PyMongoError as e:
@@ -347,7 +303,6 @@ class MongoStorage:
     def get_all_klines(
         self, start_date: str = None, end_date: str = None, limit: int = None
     ) -> List[Dict]:
-        """获取所有股票的 K 线数据"""
         if self.kline_collection is None:
             self.connect()
 
@@ -368,8 +323,7 @@ class MongoStorage:
             results = []
             for doc in cursor:
                 doc["_id"] = str(doc["_id"])
-                if doc.get("crawl_time"):
-                    doc["crawl_time"] = doc["crawl_time"].isoformat()
+                doc["crawl_time"] = _serialize_datetime(doc.get("crawl_time"))
                 results.append(doc)
             return results
         except PyMongoError as e:
@@ -379,7 +333,6 @@ class MongoStorage:
     def get_capital_flow(
         self, name: str, start_date: str = None, end_date: str = None, limit: int = 10
     ) -> List[Dict]:
-        """获取资金流向数据"""
         if self.capital_flow_collection is None:
             self.connect()
 
@@ -399,8 +352,7 @@ class MongoStorage:
             results = []
             for doc in cursor:
                 doc["_id"] = str(doc["_id"])
-                if doc.get("crawl_time"):
-                    doc["crawl_time"] = doc["crawl_time"].isoformat()
+                doc["crawl_time"] = _serialize_datetime(doc.get("crawl_time"))
                 results.append(doc)
             return results
         except PyMongoError as e:
@@ -408,24 +360,13 @@ class MongoStorage:
             raise
 
     def save_news_stocks(self, stocks: List[Dict]) -> Optional[str]:
-        """
-        保存新闻分析后的股票到单独的collection
-
-        参数:
-            stocks: 股票列表，每个股票包含code、name等信息
-
-        返回:
-            保存结果的ID或修改计数
-        """
         if self.news_stocks_collection is None:
             self.connect()
 
         try:
-            # 先删除当天的记录
             today = datetime.now().strftime("%Y-%m-%d")
             self.news_stocks_collection.delete_many({"date": today})
 
-            # 保存新记录
             save_data = {"date": today, "created_at": datetime.now(), "stocks": stocks}
 
             result = self.news_stocks_collection.insert_one(save_data)
@@ -436,15 +377,6 @@ class MongoStorage:
             raise
 
     def get_news_stocks(self, date: str = None) -> List[Dict]:
-        """
-        获取新闻分析后的股票
-
-        参数:
-            date: 日期字符串，格式为 YYYY-MM-DD，默认今天
-
-        返回:
-            股票列表
-        """
         if self.news_stocks_collection is None:
             self.connect()
 
@@ -461,23 +393,12 @@ class MongoStorage:
             raise
 
     def save_monitor_stocks(self, stocks: List[Dict]) -> Optional[str]:
-        """
-        保存监控股票池
-
-        参数:
-            stocks: 股票列表，每个股票包含code、name等信息
-
-        返回:
-            保存结果的ID
-        """
         if self.monitor_stocks_collection is None:
             self.connect()
 
         try:
-            # 先删除所有记录
             self.monitor_stocks_collection.delete_many({})
 
-            # 保存新记录
             save_data = {
                 "date": datetime.now().strftime("%Y-%m-%d"),
                 "created_at": datetime.now(),
@@ -492,12 +413,6 @@ class MongoStorage:
             raise
 
     def get_monitor_stocks(self) -> List[Dict]:
-        """
-        获取监控股票池
-
-        返回:
-            股票列表
-        """
         if self.monitor_stocks_collection is None:
             self.connect()
 
@@ -511,31 +426,19 @@ class MongoStorage:
             raise
 
     def remove_monitor_stock(self, stock_code: str) -> int:
-        """
-        从监控股票池中移除股票
-
-        参数:
-            stock_code: 股票代码
-
-        返回:
-            操作结果
-        """
         if self.monitor_stocks_collection is None:
             self.connect()
 
         try:
-            # 获取当前监控股票池
             doc = self.monitor_stocks_collection.find_one(sort=[("created_at", -1)])
             if not doc:
                 return 0
 
-            # 过滤掉要移除的股票
             stocks = doc.get("stocks", [])
             filtered_stocks = [
                 stock for stock in stocks if stock.get("code") != stock_code
             ]
 
-            # 保存更新后的股票池
             if len(filtered_stocks) != len(stocks):
                 save_data = {
                     "date": datetime.now().strftime("%Y-%m-%d"),
@@ -549,4 +452,183 @@ class MongoStorage:
             return 0
         except PyMongoError as e:
             logger.error(f"移除监控股票失败: {e}")
+            raise
+
+    def _create_user_indexes(self):
+        if self.users_collection is None:
+            return
+        try:
+            self.users_collection.create_index("username", unique=True)
+            self.users_collection.create_index("email", unique=True, sparse=True)
+            self.users_collection.create_index("role_id")
+            self.users_collection.create_index("status")
+            logger.info("Users collection indexes created")
+        except PyMongoError as e:
+            logger.error(f"Create users indexes failed: {e}")
+
+    def _create_role_indexes(self):
+        if self.roles_collection is None:
+            return
+        try:
+            self.roles_collection.create_index("role_id", unique=True)
+            logger.info("Roles collection indexes created")
+        except PyMongoError as e:
+            logger.error(f"Create roles indexes failed: {e}")
+
+    def save_user(self, user_data: Dict[str, Any]) -> str:
+        if self.users_collection is None:
+            self.connect()
+
+        try:
+            user_data["created_at"] = datetime.now()
+            user_data["updated_at"] = datetime.now()
+            result = self.users_collection.insert_one(user_data)
+            return str(result.inserted_id)
+        except PyMongoError as e:
+            logger.error(f"Save user failed: {e}")
+            raise
+
+    def get_user_by_username(self, username: str) -> Optional[Dict[str, Any]]:
+        if self.users_collection is None:
+            self.connect()
+
+        try:
+            return self.users_collection.find_one({"username": username})
+        except PyMongoError as e:
+            logger.error(f"Get user by username failed: {e}")
+            raise
+
+    def get_user_by_id(self, user_id: str) -> Optional[Dict[str, Any]]:
+        if self.users_collection is None:
+            self.connect()
+
+        try:
+            return self.users_collection.find_one({"_id": ObjectId(user_id)})
+        except PyMongoError as e:
+            logger.error(f"Get user by id failed: {e}")
+            raise
+
+    def get_all_users(self, skip: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
+        if self.users_collection is None:
+            self.connect()
+
+        try:
+            cursor = self.users_collection.find().skip(skip).limit(limit)
+            results = []
+            for doc in cursor:
+                doc["_id"] = str(doc["_id"])
+                doc["created_at"] = _serialize_datetime(doc.get("created_at"))
+                doc["updated_at"] = _serialize_datetime(doc.get("updated_at"))
+                doc["last_login"] = _serialize_datetime(doc.get("last_login"))
+                results.append(doc)
+            return results
+        except PyMongoError as e:
+            logger.error(f"Get all users failed: {e}")
+            raise
+
+    def update_user(self, user_id: str, update_data: Dict[str, Any]) -> bool:
+        if self.users_collection is None:
+            self.connect()
+
+        try:
+            update_data["updated_at"] = datetime.now()
+            result = self.users_collection.update_one(
+                {"_id": ObjectId(user_id)}, {"$set": update_data}
+            )
+            return result.modified_count > 0
+        except PyMongoError as e:
+            logger.error(f"Update user failed: {e}")
+            raise
+
+    def delete_user(self, user_id: str) -> bool:
+        if self.users_collection is None:
+            self.connect()
+
+        try:
+            result = self.users_collection.delete_one({"_id": ObjectId(user_id)})
+            return result.deleted_count > 0
+        except PyMongoError as e:
+            logger.error(f"Delete user failed: {e}")
+            raise
+
+    def update_user_login(self, user_id: str) -> bool:
+        if self.users_collection is None:
+            self.connect()
+
+        try:
+            result = self.users_collection.update_one(
+                {"_id": ObjectId(user_id)},
+                {
+                    "$set": {"last_login": datetime.now(), "updated_at": datetime.now()},
+                    "$inc": {"login_count": 1},
+                },
+            )
+            return result.modified_count > 0
+        except PyMongoError as e:
+            logger.error(f"Update user login failed: {e}")
+            raise
+
+    def save_role(self, role_data: Dict[str, Any]) -> str:
+        if self.roles_collection is None:
+            self.connect()
+
+        try:
+            role_data["created_at"] = datetime.now()
+            role_data["updated_at"] = datetime.now()
+            result = self.roles_collection.insert_one(role_data)
+            return str(result.inserted_id)
+        except PyMongoError as e:
+            logger.error(f"Save role failed: {e}")
+            raise
+
+    def get_role_by_id(self, role_id: str) -> Optional[Dict[str, Any]]:
+        if self.roles_collection is None:
+            self.connect()
+
+        try:
+            return self.roles_collection.find_one({"role_id": role_id})
+        except PyMongoError as e:
+            logger.error(f"Get role by id failed: {e}")
+            raise
+
+    def get_all_roles(self) -> List[Dict[str, Any]]:
+        if self.roles_collection is None:
+            self.connect()
+
+        try:
+            cursor = self.roles_collection.find()
+            results = []
+            for doc in cursor:
+                doc["_id"] = str(doc["_id"])
+                doc["created_at"] = _serialize_datetime(doc.get("created_at"))
+                doc["updated_at"] = _serialize_datetime(doc.get("updated_at"))
+                results.append(doc)
+            return results
+        except PyMongoError as e:
+            logger.error(f"Get all roles failed: {e}")
+            raise
+
+    def update_role(self, role_id: str, update_data: Dict[str, Any]) -> bool:
+        if self.roles_collection is None:
+            self.connect()
+
+        try:
+            update_data["updated_at"] = datetime.now()
+            result = self.roles_collection.update_one(
+                {"role_id": role_id}, {"$set": update_data}
+            )
+            return result.modified_count > 0
+        except PyMongoError as e:
+            logger.error(f"Update role failed: {e}")
+            raise
+
+    def delete_role(self, role_id: str) -> bool:
+        if self.roles_collection is None:
+            self.connect()
+
+        try:
+            result = self.roles_collection.delete_one({"role_id": role_id})
+            return result.deleted_count > 0
+        except PyMongoError as e:
+            logger.error(f"Delete role failed: {e}")
             raise
