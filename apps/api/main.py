@@ -82,6 +82,12 @@ async def startup_event():
     """Initialize services on application startup."""
     logger.info("Starting up application...")
 
+    try:
+        from app.core.init_db import init_database
+        await init_database()
+    except Exception as e:
+        logger.error(f"Database initialization failed: {e}")
+
     _qlib_initialized = False
 
     try:

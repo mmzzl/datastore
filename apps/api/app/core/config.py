@@ -99,6 +99,10 @@ class Settings(BaseSettings):
     alert_dingtalk_secret: str = ""
     alert_email_recipients: str = ""
 
+    # 默认管理员配置
+    default_admin_username: str = "admin"
+    default_admin_password: str = "admin"
+
     class Config:
         env_file = ".env"
         case_sensitive = False
