@@ -204,3 +204,19 @@ def viewer_auth_headers(setup_test_db, test_user_data) -> Dict[str, str]:
         }
     )
     return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
+def trader_auth_headers(setup_test_db) -> Dict[str, str]:
+    from app.core.security import security
+
+    token = security.create_access_token(
+        data={
+            "sub": "trader_user",
+            "user_id": "trader_user_id",
+            "role_id": "role_trader",
+            "is_superuser": False,
+            "permissions": ["backtest:*", "selection:*", "holdings:*", "risk:view"],
+        }
+    )
+    return {"Authorization": f"Bearer {token}"}

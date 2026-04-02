@@ -10,6 +10,7 @@ import logging
 from app.core.config import settings
 from app.core.security import security
 from app.core.encryption import encrypt_value, decrypt_value, mask_value
+from app.core.auth import AuthenticatedUser, require_permission
 from app.storage import MongoStorage
 
 logger = logging.getLogger(__name__)
@@ -66,7 +67,10 @@ def get_collection():
 
 
 @router.post("/on_save", response_model=DingTalkConfigResponse)
-async def create_config(config: DingTalkConfigCreate):
+async def create_config(
+    config: DingTalkConfigCreate,
+    current_user: AuthenticatedUser = Depends(require_permission("dingtalk:manage")),
+):
     collection = get_collection()
 
     existing = await asyncio.to_thread(
@@ -88,6 +92,8 @@ async def create_config(config: DingTalkConfigCreate):
 
     result = await asyncio.to_thread(collection.insert_one, doc)
     doc["_id"] = result.inserted_id
+
+    logger.info(f"DingTalk config created: user={current_user.user_id}")
 
     return DingTalkConfigResponse(
         id=str(doc["_id"]),
@@ -124,7 +130,10 @@ def _decrypt_and_build_response(doc: dict) -> DingTalkConfigResponse:
 
 
 @router.get("/{user_id}", response_model=DingTalkConfigListResponse)
-async def list_configs(user_id: str):
+async def list_configs(
+    user_id: str,
+    current_user: AuthenticatedUser = Depends(require_permission("dingtalk:view")),
+):
     collection = get_collection()
 
     configs = []
@@ -141,7 +150,11 @@ async def list_configs(user_id: str):
 
 
 @router.post("/test/{config_id}")
-async def test_notification(config_id: str, request: TestNotificationRequest):
+async def test_notification(
+    config_id: str,
+    request: TestNotificationRequest,
+    current_user: AuthenticatedUser = Depends(require_permission("dingtalk:manage")),
+):
     from app.notify.dingtalk import DingTalkNotifier
 
     collection = get_collection()
@@ -154,7 +167,6 @@ async def test_notification(config_id: str, request: TestNotificationRequest):
         webhook = decrypt_value(doc["webhook"])
         secret = decrypt_value(doc["secret"]) if doc.get("secret") else ""
     except (InvalidToken, ValueError, KeyError):
-        # Handle case where data is not encrypted or corrupted
         webhook = doc.get("webhook", "")
         secret = doc.get("secret", "")
         logger.warning("Using unencrypted or corrupted data for config %s", config_id)
@@ -166,13 +178,17 @@ async def test_notification(config_id: str, request: TestNotificationRequest):
     )
 
     if success:
+        logger.info(f"DingTalk test notification sent: config_id={config_id}, user={current_user.user_id}")
         return {"status": "success", "message": "Notification sent successfully"}
     else:
         raise HTTPException(status_code=500, detail="Failed to send notification")
 
 
 @router.get("/detail/{config_id}", response_model=DingTalkConfigResponse)
-async def get_config(config_id: str):
+async def get_config(
+    config_id: str,
+    current_user: AuthenticatedUser = Depends(require_permission("dingtalk:view")),
+):
     collection = get_collection()
 
     doc = await asyncio.to_thread(collection.find_one, {"_id": ObjectId(config_id)})
@@ -183,7 +199,11 @@ async def get_config(config_id: str):
 
 
 @router.put("/{config_id}", response_model=DingTalkConfigResponse)
-async def update_config(config_id: str, config: DingTalkConfigUpdate):
+async def update_config(
+    config_id: str,
+    config: DingTalkConfigUpdate,
+    current_user: AuthenticatedUser = Depends(require_permission("dingtalk:manage")),
+):
     collection = get_collection()
 
     doc = await asyncio.to_thread(collection.find_one, {"_id": ObjectId(config_id)})
@@ -211,18 +231,23 @@ async def update_config(config_id: str, config: DingTalkConfigUpdate):
     )
 
     updated_doc = await asyncio.to_thread(collection.find_one, {"_id": ObjectId(config_id)})
+    logger.info(f"DingTalk config updated: config_id={config_id}, user={current_user.user_id}")
 
     return _decrypt_and_build_response(updated_doc)
 
 
 @router.delete("/{config_id}")
-async def delete_config(config_id: str):
+async def delete_config(
+    config_id: str,
+    current_user: AuthenticatedUser = Depends(require_permission("dingtalk:manage")),
+):
     collection = get_collection()
 
     result = await asyncio.to_thread(collection.delete_one, {"_id": ObjectId(config_id)})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Config not found")
 
+    logger.info(f"DingTalk config deleted: config_id={config_id}, user={current_user.user_id}")
     return {"status": "deleted", "id": config_id}
 
 

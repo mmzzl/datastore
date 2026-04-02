@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 
 from app.risk.risk_report import RiskReportGenerator
 from app.core.config import settings
+from app.core.auth import AuthenticatedUser, require_permission
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/risk", tags=["风险报告"])
@@ -188,6 +189,7 @@ async def get_risk_reports(
     page: int = Query(default=1, ge=1, description="Page number"),
     page_size: int = Query(default=10, ge=1, le=100, description="Items per page"),
     user_id: Optional[str] = Query(default=None, description="Filter by user ID"),
+    current_user: AuthenticatedUser = Depends(require_permission("risk:view")),
 ):
     """Get paginated list of risk reports."""
     storage = get_storage()
@@ -293,7 +295,10 @@ async def get_risk_reports(
 
 
 @router.get("/reports/{report_id}")
-async def get_risk_report(report_id: str):
+async def get_risk_report(
+    report_id: str,
+    current_user: AuthenticatedUser = Depends(require_permission("risk:view")),
+):
     """Get a specific risk report by ID."""
     storage = get_storage()
     try:

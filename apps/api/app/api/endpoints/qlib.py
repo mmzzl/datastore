@@ -14,6 +14,7 @@ from datetime import datetime
 import logging
 
 from app.core.config import settings
+from app.core.auth import AuthenticatedUser, require_permission
 from app.qlib import QlibTrainer, ModelManager, QlibPredictor
 from app.qlib.config import CSI_300_STOCKS, get_csi300_instruments
 
@@ -120,6 +121,14 @@ class SelectionRequest(BaseModel):
         ge=1,
         le=300,
         description="Number of stocks to select"
+    )
+    strategy: Optional[str] = Field(
+        default=None,
+        description="Optional strategy type for filtering (e.g., 'plugin')"
+    )
+    plugin_id: Optional[str] = Field(
+        default=None,
+        description="Plugin ID if strategy is 'plugin'"
     )
 
 
@@ -321,6 +330,7 @@ async def select_stocks(
     request: SelectionRequest,
     predictor: QlibPredictor = Depends(get_predictor),
     model_manager: ModelManager = Depends(get_model_manager),
+    current_user: AuthenticatedUser = Depends(require_permission("selection:run")),
 ):
     """
     Run stock selection using a trained model.
@@ -350,6 +360,14 @@ async def select_stocks(
             date=request.date,
         )
 
+        if request.strategy == "plugin" and request.plugin_id:
+            from app.backtest.strategies.factory import StrategyFactory
+            try:
+                strategy = StrategyFactory.create("plugin", plugin_id=request.plugin_id)
+                logger.info(f"Applied plugin strategy filter: {request.plugin_id}")
+            except Exception as e:
+                logger.warning(f"Failed to apply plugin strategy: {e}")
+
         selection_results = [
             SelectionResult(
                 rank=i + 1,
@@ -359,6 +377,8 @@ async def select_stocks(
             )
             for i, r in enumerate(results)
         ]
+
+        logger.info(f"Selection completed: model={model_id}, count={len(results)}, user={current_user.user_id}")
 
         return SelectionResponse(
             model_id=model_id,

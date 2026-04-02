@@ -3,6 +3,7 @@ from typing import Optional
 import logging
 
 from app.core.config import settings
+from app.core.auth import AuthenticatedUser, require_permission
 from app.scheduler.job_store import JobStore
 from app.scheduler.job_manager import JobManager, CronValidator, JOB_TYPES
 from app.scheduler import qlib_train_handler, risk_report_handler
@@ -53,7 +54,8 @@ async def list_jobs(
     enabled: Optional[bool] = Query(None, description="Filter by enabled status"),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
-    job_manager: JobManager = Depends(get_job_manager)
+    job_manager: JobManager = Depends(get_job_manager),
+    current_user: AuthenticatedUser = Depends(require_permission("scheduler:view")),
 ):
     """List all scheduled jobs."""
     try:
@@ -70,7 +72,8 @@ async def list_jobs(
 @router.post("/jobs", response_model=JobResponse)
 async def create_job(
     job_data: JobCreate,
-    job_manager: JobManager = Depends(get_job_manager)
+    job_manager: JobManager = Depends(get_job_manager),
+    current_user: AuthenticatedUser = Depends(require_permission("scheduler:manage")),
 ):
     """Create a new scheduled job."""
     try:
@@ -84,8 +87,9 @@ async def create_job(
         )
 
         job = await job_manager.get_job(job_id)
+        logger.info(f"Job created: job_id={job_id}, user={current_user.user_id}")
         return JobResponse(**job)
-        
+
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -96,7 +100,8 @@ async def create_job(
 @router.get("/jobs/{job_id}", response_model=JobResponse)
 async def get_job(
     job_id: str,
-    job_manager: JobManager = Depends(get_job_manager)
+    job_manager: JobManager = Depends(get_job_manager),
+    current_user: AuthenticatedUser = Depends(require_permission("scheduler:view")),
 ):
     """Get job details by ID."""
     job = await job_manager.get_job(job_id)
@@ -109,7 +114,8 @@ async def get_job(
 async def update_job(
     job_id: str,
     job_data: JobUpdate,
-    job_manager: JobManager = Depends(get_job_manager)
+    job_manager: JobManager = Depends(get_job_manager),
+    current_user: AuthenticatedUser = Depends(require_permission("scheduler:manage")),
 ):
     """Update a scheduled job."""
     try:
@@ -120,17 +126,83 @@ async def update_job(
             config=job_data.config,
             enabled=job_data.enabled
         )
-        
+
         if not updated:
             raise HTTPException(status_code=400, detail="No updates provided")
 
         job = await job_manager.get_job(job_id)
+        logger.info(f"Job updated: job_id={job_id}, user={current_user.user_id}")
         return JobResponse(**job)
-        
+
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Failed to update job {job_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/jobs/{job_id}")
+async def delete_job(
+    job_id: str,
+    job_manager: JobManager = Depends(get_job_manager),
+    current_user: AuthenticatedUser = Depends(require_permission("scheduler:manage")),
+):
+    """Delete a scheduled job."""
+    try:
+        deleted = await job_manager.delete_job(job_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Job not found")
+        logger.info(f"Job deleted: job_id={job_id}, user={current_user.user_id}")
+        return {"message": "Job deleted successfully"}
+    except Exception as e:
+        logger.error(f"Failed to delete job {job_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/jobs/{job_id}/trigger")
+async def trigger_job(
+    job_id: str,
+    job_manager: JobManager = Depends(get_job_manager),
+    current_user: AuthenticatedUser = Depends(require_permission("scheduler:manage")),
+):
+    """Trigger a job to run immediately."""
+    try:
+        execution_id = await job_manager.trigger_job(job_id)
+        logger.info(f"Job triggered: job_id={job_id}, execution_id={execution_id}, user={current_user.user_id}")
+        return {
+            "message": "Job triggered successfully",
+            "execution_id": execution_id
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to trigger job {job_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/jobs/{job_id}/executions", response_model=ExecutionListResponse)
+async def get_job_executions(
+    job_id: str,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+    job_manager: JobManager = Depends(get_job_manager),
+    current_user: AuthenticatedUser = Depends(require_permission("scheduler:view")),
+):
+    """Get execution history for a job."""
+    job = await job_manager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    try:
+        executions, total = await job_manager.get_executions(job_id, skip=skip, limit=limit)
+        return ExecutionListResponse(
+            executions=[ExecutionResponse(**exec_doc) for exec_doc in executions],
+            total=total
+        )
+    except Exception as e:
+        logger.error(f"Failed to get executions for {job_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

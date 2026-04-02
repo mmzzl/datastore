@@ -10,11 +10,13 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, WebSocket
 from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 from app.backtest.websocket_handler import websocket_backtest_endpoint, get_connection_manager
 from app.backtest.async_engine import AsyncBacktestEngine
 from app.backtest.strategies.factory import StrategyFactory
 from app.core.config import settings
+from app.core.auth import AuthenticatedUser, require_permission
 import os
 import zipfile
 import importlib
@@ -24,7 +26,7 @@ from fastapi import UploadFile, File
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/backtest", tags=["backtest"])
 
-VALID_STRATEGY_TYPES = ["ma_cross", "rsi", "bollinger", "macd", "qlib_model"]
+VALID_STRATEGY_TYPES = ["ma_cross", "rsi", "bollinger", "macd", "qlib_model", "plugin"]
 
 
 class BacktestRunRequest(BaseModel):
@@ -35,6 +37,7 @@ class BacktestRunRequest(BaseModel):
     end_date: str = Field(..., description="Backtest end date (YYYY-MM-DD)")
     initial_capital: float = Field(default=100000.0, gt=0, description="Initial capital")
     instruments: List[str] = Field(default_factory=list, description="List of stock codes")
+    plugin_id: Optional[str] = Field(default=None, description="Plugin ID for plugin strategy")
 
     @field_validator("strategy")
     @classmethod
@@ -100,6 +103,7 @@ def get_backtest_engine(request: Request) -> AsyncBacktestEngine:
 async def run_backtest(
     request: BacktestRunRequest,
     engine: AsyncBacktestEngine = Depends(get_backtest_engine),
+    current_user: AuthenticatedUser = Depends(require_permission("backtest:run")),
 ):
     """
     Start a new backtest task.
@@ -107,11 +111,21 @@ async def run_backtest(
     Creates a backtest task and returns task_id for WebSocket connection
     to receive real-time progress updates.
 
-    Supported strategies: ma_cross, rsi, bollinger, macd, qlib_model
+    Supported strategies: ma_cross, rsi, bollinger, macd, qlib_model, plugin
     """
+    strategy_params = request.params.copy()
+
+    if request.strategy.lower() == "plugin":
+        if not request.plugin_id:
+            raise HTTPException(
+                status_code=400,
+                detail="plugin_id is required for plugin strategy"
+            )
+        strategy_params["plugin_id"] = request.plugin_id
+
     config = {
         "strategy": request.strategy,
-        "params": request.params,
+        "params": strategy_params,
         "start_date": request.start_date,
         "end_date": request.end_date,
         "initial_capital": request.initial_capital,
@@ -120,7 +134,7 @@ async def run_backtest(
 
     try:
         task_id = await engine.run_backtest(config)
-        logger.info(f"Backtest started: task_id={task_id}, strategy={request.strategy}")
+        logger.info(f"Backtest started: task_id={task_id}, strategy={request.strategy}, user={current_user.user_id}")
 
         return BacktestRunResponse(
             task_id=task_id,
@@ -141,6 +155,7 @@ async def run_backtest(
 async def get_backtest_results(
     page: int = Query(default=1, ge=1, description="Page number"),
     page_size: int = Query(default=20, ge=1, le=100, description="Items per page"),
+    current_user: AuthenticatedUser = Depends(require_permission("backtest:view")),
 ):
     storage = get_storage()
     try:
