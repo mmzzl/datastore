@@ -3,7 +3,7 @@ from app.core.pandas_compat import _patched_fillna
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.endpoints import auth, news, aftermarket, stock, qlib, backtest, scheduler, dingtalk
+from app.api.endpoints import auth, news, aftermarket, stock, qlib, backtest, scheduler, dingtalk, users, roles, plugins
 from app.risk import api as risk_api
 from app.core.config import settings
 from app.core.error import setup_error_handlers
@@ -73,6 +73,9 @@ app.include_router(health_router, prefix="/api")
 app.include_router(signals_router, prefix="/api")
 app.include_router(market_auth_router, prefix="/api")
 app.include_router(risk_api.router, prefix="/api")
+app.include_router(users.router, prefix="/api")
+app.include_router(roles.router, prefix="/api")
+app.include_router(plugins.router)
 
 include_routers(app)
 
