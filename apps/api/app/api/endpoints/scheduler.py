@@ -59,7 +59,7 @@ async def list_jobs(
     try:
         jobs, total = await job_manager.list_jobs(job_type=job_type, enabled=enabled, skip=skip, limit=limit)
         return JobListResponse(
-            jobs=[JobResponse(**job) for job in jobs],
+            items=[JobResponse(**job) for job in jobs],
             total=total
         )
     except Exception as e:

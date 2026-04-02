@@ -2,13 +2,13 @@
 import { onMounted, ref, h, computed } from 'vue'
 import {
   NCard, NDataTable, NButton, NSpin, NAlert, NSpace, NModal, NForm, NFormItem,
-  NInput, NSelect, NSwitch, NPopconfirm, NTag, NIcon, useMessage, NPagination,
+  NInput, NSelect, NSwitch, NPopconfirm, NTag, NIcon, createDiscreteApi, NPagination,
   NCode, NDescriptions, NDescriptionsItem, NEmpty
 } from 'naive-ui'
 import type { DataTableColumns, FormInst, FormRules } from 'naive-ui'
 import { apiScheduler, type SchedulerJob, type JobExecution } from '../services/api_scheduler'
 
-const message = useMessage()
+const { message } = createDiscreteApi(['message'])
 
 const jobs = ref<SchedulerJob[]>([])
 const loading = ref(false)
@@ -162,7 +162,18 @@ async function fetchJobs() {
   error.value = null
   try {
     const res = await apiScheduler.getJobs()
-    jobs.value = res.items || []
+    jobs.value = (res.items || []).map(item => ({
+      id: item.job_id,
+      name: item.name,
+      task_type: item.job_type,
+      schedule: item.cron_expression,
+      enabled: item.enabled,
+      last_run: item.last_run,
+      next_run: item.next_run,
+      config: item.config,
+      created_at: item.created_at,
+      updated_at: item.updated_at
+    }))
     pagination.value.itemCount = jobs.value.length
   } catch (e: any) {
     error.value = e.response?.data?.detail || '获取任务列表失败'
@@ -310,7 +321,18 @@ async function loadExecutions(jobId: string) {
   executionsLoading.value = true
   try {
     const res = await apiScheduler.getExecutions(jobId, executionsPagination.value.page, executionsPagination.value.pageSize)
-    executions.value = res.items || []
+    executions.value = (res.executions || []).map(item => ({
+      id: item.execution_id,
+      job_id: item.job_id,
+      status: item.status,
+      started_at: item.started_at,
+      completed_at: item.completed_at,
+      duration: item.completed_at && item.started_at ? 
+        Math.floor((new Date(item.completed_at).getTime() - new Date(item.started_at).getTime()) / 1000) * 1000 : 
+        undefined,
+      result: item.result,
+      error: item.error_message
+    }))
     executionsPagination.value.itemCount = res.total
     executionsPagination.value.totalPages = res.total_pages
   } catch (e: any) {

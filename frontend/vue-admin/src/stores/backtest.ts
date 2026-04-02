@@ -107,6 +107,8 @@ export const useBacktestStore = defineStore('backtest', () => {
       ws = null
       state.wsConnected = false
     }
+    // Reset backtest state
+    reset()
   }
 
   function reset() {

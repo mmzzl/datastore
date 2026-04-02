@@ -15,9 +15,14 @@ from app.backtest.websocket_handler import websocket_backtest_endpoint, get_conn
 from app.backtest.async_engine import AsyncBacktestEngine
 from app.backtest.strategies.factory import StrategyFactory
 from app.core.config import settings
+import os
+import zipfile
+import importlib
+import shutil
+from fastapi import UploadFile, File
 
 logger = logging.getLogger(__name__)
-router = APIRouter(tags=["backtest"])
+router = APIRouter(prefix="/backtest", tags=["backtest"])
 
 VALID_STRATEGY_TYPES = ["ma_cross", "rsi", "bollinger", "macd", "qlib_model"]
 
@@ -237,3 +242,239 @@ async def backtest_websocket(
     - Server sends {"type": "error", "message": "..."} on failure
     """
     await websocket_backtest_endpoint(websocket, task_id, engine)
+
+
+# Plugin management endpoints
+
+class StrategyPluginResponse(BaseModel):
+    """Response model for strategy plugin."""
+    id: str
+    name: str
+    description: str
+    module_name: str
+    class_name: str
+    path: str
+    author: str = ""
+    version: str = "1.0.0"
+    tags: list = []
+    parameters: dict = {}
+    created_at: str
+    updated_at: str
+
+
+class StrategyPluginsResponse(BaseModel):
+    """Response model for paginated strategy plugins."""
+    items: List[StrategyPluginResponse]
+    total: int
+
+
+@router.post("/plugins/upload")
+async def upload_strategy_plugin(
+    file: UploadFile = File(...),
+):
+    """
+    Upload a strategy plugin.
+
+    Uploads a zip file containing strategy implementation.
+    """
+    # Create uploads directory if it doesn't exist
+    uploads_dir = "uploads"
+    if not os.path.exists(uploads_dir):
+        os.makedirs(uploads_dir)
+    
+    # Save uploaded file
+    file_path = os.path.join(uploads_dir, file.filename)
+    try:
+        with open(file_path, "wb") as buffer:
+            content = await file.read()
+            buffer.write(content)
+        
+        # Extract zip file
+        extract_dir = os.path.join(uploads_dir, "temp")
+        if os.path.exists(extract_dir):
+            shutil.rmtree(extract_dir)
+        os.makedirs(extract_dir)
+        
+        with zipfile.ZipFile(file_path, "r") as zip_ref:
+            zip_ref.extractall(extract_dir)
+        
+        # Find the main strategy module
+        strategy_modules = []
+        for root, dirs, files in os.walk(extract_dir):
+            if "__init__.py" in files and "strategy.py" in files:
+                module_name = os.path.basename(root)
+                strategy_modules.append((module_name, root))
+        
+        if not strategy_modules:
+            raise HTTPException(status_code=400, detail="No valid strategy module found in zip file")
+        
+        # Use the first strategy module found
+        module_name, module_path = strategy_modules[0]
+        
+        # Create plugins directory if it doesn't exist
+        plugins_dir = os.path.join("app", "backtest", "strategies", "plugins")
+        if not os.path.exists(plugins_dir):
+            os.makedirs(plugins_dir)
+        
+        # Move the module to plugins directory
+        target_path = os.path.join(plugins_dir, module_name)
+        if os.path.exists(target_path):
+            shutil.rmtree(target_path)
+        shutil.move(module_path, target_path)
+        
+        # Add __init__.py to plugins directory if it doesn't exist
+        plugins_init = os.path.join(plugins_dir, "__init__.py")
+        if not os.path.exists(plugins_init):
+            with open(plugins_init, "w") as f:
+                f.write("# Plugins directory\n")
+        
+        # Dynamically import the strategy module
+        try:
+            module = importlib.import_module(f"app.backtest.strategies.plugins.{module_name}")
+            # Find the strategy class
+            strategy_class = None
+            for name in dir(module):
+                obj = getattr(module, name)
+                if isinstance(obj, type) and hasattr(obj, "PLUGIN_METADATA"):
+                    strategy_class = obj
+                    break
+            
+            if not strategy_class:
+                raise HTTPException(status_code=400, detail="No valid strategy class found in module")
+            
+            # Extract metadata
+            metadata = getattr(strategy_class, "PLUGIN_METADATA", {})
+            
+            # Save to MongoDB
+            storage = get_storage()
+            try:
+                plugin_data = {
+                    "name": metadata.get("name", module_name),
+                    "description": metadata.get("description", ""),
+                    "module_name": module_name,
+                    "class_name": strategy_class.__name__,
+                    "path": f"plugins/{module_name}",
+                    "author": metadata.get("author", ""),
+                    "version": metadata.get("version", "1.0.0"),
+                    "tags": metadata.get("tags", []),
+                    "parameters": metadata.get("parameters", {}),
+                }
+                
+                plugin_id = storage.save_strategy_plugin(plugin_data)
+                
+                return {
+                    "id": plugin_id,
+                    "message": "Strategy plugin uploaded successfully",
+                    "plugin": plugin_data
+                }
+            finally:
+                storage.close()
+                
+        except Exception as e:
+            # Clean up
+            if os.path.exists(target_path):
+                shutil.rmtree(target_path)
+            raise HTTPException(status_code=400, detail=f"Failed to load strategy module: {str(e)}")
+            
+    finally:
+        # Clean up temporary files
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        if os.path.exists(extract_dir):
+            shutil.rmtree(extract_dir)
+
+
+@router.get("/plugins", response_model=StrategyPluginsResponse)
+async def get_strategy_plugins():
+    """
+    Get all strategy plugins.
+    """
+    storage = get_storage()
+    try:
+        plugins = storage.get_all_strategy_plugins()
+        
+        items = []
+        for plugin in plugins:
+            items.append(StrategyPluginResponse(
+                id=str(plugin["_id"]),
+                name=plugin.get("name", ""),
+                description=plugin.get("description", ""),
+                module_name=plugin.get("module_name", ""),
+                class_name=plugin.get("class_name", ""),
+                path=plugin.get("path", ""),
+                author=plugin.get("author", ""),
+                version=plugin.get("version", "1.0.0"),
+                tags=plugin.get("tags", []),
+                parameters=plugin.get("parameters", {}),
+                created_at=plugin.get("created_at", "").isoformat() if hasattr(plugin.get("created_at"), "isoformat") else "",
+                updated_at=plugin.get("updated_at", "").isoformat() if hasattr(plugin.get("updated_at"), "isoformat") else ""
+            ))
+        
+        return StrategyPluginsResponse(
+            items=items,
+            total=len(items)
+        )
+    finally:
+        storage.close()
+
+
+@router.delete("/plugins/{plugin_id}")
+async def delete_strategy_plugin(
+    plugin_id: str,
+):
+    """
+    Delete a strategy plugin.
+    """
+    storage = get_storage()
+    try:
+        # Get plugin info first
+        plugin = storage.get_strategy_plugin(plugin_id)
+        if not plugin:
+            raise HTTPException(status_code=404, detail="Plugin not found")
+        
+        # Delete from file system
+        module_name = plugin.get("module_name")
+        if module_name:
+            plugin_path = os.path.join("app", "backtest", "strategies", "plugins", module_name)
+            if os.path.exists(plugin_path):
+                shutil.rmtree(plugin_path)
+        
+        # Delete from MongoDB
+        deleted = storage.delete_strategy_plugin(plugin_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Failed to delete plugin")
+        
+        return {"message": "Strategy plugin deleted successfully"}
+    finally:
+        storage.close()
+
+
+@router.get("/plugins/{plugin_id}", response_model=StrategyPluginResponse)
+async def get_strategy_plugin(
+    plugin_id: str,
+):
+    """
+    Get a strategy plugin by ID.
+    """
+    storage = get_storage()
+    try:
+        plugin = storage.get_strategy_plugin(plugin_id)
+        if not plugin:
+            raise HTTPException(status_code=404, detail="Plugin not found")
+        
+        return StrategyPluginResponse(
+            id=str(plugin["_id"]),
+            name=plugin.get("name", ""),
+            description=plugin.get("description", ""),
+            module_name=plugin.get("module_name", ""),
+            class_name=plugin.get("class_name", ""),
+            path=plugin.get("path", ""),
+            author=plugin.get("author", ""),
+            version=plugin.get("version", "1.0.0"),
+            tags=plugin.get("tags", []),
+            parameters=plugin.get("parameters", {}),
+            created_at=plugin.get("created_at", "").isoformat() if hasattr(plugin.get("created_at"), "isoformat") else "",
+            updated_at=plugin.get("updated_at", "").isoformat() if hasattr(plugin.get("updated_at"), "isoformat") else ""
+        )
+    finally:
+        storage.close()

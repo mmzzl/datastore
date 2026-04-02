@@ -9,6 +9,7 @@ class JobType(str, Enum):
     BACKTEST = "backtest"
     RISK_REPORT = "risk_report"
     NEWS_COLLECT = "news_collect"
+    SIGNAL_GENERATE = "signal_generate"
     CUSTOM = "custom"
 
 
@@ -50,7 +51,7 @@ class JobResponse(BaseModel):
 
 
 class JobListResponse(BaseModel):
-    jobs: List[JobResponse]
+    items: List[JobResponse]
     total: int
 
 

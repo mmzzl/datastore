@@ -3,29 +3,25 @@ import api from './api'
 interface DingtalkConfig {
   id?: string
   user_id?: string
-  webhook_url: string
+  name?: string
+  webhook: string
   secret: string
-  enabled: boolean
-  keywords?: string
-  at_mobiles?: string
+  is_active: boolean
   created_at?: string
   updated_at?: string
 }
 
 interface CreateConfigRequest {
-  webhook_url: string
+  user_id: string
+  name: string
+  webhook: string
   secret: string
-  enabled?: boolean
-  keywords?: string
-  at_mobiles?: string
 }
 
 interface UpdateConfigRequest {
-  webhook_url?: string
+  name?: string
+  webhook?: string
   secret?: string
-  enabled?: boolean
-  keywords?: string
-  at_mobiles?: string
 }
 
 interface TestNotificationResponse {
@@ -40,7 +36,7 @@ export const apiDingtalk = {
   },
 
   async createConfig(data: CreateConfigRequest): Promise<DingtalkConfig> {
-    const res = await api.post('/dingtalk/configs', data)
+    const res = await api.post('/dingtalk/configs/on_save', data)
     return res.data
   },
 
@@ -54,7 +50,9 @@ export const apiDingtalk = {
   },
 
   async testNotification(configId: string): Promise<TestNotificationResponse> {
-    const res = await api.post(`/dingtalk/configs/${configId}/test`)
+    const res = await api.post(`/dingtalk/configs/test/${configId}`, {
+      message: 'Test notification from trading system'
+    })
     return res.data
   }
 }

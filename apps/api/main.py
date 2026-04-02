@@ -4,6 +4,7 @@ from app.core.pandas_compat import _patched_fillna
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.endpoints import auth, news, aftermarket, stock, qlib, backtest, scheduler, dingtalk
+from app.risk import api as risk_api
 from app.core.config import settings
 from app.core.error import setup_error_handlers
 import logging
@@ -57,13 +58,13 @@ app.add_middleware(
 
 setup_error_handlers(app)
 
-app.include_router(dingtalk.router)
+app.include_router(dingtalk.router, prefix="/api")
 app.include_router(auth.router)
 app.include_router(news.router)
 app.include_router(aftermarket.router)
 app.include_router(stock.router, prefix="/api")
 app.include_router(qlib.router, prefix="/api")
-app.include_router(backtest.router)
+app.include_router(backtest.router, prefix="/api")
 app.include_router(scheduler.router, prefix="/api")
 
 app.include_router(holdings_router, prefix="/api")
@@ -71,6 +72,7 @@ app.include_router(settings_router, prefix="/api")
 app.include_router(health_router, prefix="/api")
 app.include_router(signals_router, prefix="/api")
 app.include_router(market_auth_router, prefix="/api")
+app.include_router(risk_api.router, prefix="/api")
 
 include_routers(app)
 

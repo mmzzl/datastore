@@ -1,28 +1,36 @@
 <template>
-  <div class="app-layout" v-if="isAuthenticated">
-    <aside class="sidebar">
-      <h2 class="logo">Market Admin</h2>
-      <nav>
-        <router-link to="/dashboard">Dashboard</router-link>
-        <router-link to="/holdings">持仓管理</router-link>
-        <router-link to="/market-watch">市场监控</router-link>
-        <router-link to="/settings">设置</router-link>
-      </nav>
-      <div class="user-section">
-        <span class="user-info">用户: {{ currentUser }}</span>
-        <button @click="logout" class="logout-btn">退出登录</button>
-      </div>
-    </aside>
-    <main class="content">
-      <router-view />
-    </main>
-  </div>
-  <router-view v-else />
+  <n-message-provider>
+    <div class="app-layout" v-if="isAuthenticated">
+      <aside class="sidebar">
+        <h2 class="logo">Market Admin</h2>
+        <nav>
+          <router-link to="/dashboard">Dashboard</router-link>
+          <router-link to="/holdings">持仓管理</router-link>
+          <router-link to="/market-watch">市场监控</router-link>
+          <router-link to="/qlib/select">Qlib模型</router-link>
+          <router-link to="/backtest">回测</router-link>
+          <router-link to="/risk-report">风险报告</router-link>
+          <router-link to="/scheduler">定时任务</router-link>
+          <router-link to="/dingtalk-config">钉钉配置</router-link>
+          <router-link to="/settings">设置</router-link>
+        </nav>
+        <div class="user-section">
+          <span class="user-info">用户: {{ currentUser }}</span>
+          <button @click="logout" class="logout-btn">退出登录</button>
+        </div>
+      </aside>
+      <main class="content">
+        <router-view />
+      </main>
+    </div>
+    <router-view v-else />
+  </n-message-provider>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { NMessageProvider } from 'naive-ui'
 import { authService, apiAuth } from './services/api'
 
 const router = useRouter()

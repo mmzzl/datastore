@@ -15,6 +15,7 @@ import {
   TitleComponent, TooltipComponent, LegendComponent,
   GridComponent, DataZoomComponent
 } from 'echarts/components'
+import { pluginService } from '../services/api'
 
 use([
   CanvasRenderer, LineChart, TitleComponent, TooltipComponent,
@@ -23,15 +24,19 @@ use([
 
 const store = useBacktestStore()
 
-const strategyOptions = [
+const baseStrategyOptions = [
   { label: 'MA Cross', value: 'ma_cross' },
   { label: 'RSI', value: 'rsi' },
   { label: 'Bollinger', value: 'bollinger' },
   { label: 'MACD', value: 'macd' },
   { label: 'Qlib Model', value: 'qlib_model' },
+  { label: 'Plugin', value: 'plugin' },
 ]
 
+const strategyOptions = ref([...baseStrategyOptions])
+const plugins = ref<any[]>([])
 const selectedStrategy = ref('ma_cross')
+const selectedPlugin = ref('')
 const dateRange = ref<[number, number] | null>(null)
 const initialCapital = ref(100000)
 
@@ -41,6 +46,7 @@ const strategyParams = ref<Record<string, any>>({
   bollinger: { period: 20, num_std: 2 },
   macd: { fast_period: 12, slow_period: 26, signal_period: 9 },
   qlib_model: { model_id: '', topk: 50 },
+  plugin: { plugin_id: '', custom_params: {} },
 })
 
 const currentParams = computed(() => strategyParams.value[selectedStrategy.value] || {})
@@ -50,8 +56,29 @@ const canStart = computed(() => {
   if (!dateRange.value) return false
   const [start, end] = dateRange.value
   if (start >= end) return false
-  if (selectedStrategy.value === 'qlib_model' && !strategyParams.value.qlib_model.model_id) return false
+  if (selectedStrategy.value === 'plugin' && !selectedPlugin.value) return false
   return true
+})
+
+const loadPlugins = async () => {
+  try {
+    const res = await pluginService.getPlugins()
+    plugins.value = res.items
+  } catch (e) {
+    console.error('Failed to load plugins:', e)
+  }
+}
+
+watch(selectedPlugin, (newPluginId) => {
+  if (newPluginId) {
+    strategyParams.value.plugin.plugin_id = newPluginId
+  }
+})
+
+watch(selectedStrategy, async (newStrategy) => {
+  if (newStrategy === 'plugin') {
+    await loadPlugins()
+  }
 })
 
 const returnChartOption = computed(() => {
@@ -287,6 +314,15 @@ onUnmounted(() => {
                 v-model:value="strategyParams.qlib_model.topk"
                 :min="1"
                 placeholder="TopK"
+                :disabled="isRunning"
+              />
+            </template>
+            <template v-else-if="selectedStrategy === 'plugin'">
+              <NSelect
+                v-model:value="selectedPlugin"
+                :options="plugins.map(p => ({ label: p.name, value: p.id }))"
+                placeholder="选择插件"
+                style="width: 200px"
                 :disabled="isRunning"
               />
             </template>

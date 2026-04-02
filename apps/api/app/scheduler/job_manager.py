@@ -10,7 +10,7 @@ from .job_store import JobStore
 
 logger = logging.getLogger(__name__)
 
-JOB_TYPES = ["qlib_train", "backtest", "risk_report", "news_collect", "custom"]
+JOB_TYPES = ["qlib_train", "backtest", "risk_report", "news_collect", "signal_generate", "custom"]
 
 
 class CronValidator:

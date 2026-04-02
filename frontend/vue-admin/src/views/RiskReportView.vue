@@ -30,6 +30,11 @@ const selectedDateStr = computed(() => {
 const currentReport = computed(() => store.state.currentReport)
 
 const riskScore = computed(() => {
+  // Use risk_score from backend if available
+  if (currentReport.value?.risk_score) {
+    return currentReport.value.risk_score
+  }
+  // Fallback to calculated score if risk_score is not available
   if (!currentReport.value?.metrics) return 50
   const metrics = currentReport.value.metrics
   const varComponent = Math.min(metrics.var_95 * 10, 30)
@@ -191,6 +196,29 @@ const holdingsColumns: DataTableColumns = [
   { title: '代码', key: 'code', width: 100 },
   { title: '名称', key: 'name', width: 100 },
   { 
+    title: '盈亏%', 
+    key: 'pnl_percent', 
+    width: 80,
+    render: (row: any) => {
+      const pnl = row.pnl_percent || 0
+      const color = pnl >= 0 ? '#10b981' : '#ef4444'
+      return h('span', { style: { color } }, `${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}%`)
+    }
+  },
+  { 
+    title: '风险分', 
+    key: 'risk_score', 
+    width: 80,
+    sorter: (a: any, b: any) => (a.risk_score || 0) - (b.risk_score || 0),
+    render: (row: any) => {
+      const score = row.risk_score || 0
+      let type: 'success' | 'warning' | 'error' = 'success'
+      if (score > 60) type = 'error'
+      else if (score > 30) type = 'warning'
+      return h(NTag, { type, size: 'small' }, () => score)
+    }
+  },
+  { 
     title: '数量', 
     key: 'quantity', 
     width: 80,
@@ -209,37 +237,24 @@ const holdingsColumns: DataTableColumns = [
     render: (row: any) => `¥${(row.current_price || 0).toFixed(2)}`
   },
   { 
-    title: '盈亏%', 
-    key: 'pnl_percent', 
-    width: 80,
-    render: (row: any) => {
-      const pnl = row.pnl_percent || 0
-      const color = pnl >= 0 ? '#10b981' : '#ef4444'
-      return h('span', { style: { color } }, `${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}%`)
-    }
-  },
-  { 
     title: 'VaR', 
     key: 'var_value', 
     width: 80,
     render: (row: any) => `¥${(row.var_value || 0).toFixed(0)}`
-  },
-  { 
-    title: '风险分', 
-    key: 'risk_score', 
-    width: 80,
-    sorter: (a: any, b: any) => (a.risk_score || 0) - (b.risk_score || 0),
-    render: (row: any) => {
-      const score = row.risk_score || 0
-      let type: 'success' | 'warning' | 'error' = 'success'
-      if (score > 60) type = 'error'
-      else if (score > 30) type = 'warning'
-      return h(NTag, { type, size: 'small' }, () => score)
-    }
   }
 ]
 
 const recommendations = computed(() => {
+  // First try to use recommendations from backend
+  if (currentReport.value?.recommendations && Array.isArray(currentReport.value.recommendations)) {
+    return currentReport.value.recommendations.map((text: string, idx: number) => ({
+      priority: idx + 1,
+      severity: text.includes('高风险') || text.includes('警告') ? 'warning' : 'info',
+      text
+    }))
+  }
+  
+  // Fallback to generating recommendations from metrics
   if (!currentReport.value?.metrics) return []
   const recs: Array<{ priority: number; severity: 'warning' | 'info'; text: string }> = []
   const metrics = currentReport.value.metrics
@@ -340,7 +355,7 @@ onMounted(async () => {
         <template v-if="currentReport">
           <NGrid :cols="24" :x-gap="16">
             <NGi :span="8">
-              <NCard class="gauge-card" :bordered="false">
+              <NCard title="风险评分" class="gauge-card" :bordered="false">
                 <div class="gauge-container">
                   <VChart :option="gaugeOption" autoresize style="height: 280px" />
                 </div>
@@ -350,45 +365,15 @@ onMounted(async () => {
               </NCard>
             </NGi>
             <NGi :span="16">
-              <NCard title="风险指标" class="metrics-card" :bordered="false">
-                <NGrid :cols="3" :x-gap="16">
-                  <NGi>
-                    <NStatistic label="VaR (95%)" :value="(currentReport.metrics?.var_95 || 0) * 100">
-                      <template #suffix>%</template>
-                    </NStatistic>
-                  </NGi>
-                  <NGi>
-                    <NStatistic label="VaR (99%)" :value="(currentReport.metrics?.var_99 || 0) * 100">
-                      <template #suffix>%</template>
-                    </NStatistic>
-                  </NGi>
-                  <NGi>
-                    <NStatistic label="预期损失" :value="(currentReport.metrics?.expected_shortfall || 0) * 100">
-                      <template #suffix>%</template>
-                    </NStatistic>
-                  </NGi>
-                  <NGi>
-                    <NStatistic label="Beta" :value="currentReport.metrics?.beta || 0" :precision="2" />
-                  </NGi>
-                  <NGi>
-                    <NStatistic label="波动率" :value="(currentReport.metrics?.volatility || 0) * 100">
-                      <template #suffix>%</template>
-                    </NStatistic>
-                  </NGi>
-                  <NGi>
-                    <NStatistic label="最大回撤" :value="(currentReport.metrics?.max_drawdown || 0) * 100">
-                      <template #suffix>%</template>
-                    </NStatistic>
-                  </NGi>
-                </NGrid>
+              <NCard title="行业集中度" class="pie-card">
+                <VChart v-if="industryData.length > 0" :option="pieOption" autoresize style="height: 280px" />
+                <NEmpty v-else description="暂无行业分布数据" />
               </NCard>
             </NGi>
           </NGrid>
 
-          <NDivider />
-
-          <NGrid :cols="2" :x-gap="16">
-            <NGi>
+          <NGrid :cols="24" :x-gap="16" style="margin-top: 16px;">
+            <NGi :span="24">
               <NCard title="持仓风险明细" class="table-card">
                 <NDataTable
                   :columns="holdingsColumns"
@@ -397,12 +382,6 @@ onMounted(async () => {
                   :row-class-name="rowClassName"
                   :max-height="300"
                 />
-              </NCard>
-            </NGi>
-            <NGi>
-              <NCard title="行业集中度" class="pie-card">
-                <VChart v-if="industryData.length > 0" :option="pieOption" autoresize style="height: 300px" />
-                <NEmpty v-else description="暂无行业分布数据" />
               </NCard>
             </NGi>
           </NGrid>

@@ -1,16 +1,15 @@
 <script setup lang="ts">
 import { onMounted, computed } from 'vue'
-import { NCard, NForm, NFormItem, NInput, NButton, NSwitch, NSpin, NAlert, NSpace, NDescriptions, NDescriptionsItem, NTag, NPopconfirm } from 'naive-ui'
+import { NCard, NForm, NFormItem, NInput, NButton, NSwitch, NSpin, NAlert, NSpace, NDescriptions, NDescriptionsItem, NTag, NPopconfirm, NDialog } from 'naive-ui'
 import { ref } from 'vue'
 import { authService } from '../services/api'
 import { apiDingtalk, type DingtalkConfig } from '../services/api_dingtalk'
 
 const formValue = ref({
-  webhook_url: '',
+  webhook: '',
   secret: '',
-  enabled: false,
-  keywords: '',
-  at_mobiles: '',
+  name: '默认配置',
+  user_id: 'admin',
 })
 const currentConfig = ref<DingtalkConfig | null>(null)
 const loading = ref(false)
@@ -18,6 +17,7 @@ const saving = ref(false)
 const testing = ref(false)
 const error = ref<string | null>(null)
 const success = ref<string | null>(null)
+const configDialogVisible = ref(false)
 
 const webhookUrlRules = {
   required: true,
@@ -34,8 +34,8 @@ const webhookUrlRules = {
 }
 
 const maskedWebhookUrl = computed(() => {
-  if (!currentConfig.value?.webhook_url) return ''
-  const url = currentConfig.value.webhook_url
+  if (!currentConfig.value?.webhook) return ''
+  const url = currentConfig.value.webhook
   const tokenMatch = url.match(/access_token=([a-fA-F0-9]+)/)
   if (tokenMatch) {
     const token = tokenMatch[1]
@@ -66,11 +66,10 @@ async function loadConfig() {
     if (res.items && res.items.length > 0) {
       currentConfig.value = res.items[0]
       formValue.value = {
-        webhook_url: '',
+        webhook: '',
         secret: '',
-        enabled: res.items[0].enabled,
-        keywords: res.items[0].keywords || '',
-        at_mobiles: res.items[0].at_mobiles || '',
+        name: res.items[0].name || '默认配置',
+        user_id: res.items[0].user_id || 'admin',
       }
     }
   } catch (e: any) {
@@ -87,30 +86,27 @@ async function saveConfig() {
   error.value = null
   success.value = null
   try {
-    const userId = authService.getUser()
     if (currentConfig.value?.id) {
       const updateData: any = {}
-      if (formValue.value.webhook_url) {
-        updateData.webhook_url = formValue.value.webhook_url
+      if (formValue.value.webhook) {
+        updateData.webhook = formValue.value.webhook
       }
       if (formValue.value.secret) {
         updateData.secret = formValue.value.secret
       }
-      updateData.enabled = formValue.value.enabled
-      updateData.keywords = formValue.value.keywords
-      updateData.at_mobiles = formValue.value.at_mobiles
+      updateData.name = formValue.value.name
       await apiDingtalk.updateConfig(currentConfig.value.id, updateData)
     } else {
       await apiDingtalk.createConfig({
-        webhook_url: formValue.value.webhook_url,
+        user_id: formValue.value.user_id,
+        name: formValue.value.name,
+        webhook: formValue.value.webhook,
         secret: formValue.value.secret,
-        enabled: formValue.value.enabled,
-        keywords: formValue.value.keywords,
-        at_mobiles: formValue.value.at_mobiles,
       })
     }
     success.value = '保存成功'
     await loadConfig()
+    configDialogVisible.value = false
   } catch (e: any) {
     error.value = e.response?.data?.detail || '保存失败'
   } finally {
@@ -144,11 +140,10 @@ async function deleteConfig() {
     await apiDingtalk.deleteConfig(currentConfig.value.id)
     currentConfig.value = null
     formValue.value = {
-      webhook_url: '',
+      webhook: '',
       secret: '',
-      enabled: false,
-      keywords: '',
-      at_mobiles: '',
+      name: '默认配置',
+      user_id: 'admin',
     }
     success.value = '配置已删除'
   } catch (e: any) {
@@ -160,12 +155,27 @@ async function deleteConfig() {
 
 function resetForm() {
   formValue.value = {
-    webhook_url: '',
+    webhook: '',
     secret: '',
-    enabled: currentConfig.value?.enabled || false,
-    keywords: currentConfig.value?.keywords || '',
-    at_mobiles: currentConfig.value?.at_mobiles || '',
+    name: '默认配置',
+    user_id: 'admin',
   }
+}
+
+function openConfigDialog() {
+  console.log('点击了配置按钮');
+  console.log('currentConfig:', currentConfig.value);
+  if (currentConfig.value) {
+    formValue.value = {
+      webhook: '',
+      secret: '',
+      name: currentConfig.value.name || '默认配置',
+      user_id: currentConfig.value.user_id || 'admin',
+    }
+  }
+  console.log('准备打开模态框');
+  configDialogVisible.value = true;
+  console.log('configDialogVisible:', configDialogVisible.value);
 }
 </script>
 
@@ -180,12 +190,42 @@ function resetForm() {
       </NAlert>
 
       <NSpin :show="loading">
-        <div v-if="currentConfig" class="current-config mb-4">
-          <NDescriptions label-placement="left" bordered :column="1">
+        <div class="actions mb-4">
+          <NSpace>
+            <NButton type="primary" @click="openConfigDialog">
+              配置
+            </NButton>
+            <NButton
+              :loading="testing"
+              :disabled="!currentConfig?.id"
+              @click="testNotification"
+            >
+              测试通知
+            </NButton>
+            <NPopconfirm
+              v-if="currentConfig?.id"
+              @positive-click="deleteConfig"
+            >
+              <template #trigger>
+                <NButton type="error">
+                  删除配置
+                </NButton>
+              </template>
+              确定要删除此配置吗？
+            </NPopconfirm>
+          </NSpace>
+        </div>
+
+        <div v-if="currentConfig">
+          <div class="current-config mb-4">
+            <NDescriptions label-placement="left" bordered :column="1">
             <NDescriptionsItem label="状态">
-              <NTag :type="currentConfig.enabled ? 'success' : 'default'">
-                {{ currentConfig.enabled ? '已启用' : '已禁用' }}
+              <NTag :type="currentConfig.is_active ? 'success' : 'default'">
+                {{ currentConfig.is_active ? '已启用' : '已禁用' }}
               </NTag>
+            </NDescriptionsItem>
+            <NDescriptionsItem label="配置名称">
+              {{ currentConfig.name }}
             </NDescriptionsItem>
             <NDescriptionsItem label="Webhook URL">
               {{ maskedWebhookUrl }}
@@ -193,78 +233,59 @@ function resetForm() {
             <NDescriptionsItem label="签名密钥">
               {{ maskedSecret }}
             </NDescriptionsItem>
-            <NDescriptionsItem v-if="currentConfig.keywords" label="关键词">
-              {{ currentConfig.keywords }}
-            </NDescriptionsItem>
-            <NDescriptionsItem v-if="currentConfig.at_mobiles" label="@手机号">
-              {{ currentConfig.at_mobiles }}
-            </NDescriptionsItem>
           </NDescriptions>
+          </div>
         </div>
 
-        <NForm :model="formValue" label-placement="left" label-width="120px">
-          <NFormItem label="启用通知">
-            <NSwitch v-model:value="formValue.enabled" />
-          </NFormItem>
-          <NFormItem label="Webhook URL" :rule="webhookUrlRules">
-            <NInput
-              v-model:value="formValue.webhook_url"
-              placeholder="https://oapi.dingtalk.com/robot/msg?access_token=xxx"
-              :input-props="{ autocomplete: 'off' }"
-            />
-          </NFormItem>
-          <NFormItem label="签名密钥">
-            <NInput
-              v-model:value="formValue.secret"
-              placeholder="加签密钥 (可选)"
-              type="password"
-              show-password-on="click"
-              :input-props="{ autocomplete: 'new-password' }"
-            />
-          </NFormItem>
-          <NFormItem label="关键词">
-            <NInput
-              v-model:value="formValue.keywords"
-              placeholder="消息关键词 (可选, 多个用逗号分隔)"
-            />
-          </NFormItem>
-          <NFormItem label="@手机号">
-            <NInput
-              v-model:value="formValue.at_mobiles"
-              placeholder="@人员手机号 (可选, 多个用逗号分隔)"
-            />
-          </NFormItem>
-          <NFormItem>
-            <NSpace>
-              <NButton type="primary" :loading="saving" @click="saveConfig">
-                保存配置
-              </NButton>
-              <NButton @click="resetForm">
-                重置
-              </NButton>
-              <NButton
-                :loading="testing"
-                :disabled="!currentConfig?.id"
-                @click="testNotification"
-              >
-                测试通知
-              </NButton>
-              <NPopconfirm
-                v-if="currentConfig?.id"
-                @positive-click="deleteConfig"
-              >
-                <template #trigger>
-                  <NButton type="error">
-                    删除配置
-                  </NButton>
-                </template>
-                确定要删除此配置吗？
-              </NPopconfirm>
-            </NSpace>
-          </NFormItem>
-        </NForm>
+        <div v-else class="no-config">
+          <p>还没有配置钉钉通知</p>
+        </div>
       </NSpin>
     </NCard>
+
+    <!-- 配置弹窗 -->
+    <div v-if="configDialogVisible" class="modal-overlay" @click="configDialogVisible = false">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h3>钉钉通知配置</h3>
+          <button class="close-button" @click="configDialogVisible = false">×</button>
+        </div>
+        <div class="modal-body">
+          <NForm :model="formValue" label-placement="left" label-width="120px">
+            <NFormItem label="配置名称">
+              <NInput
+                v-model:value="formValue.name"
+                placeholder="配置名称"
+              />
+            </NFormItem>
+            <NFormItem label="Webhook URL" :rule="webhookUrlRules">
+              <NInput
+                v-model:value="formValue.webhook"
+                placeholder="https://oapi.dingtalk.com/robot/msg?access_token=xxx"
+                :input-props="{ autocomplete: 'off' }"
+              />
+            </NFormItem>
+            <NFormItem label="签名密钥">
+              <NInput
+                v-model:value="formValue.secret"
+                placeholder="加签密钥 (可选)"
+                type="password"
+                show-password-on="click"
+                :input-props="{ autocomplete: 'new-password' }"
+              />
+            </NFormItem>
+          </NForm>
+        </div>
+        <div class="modal-footer">
+          <NButton @click="configDialogVisible = false">
+            取消
+          </NButton>
+          <NButton type="primary" :loading="saving" @click="saveConfig">
+            确定
+          </NButton>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -279,5 +300,96 @@ function resetForm() {
   padding: 12px;
   background-color: var(--n-color-hover);
   border-radius: 4px;
+}
+.actions {
+  padding: 12px;
+  background-color: var(--n-color-background);
+  border-radius: 4px;
+  border: 1px solid var(--n-border-color);
+}
+.no-config {
+  padding: 24px;
+  text-align: center;
+  background-color: var(--n-color-background);
+  border-radius: 4px;
+  border: 1px dashed var(--n-border-color);
+}
+.no-config p {
+  margin-bottom: 16px;
+  color: var(--n-text-color-2);
+}
+
+/* 模态框样式 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background-color: white;
+  border-radius: 8px;
+  width: 600px;
+  max-width: 90vw;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid var(--n-border-color);
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--n-text-color-1);
+}
+
+.close-button {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: var(--n-text-color-3);
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.close-button:hover {
+  background-color: var(--n-color-hover);
+}
+
+.modal-body {
+  padding: 20px;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 20px;
+  border-top: 1px solid var(--n-border-color);
+  background-color: var(--n-color-background);
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
 }
 </style>

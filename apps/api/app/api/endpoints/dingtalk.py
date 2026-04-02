@@ -14,7 +14,7 @@ from app.storage import MongoStorage
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/dingtalk", tags=["dingtalk"])
+router = APIRouter(prefix="/dingtalk/configs", tags=["dingtalk"])
 
 
 storage = MongoStorage(
@@ -65,7 +65,7 @@ def get_collection():
     return storage.db["dingtalk_configs"]
 
 
-@router.post("/", response_model=DingTalkConfigResponse)
+@router.post("/on_save", response_model=DingTalkConfigResponse)
 async def create_config(config: DingTalkConfigCreate):
     collection = get_collection()
 
@@ -105,9 +105,11 @@ def _decrypt_and_build_response(doc: dict) -> DingTalkConfigResponse:
     try:
         webhook = decrypt_value(doc["webhook"])
         secret = decrypt_value(doc["secret"]) if doc.get("secret") else ""
-    except InvalidToken:
-        logger.error("Failed to decrypt value - corrupted data")
-        raise HTTPException(status_code=500, detail="Failed to decrypt configuration")
+    except (InvalidToken, ValueError, KeyError):
+        # Handle case where data is not encrypted or corrupted
+        webhook = doc.get("webhook", "")
+        secret = doc.get("secret", "")
+        logger.warning("Using unencrypted or corrupted data for config %s", doc.get("_id"))
 
     return DingTalkConfigResponse(
         id=str(doc["_id"]),
@@ -115,7 +117,7 @@ def _decrypt_and_build_response(doc: dict) -> DingTalkConfigResponse:
         name=doc["name"],
         webhook_masked=mask_value(webhook),
         secret_masked=mask_value(secret),
-        is_active=doc["is_active"],
+        is_active=doc.get("is_active", True),
         created_at=doc["created_at"],
         updated_at=doc["updated_at"],
     )
@@ -129,11 +131,44 @@ async def list_configs(user_id: str):
     cursor = await asyncio.to_thread(
         lambda: list(collection.find({"user_id": user_id, "is_active": True}))
     )
-
     for doc in cursor:
         configs.append(_decrypt_and_build_response(doc))
 
-    return DingTalkConfigListResponse(items=configs, total=len(configs))
+    return DingTalkConfigListResponse(
+        items=configs,
+        total=len(configs)
+    )
+
+
+@router.post("/test/{config_id}")
+async def test_notification(config_id: str, request: TestNotificationRequest):
+    from app.notify.dingtalk import DingTalkNotifier
+
+    collection = get_collection()
+
+    doc = await asyncio.to_thread(collection.find_one, {"_id": ObjectId(config_id)})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Config not found")
+
+    try:
+        webhook = decrypt_value(doc["webhook"])
+        secret = decrypt_value(doc["secret"]) if doc.get("secret") else ""
+    except (InvalidToken, ValueError, KeyError):
+        # Handle case where data is not encrypted or corrupted
+        webhook = doc.get("webhook", "")
+        secret = doc.get("secret", "")
+        logger.warning("Using unencrypted or corrupted data for config %s", config_id)
+
+    notifier = DingTalkNotifier(webhook_url=webhook, secret=secret)
+
+    success = await asyncio.to_thread(
+        notifier.send, markdown=f"### Test Notification\n\n{request.message}"
+    )
+
+    if success:
+        return {"status": "success", "message": "Notification sent successfully"}
+    else:
+        raise HTTPException(status_code=500, detail="Failed to send notification")
 
 
 @router.get("/detail/{config_id}", response_model=DingTalkConfigResponse)
@@ -159,9 +194,17 @@ async def update_config(config_id: str, config: DingTalkConfigUpdate):
     if config.name is not None:
         update_data["name"] = config.name
     if config.webhook is not None:
-        update_data["webhook"] = encrypt_value(config.webhook)
+        try:
+            update_data["webhook"] = encrypt_value(config.webhook)
+        except Exception as e:
+            logger.warning("Failed to encrypt webhook: %s, storing as plain text", e)
+            update_data["webhook"] = config.webhook
     if config.secret is not None:
-        update_data["secret"] = encrypt_value(config.secret) if config.secret else ""
+        try:
+            update_data["secret"] = encrypt_value(config.secret) if config.secret else ""
+        except Exception as e:
+            logger.warning("Failed to encrypt secret: %s, storing as plain text", e)
+            update_data["secret"] = config.secret if config.secret else ""
 
     await asyncio.to_thread(
         collection.update_one, {"_id": ObjectId(config_id)}, {"$set": update_data}
@@ -181,35 +224,6 @@ async def delete_config(config_id: str):
         raise HTTPException(status_code=404, detail="Config not found")
 
     return {"status": "deleted", "id": config_id}
-
-
-@router.post("/test/{config_id}")
-async def test_notification(config_id: str, request: TestNotificationRequest):
-    from app.notify.dingtalk import DingTalkNotifier
-
-    collection = get_collection()
-
-    doc = await asyncio.to_thread(collection.find_one, {"_id": ObjectId(config_id)})
-    if not doc:
-        raise HTTPException(status_code=404, detail="Config not found")
-
-    try:
-        webhook = decrypt_value(doc["webhook"])
-        secret = decrypt_value(doc["secret"]) if doc.get("secret") else ""
-    except InvalidToken:
-        logger.error("Failed to decrypt value - corrupted data")
-        raise HTTPException(status_code=500, detail="Failed to decrypt configuration")
-
-    notifier = DingTalkNotifier(webhook_url=webhook, secret=secret)
-
-    success = await asyncio.to_thread(
-        notifier.send, markdown=f"### Test Notification\n\n{request.message}"
-    )
-
-    if success:
-        return {"status": "success", "message": "Notification sent successfully"}
-    else:
-        raise HTTPException(status_code=500, detail="Failed to send notification")
 
 
 

@@ -33,6 +33,8 @@ class MongoStorage:
         self.holdings_collection = None
         # 新增 settings 集合
         self.settings_collection = None
+        # 新增策略插件集合
+        self.strategy_plugins_collection = None
 
     def connect(self):
         try:
@@ -52,6 +54,8 @@ class MongoStorage:
             self.holdings_collection = self.db["holdings"]
             # settings 集合
             self.settings_collection = self.db["settings"]
+            # strategy_plugins 集合
+            self.strategy_plugins_collection = self.db["strategy_plugins"]
             self.client.admin.command("ping")
             logger.info(f"MongoDB connected: {self.host}:{self.port}/{self.db_name}")
         except PyMongoError as e:
@@ -126,6 +130,87 @@ class MongoStorage:
             return self.collection.find_one({"date": date})
         except PyMongoError as e:
             logger.error(f"MongoDB query failed: {e}")
+            raise
+
+    def save_strategy_plugin(self, plugin_data: Dict[str, Any]) -> str:
+        """
+        保存策略插件到MongoDB
+
+        参数:
+            plugin_data: 策略插件数据
+
+        返回:
+            插件ID
+        """
+        if self.strategy_plugins_collection is None:
+            self.connect()
+
+        try:
+            # 确保插件数据包含必要字段
+            plugin_data["created_at"] = datetime.now()
+            plugin_data["updated_at"] = datetime.now()
+            
+            result = self.strategy_plugins_collection.insert_one(plugin_data)
+            return str(result.inserted_id)
+        except PyMongoError as e:
+            logger.error(f"Save strategy plugin failed: {e}")
+            raise
+
+    def get_strategy_plugin(self, plugin_id: str) -> Optional[Dict[str, Any]]:
+        """
+        根据ID获取策略插件
+
+        参数:
+            plugin_id: 插件ID
+
+        返回:
+            插件数据，如果未找到返回None
+        """
+        if self.strategy_plugins_collection is None:
+            self.connect()
+
+        try:
+            from bson.objectid import ObjectId
+            return self.strategy_plugins_collection.find_one({"_id": ObjectId(plugin_id)})
+        except PyMongoError as e:
+            logger.error(f"Get strategy plugin failed: {e}")
+            raise
+
+    def get_all_strategy_plugins(self) -> List[Dict[str, Any]]:
+        """
+        获取所有策略插件
+
+        返回:
+            策略插件列表
+        """
+        if self.strategy_plugins_collection is None:
+            self.connect()
+
+        try:
+            return list(self.strategy_plugins_collection.find())
+        except PyMongoError as e:
+            logger.error(f"Get all strategy plugins failed: {e}")
+            raise
+
+    def delete_strategy_plugin(self, plugin_id: str) -> bool:
+        """
+        删除策略插件
+
+        参数:
+            plugin_id: 插件ID
+
+        返回:
+            是否删除成功
+        """
+        if self.strategy_plugins_collection is None:
+            self.connect()
+
+        try:
+            from bson.objectid import ObjectId
+            result = self.strategy_plugins_collection.delete_one({"_id": ObjectId(plugin_id)})
+            return result.deleted_count > 0
+        except PyMongoError as e:
+            logger.error(f"Delete strategy plugin failed: {e}")
             raise
 
     def get_all(self, limit: int = 50) -> List[Dict]:

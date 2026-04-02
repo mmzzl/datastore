@@ -54,7 +54,13 @@ export const apiScheduler = {
   },
 
   async createJob(request: CreateJobRequest): Promise<SchedulerJob> {
-    const res = await api.post('/scheduler/jobs', request)
+    const res = await api.post('/scheduler/jobs', {
+      name: request.name,
+      job_type: request.task_type,
+      cron_expression: request.schedule,
+      enabled: request.enabled,
+      config: request.config
+    })
     return res.data
   },
 
@@ -76,7 +82,8 @@ export const apiScheduler = {
     const res = await api.get(`/scheduler/jobs/${jobId}/executions`, {
       params: { page, page_size: pageSize }
     })
-    return res.data
+    const totalPages = Math.ceil(res.data.total / pageSize)
+    return { ...res.data, total_pages: totalPages }
   }
 }
 
