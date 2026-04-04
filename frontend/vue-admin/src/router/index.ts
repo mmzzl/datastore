@@ -9,6 +9,9 @@ import BacktestView from '../views/BacktestView.vue'
 import RiskReportView from '../views/RiskReportView.vue'
 import SchedulerView from '../views/SchedulerView.vue'
 import DingtalkConfigView from '../views/DingtalkConfigView.vue'
+import PluginManagementView from '../views/PluginManagementView.vue'
+import UserManagementView from '../views/UserManagementView.vue'
+import RoleManagementView from '../views/RoleManagementView.vue'
 import { authService } from '../services/api'
 
 const routes: Array<RouteRecordRaw> = [
@@ -23,6 +26,9 @@ const routes: Array<RouteRecordRaw> = [
   { path: '/risk-report', component: RiskReportView, name: 'risk-report' },
   { path: '/scheduler', component: SchedulerView, name: 'scheduler' },
   { path: '/dingtalk-config', component: DingtalkConfigView, name: 'dingtalk-config' },
+  { path: '/plugins', component: PluginManagementView, name: 'plugins' },
+  { path: '/admin/users', component: UserManagementView, name: 'admin-users' },
+  { path: '/admin/roles', component: RoleManagementView, name: 'admin-roles' },
 ]
 
 const router = createRouter({
@@ -38,10 +44,8 @@ router.beforeEach((to, _from, next) => {
   }
 })
 
-// 导航后刷新Dashboard数据
 router.afterEach((to) => {
   if (to.name === 'dashboard') {
-    // 触发一个全局事件，让Dashboard组件刷新数据
     window.dispatchEvent(new CustomEvent('dashboard-refresh'))
   }
 })

@@ -12,6 +12,18 @@
           <router-link to="/risk-report">风险报告</router-link>
           <router-link to="/scheduler">定时任务</router-link>
           <router-link to="/dingtalk-config">钉钉配置</router-link>
+          
+          <div v-if="canManagePlugins" class="menu-divider">
+            <span class="divider-text">插件</span>
+          </div>
+          <router-link v-if="canManagePlugins" to="/plugins">插件管理</router-link>
+          
+          <div v-if="canManageUsers" class="menu-divider">
+            <span class="divider-text">系统管理</span>
+          </div>
+          <router-link v-if="canManageUsers" to="/admin/users">用户管理</router-link>
+          <router-link v-if="canManageRoles" to="/admin/roles">角色管理</router-link>
+          
           <router-link to="/settings">设置</router-link>
         </nav>
         <div class="user-section">
@@ -32,12 +44,26 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { NMessageProvider } from 'naive-ui'
 import { authService, apiAuth } from './services/api'
+import { useAuthStore } from './stores/auth'
 
 const router = useRouter()
 const route = useRoute()
+const authStore = useAuthStore()
 
 const isAuthenticated = computed(() => authService.isAuthenticated())
 const currentUser = computed(() => authService.getUser())
+
+const canManageUsers = computed(() => {
+  return authStore.hasAnyPermission(['user:read', 'user:manage']) || authStore.state.is_superuser
+})
+
+const canManageRoles = computed(() => {
+  return authStore.hasAnyPermission(['role:read', 'role:manage']) || authStore.state.is_superuser
+})
+
+const canManagePlugins = computed(() => {
+  return authStore.hasAnyPermission(['plugin:read', 'plugin:manage']) || authStore.state.is_superuser
+})
 
 function logout() {
   apiAuth.logout()
@@ -49,7 +75,7 @@ onMounted(async () => {
     try {
       const token = authService.getToken()
       if (token) {
-        currentUser.value = authService.getUser()
+        authStore.setAuthFromStorage()
       }
     } catch (e) {
       console.error('Failed to get user info', e)
@@ -110,6 +136,19 @@ body {
 .sidebar a.router-link-active {
   background: #3b82f6;
   color: #fff;
+}
+.menu-divider {
+  margin: 12px 0;
+  padding: 0 16px;
+  border-top: 1px solid #334155;
+  padding-top: 12px;
+}
+.menu-divider .divider-text {
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 1px;
 }
 .user-section {
   margin-top: auto;

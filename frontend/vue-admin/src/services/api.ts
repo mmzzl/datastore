@@ -166,4 +166,22 @@ export const apiHealth = {
   }
 }
 
+export const pluginService = {
+  async getPlugins() {
+    const res = await api.get('/plugins')
+    return res.data
+  },
+  async uploadPlugin(formData: FormData) {
+    const res = await api.post('/plugins/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    })
+    return res.data
+  },
+  async deletePlugin(id: string) {
+    await api.delete(`/plugins/${id}`)
+  }
+}
+
 export default api

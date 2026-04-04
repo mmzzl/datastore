@@ -15,7 +15,7 @@ import {
   TitleComponent, TooltipComponent, LegendComponent,
   GridComponent, DataZoomComponent
 } from 'echarts/components'
-import { pluginService } from '../services/api'
+import { apiPlugins } from '../services/api_plugins'
 
 use([
   CanvasRenderer, LineChart, TitleComponent, TooltipComponent,
@@ -62,7 +62,7 @@ const canStart = computed(() => {
 
 const loadPlugins = async () => {
   try {
-    const res = await pluginService.getPlugins()
+    const res = await apiPlugins.getPlugins()
     plugins.value = res.items
   } catch (e) {
     console.error('Failed to load plugins:', e)

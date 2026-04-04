@@ -5,6 +5,7 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException, status, Depends, Query
 
 from app.core.auth import get_current_user, get_storage, require_permission, AuthenticatedUser
+from app.core.config import settings
 from app.core.permissions import ALL_PERMISSIONS
 from app.schemas.user import (
     UserCreate,
@@ -282,5 +283,33 @@ async def reset_user_password(
         logger.info(f"User {current_user.username} reset password for user {existing['username']}")
         
         return {"message": "密码已重置为默认密码", "default_password": default_password}
+    finally:
+        storage.close()
+
+
+@router.post("/{user_id}/unlock")
+async def unlock_user(
+    user_id: str,
+    current_user: AuthenticatedUser = Depends(require_permission("user:edit")),
+):
+    """解锁用户"""
+    storage = get_storage()
+    try:
+        storage.connect()
+
+        existing = storage.get_user_by_id(user_id)
+        if not existing:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="用户不存在",
+            )
+
+        if existing.get("status") != "locked":
+            return {"message": "用户未锁定，无需解锁"}
+
+        storage.update_user(user_id, {"status": "active"})
+        logger.info(f"User {current_user.username} unlocked user {existing['username']}")
+
+        return {"message": "用户已解锁"}
     finally:
         storage.close()

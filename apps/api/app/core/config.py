@@ -102,6 +102,7 @@ class Settings(BaseSettings):
     # 默认管理员配置
     default_admin_username: str = "admin"
     default_admin_password: str = "admin"
+    default_user_password: str = "123456"
 
     class Config:
         env_file = ".env"

@@ -278,9 +278,9 @@ def validate_strategy_class(
                 if node.name == expected_class:
                     class_found = True
 
-                for base in node.bases:
-                    if isinstance(base, ast.Name) and base.id == "BaseStrategy":
-                        inherits_from_base = True
+                    for base in node.bases:
+                        if isinstance(base, ast.Name) and base.id == "BaseStrategy":
+                            inherits_from_base = True
                         elif isinstance(base, ast.Attribute):
                             if base.attr == "BaseStrategy":
                                 inherits_from_base = True

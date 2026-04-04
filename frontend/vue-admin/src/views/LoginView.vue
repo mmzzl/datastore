@@ -3,10 +3,10 @@
     <div class="login-card">
       <h1>登录</h1>
       <form @submit.prevent="onLogin">
-         <div class="form-group">
-           <label>用户名</label>
-           <input v-model="form.username" type="text" required placeholder="请输入用户名" />
-         </div>
+        <div class="form-group">
+          <label>用户名</label>
+          <input v-model="form.username" type="text" required placeholder="请输入用户名" />
+        </div>
         <div class="form-group">
           <label>密码</label>
           <input v-model="form.password" type="password" required placeholder="请输入密码" />
@@ -23,9 +23,10 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { apiAuth, authService } from '../services/api'
+import { useAuthStore } from '../stores/auth'
 
 const router = useRouter()
+const authStore = useAuthStore()
 const form = ref({ username: '', password: '' })
 const error = ref('')
 const loading = ref(false)
@@ -34,8 +35,12 @@ async function onLogin() {
   error.value = ''
   loading.value = true
   try {
-    await apiAuth.login(form.value.username, form.value.password)
-    router.push('/dashboard')
+    const success = await authStore.login(form.value.username, form.value.password)
+    if (success) {
+      router.push('/dashboard')
+    } else {
+      error.value = authStore.state.error || '登录失败'
+    }
   } catch (e: any) {
     error.value = e.response?.data?.detail || '登录失败'
   } finally {
