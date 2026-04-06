@@ -13,9 +13,12 @@ class AuthMiddleware(BaseHTTPMiddleware):
     def __init__(self, app):
         super().__init__(app)
         self.exempt_paths = [
+            "/",
+            "/health",
             "/api/login",
             "/api/health",
             "/api/auth/token",
+            "/api/auth/register",
             "/api/docs",
             "/api/redoc",
             "/api/openapi.json",

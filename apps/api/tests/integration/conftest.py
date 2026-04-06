@@ -13,7 +13,10 @@ from pymongo import MongoClient
 from pymongo.errors import PyMongoError
 
 import sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+sys.path.insert(
+    0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+)
 
 from app.core.config import settings
 
@@ -55,14 +58,14 @@ def test_db(mongo_client, test_db_name):
 @pytest_asyncio.fixture(scope="session")
 async def app():
     from main import app as fastapi_app
+
     yield fastapi_app
 
 
 @pytest_asyncio.fixture
 async def async_client(app) -> AsyncGenerator[AsyncClient, None]:
     async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test"
+        transport=ASGITransport(app=app), base_url="http://test"
     ) as client:
         yield client
 
@@ -113,17 +116,21 @@ def sample_kline_data() -> list:
     base_date = datetime(2025, 1, 1)
     klines = []
     for i in range(30):
-        klines.append({
-            "code": "SH600519",
-            "name": "贵州茅台",
-            "date": (base_date.replace(day=1) + __import__('datetime').timedelta(days=i)).strftime("%Y-%m-%d"),
-            "open": 1800.0 + i * 2,
-            "high": 1820.0 + i * 2,
-            "low": 1790.0 + i * 2,
-            "close": 1810.0 + i * 2,
-            "volume": 1000000,
-            "amount": 1800000000,
-        })
+        klines.append(
+            {
+                "code": "SH600519",
+                "name": "贵州茅台",
+                "date": (
+                    base_date.replace(day=1) + __import__("datetime").timedelta(days=i)
+                ).strftime("%Y-%m-%d"),
+                "open": 1800.0 + i * 2,
+                "high": 1820.0 + i * 2,
+                "low": 1790.0 + i * 2,
+                "close": 1810.0 + i * 2,
+                "volume": 1000000,
+                "amount": 1800000000,
+            }
+        )
     return klines
 
 
@@ -140,12 +147,15 @@ def sample_stock_info() -> list:
 @pytest.fixture
 def auth_headers() -> Dict[str, str]:
     from app.core.security import create_access_token
+
     token = create_access_token(data={"sub": "test_user_001"})
     return {"Authorization": f"Bearer {token}"}
 
 
 @pytest_asyncio.fixture
-async def setup_test_data(test_db, sample_holdings, sample_kline_data, sample_stock_info):
+async def setup_test_data(
+    test_db, sample_holdings, sample_kline_data, sample_stock_info
+):
     holdings_coll = test_db["holdings"]
     holdings_coll.insert_one(sample_holdings)
 
@@ -168,32 +178,37 @@ async def setup_test_data(test_db, sample_holdings, sample_kline_data, sample_st
 def mock_qlib_trainer():
     mock = MagicMock()
     mock.start_training = MagicMock(return_value="train_test_001")
-    mock.get_status = MagicMock(return_value={
-        "status": "completed",
-        "progress": 100,
-        "model_id": "model_test_001",
-        "metrics": {
-            "sharpe_ratio": 2.1,
-            "ic": 0.05,
-            "num_predictions": 300,
-        },
-    })
+    mock.get_status = MagicMock(
+        return_value={
+            "status": "completed",
+            "progress": 100,
+            "model_id": "model_test_001",
+            "metrics": {
+                "sharpe_ratio": 2.1,
+                "ic": 0.05,
+                "num_predictions": 300,
+            },
+        }
+    )
     return mock
 
 
 @pytest.fixture
 def mock_qlib_predictor():
     mock = MagicMock()
-    mock.predict = MagicMock(return_value=[
-        {"code": "SH600519", "name": "贵州茅台", "score": 0.85, "rank": 1},
-        {"code": "SH600036", "name": "招商银行", "score": 0.78, "rank": 2},
-    ])
+    mock.predict = MagicMock(
+        return_value=[
+            {"code": "SH600519", "name": "贵州茅台", "score": 0.85, "rank": 1},
+            {"code": "SH600036", "name": "招商银行", "score": 0.78, "rank": 2},
+        ]
+    )
     return mock
 
 
 @pytest.fixture
 def mock_backtest_engine():
     from app.backtest.async_engine import BacktestStatus
+
     _task_counter = [0]
     _task_results = {}
 
@@ -245,3 +260,62 @@ def mock_backtest_engine():
     mock.get_result = AsyncMock(side_effect=_get_result)
     mock.cancel = AsyncMock(side_effect=_cancel)
     return mock
+
+
+@pytest.fixture
+def mock_stock_selection_engine():
+    """Mock StockSelectionEngine for testing"""
+    mock = AsyncMock()
+    mock.run_selection = AsyncMock(
+        return_value={"task_id": "test_task_001", "status": "pending"}
+    )
+    mock.get_task = AsyncMock(
+        return_value={"task_id": "test_task_001", "status": "completed", "results": []}
+    )
+    mock.get_history = AsyncMock(
+        return_value={"items": [], "total": 0, "page": 1, "page_size": 20}
+    )
+    return mock
+
+
+@pytest.fixture
+def test_user():
+    """标准测试用户"""
+    return {"username": "admin", "password": "aa123aaqqA@", "role_id": "role_superuser"}
+
+
+@pytest_asyncio.fixture
+async def api_client(async_client, test_user):
+    """带认证的 API 客户端 - 模拟前端 axios 实例"""
+    response = await async_client.post(
+        "/api/auth/token",
+        json={"username": test_user["username"], "password": test_user["password"]},
+    )
+
+    if response.status_code != 200:
+        raise Exception(f"Login failed: {response.status_code}")
+
+    token = response.json()["access_token"]
+
+    class AuthenticatedClient:
+        def __init__(self, client, token):
+            self._client = client
+            self._token = token
+
+        async def get(self, path, **kwargs):
+            kwargs.setdefault("headers", {})["Authorization"] = f"Bearer {self._token}"
+            return await self._client.get(path, **kwargs)
+
+        async def post(self, path, **kwargs):
+            kwargs.setdefault("headers", {})["Authorization"] = f"Bearer {self._token}"
+            return await self._client.post(path, **kwargs)
+
+        async def put(self, path, **kwargs):
+            kwargs.setdefault("headers", {})["Authorization"] = f"Bearer {self._token}"
+            return await self._client.put(path, **kwargs)
+
+        async def delete(self, path, **kwargs):
+            kwargs.setdefault("headers", {})["Authorization"] = f"Bearer {self._token}"
+            return await self._client.delete(path, **kwargs)
+
+    return AuthenticatedClient(async_client, token)

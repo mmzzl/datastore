@@ -8,7 +8,7 @@ client = TestClient(app)
 def test_login_for_access_token():
     """测试获取访问令牌"""
     response = client.post(
-        "/api/login", json={"username": "admin", "password": "sip@1234"}
+        "/api/login", json={"username": "admin", "password": "aa123aaqqA@"}
     )
     assert response.status_code == 200
     assert "token" in response.json()

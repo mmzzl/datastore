@@ -39,8 +39,23 @@ export interface AuthState {
 
 export const apiAuthNew = {
   async login(username: string, password: string): Promise<LoginResponse> {
-    const res = await api.post('/auth/login', { username, password })
-    return res.data
+    const res = await api.post('/auth/token', { username, password })
+    const data = res.data
+    return {
+      token: data.access_token,
+      user: {
+        id: data.user_id,
+        username: data.username,
+        display_name: data.display_name,
+        role_id: data.role_id,
+        role_name: data.role_name,
+        is_superuser: data.is_superuser,
+        status: 'active',
+        created_at: new Date().toISOString()
+      },
+      permissions: data.permissions || [],
+      is_superuser: data.is_superuser || false
+    }
   },
 
   async logout(): Promise<void> {

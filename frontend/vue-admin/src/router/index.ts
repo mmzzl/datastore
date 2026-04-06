@@ -12,6 +12,7 @@ import DingtalkConfigView from '../views/DingtalkConfigView.vue'
 import PluginManagementView from '../views/PluginManagementView.vue'
 import UserManagementView from '../views/UserManagementView.vue'
 import RoleManagementView from '../views/RoleManagementView.vue'
+import StockSelectionView from '../views/StockSelectionView.vue'
 import { authService } from '../services/api'
 
 const routes: Array<RouteRecordRaw> = [
@@ -29,6 +30,7 @@ const routes: Array<RouteRecordRaw> = [
   { path: '/plugins', component: PluginManagementView, name: 'plugins' },
   { path: '/admin/users', component: UserManagementView, name: 'admin-users' },
   { path: '/admin/roles', component: RoleManagementView, name: 'admin-roles' },
+  { path: '/stock-selection', component: StockSelectionView, name: 'stock-selection' },
 ]
 
 const router = createRouter({

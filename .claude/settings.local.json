@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m pytest tests/qlib/ -v)",
+      "Bash(python -m pytest tests/scheduler/ -v)",
+      "Bash(python -m pytest tests/api/test_qlib.py tests/api/test_backtest.py tests/api/test_scheduler.py -v --tb=short)",
+      "Bash(pip install:*)",
+      "Bash(python -m pip install email-validator -q)",
+      "Bash(python -m pytest tests/api/test_qlib.py tests/api/test_backtest.py tests/api/test_scheduler.py -v --tb=line)",
+      "mcp__plugin_claude-mem_mcp-search__search"
+    ]
+  }
+}

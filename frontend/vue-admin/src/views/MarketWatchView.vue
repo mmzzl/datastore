@@ -3,14 +3,15 @@
     <h1>Market Watch</h1>
     <div class="signals" v-if="signals.length">
       <table class="wb-table">
-        <thead><tr><th>股票</th><th>动作</th><th>置信度</th><th>目标价</th><th>理由</th></tr></thead>
+        <thead><tr><th>股票代码</th><th>股票名称</th><th>信号类型</th><th>价格</th><th>消息</th><th>时间</th></tr></thead>
         <tbody>
-          <tr v-for="s in signals" :key="s.code">
-            <td>{{ s.code }}</td>
-            <td>{{ s.action }}</td>
-            <td>{{ s.confidence.toFixed(2) }}</td>
-            <td>{{ s.target_price }}</td>
-            <td>{{ s.reasons?.join(', ') || '-' }}</td>
+          <tr v-for="s in signals" :key="s.symbol">
+            <td>{{ s.symbol }}</td>
+            <td>{{ s.name }}</td>
+            <td>{{ s.signal }}</td>
+            <td>{{ s.price }}</td>
+            <td>{{ s.message }}</td>
+            <td>{{ formatTime(s.timestamp) }}</td>
           </tr>
         </tbody>
       </table>
@@ -23,6 +24,12 @@
 import { ref, onMounted } from 'vue'
 import { apiSignals } from '../services/api'
 const signals = ref([])
+
+function formatTime(timestamp) {
+  if (!timestamp) return '-'
+  return new Date(timestamp).toLocaleString('zh-CN')
+}
+
 onMounted(async () => {
   try {
     const data = await apiSignals.getLatest()

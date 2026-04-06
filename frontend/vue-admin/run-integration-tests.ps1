@@ -1,0 +1,9 @@
+@echo off
+echo Starting frontend dev server...
+start "Frontend" npm run dev
+
+echo Waiting for frontend to start...
+timeout /t 10 /nobreak >nul
+
+echo Starting integration tests...
+npx playwright test --reporter=list

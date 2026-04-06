@@ -13,7 +13,10 @@ from pymongo import MongoClient
 from pymongo.errors import PyMongoError
 
 import sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+sys.path.insert(
+    0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+)
 
 from app.core.config import settings
 from app.user.password import hash_password
@@ -56,14 +59,14 @@ def test_db(mongo_client, test_db_name):
 @pytest_asyncio.fixture(scope="session")
 async def app():
     from main import app as fastapi_app
+
     yield fastapi_app
 
 
 @pytest_asyncio.fixture
 async def async_client(app) -> AsyncGenerator[AsyncClient, None]:
     async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test"
+        transport=ASGITransport(app=app), base_url="http://test"
     ) as client:
         yield client
 
@@ -88,10 +91,10 @@ def test_user_data() -> Dict[str, Any]:
 @pytest.fixture
 def test_admin_data() -> Dict[str, Any]:
     return {
-        "username": "testadmin",
-        "password": "adminpassword123",
+        "username": "admin",
+        "password": "aa123aaqqA@",
         "display_name": "Test Admin",
-        "role_id": "role_admin",
+        "role_id": "role_superuser",
         "status": "active",
         "is_superuser": True,
     }
@@ -110,29 +113,23 @@ def test_role_data() -> Dict[str, Any]:
 @pytest.fixture
 def setup_test_db(test_db, test_user_data, test_admin_data, test_role_data):
     from app.core.permissions import DEFAULT_ROLES
-    
+
     roles_coll = test_db["roles"]
     for role in DEFAULT_ROLES:
         role["_id"] = f"test_{role['role_id']}"
         role["created_at"] = datetime.now().isoformat()
         role["updated_at"] = datetime.now().isoformat()
-        roles_coll.update_one(
-            {"role_id": role["role_id"]},
-            {"$set": role},
-            upsert=True
-        )
-    
+        roles_coll.update_one({"role_id": role["role_id"]}, {"$set": role}, upsert=True)
+
     test_role_data["created_at"] = datetime.now().isoformat()
     test_role_data["updated_at"] = datetime.now().isoformat()
     test_role_data["is_system"] = False
     roles_coll.update_one(
-        {"role_id": test_role_data["role_id"]},
-        {"$set": test_role_data},
-        upsert=True
+        {"role_id": test_role_data["role_id"]}, {"$set": test_role_data}, upsert=True
     )
-    
+
     users_coll = test_db["users"]
-    
+
     now = datetime.now()
     admin_user = {
         "username": test_admin_data["username"],
@@ -146,11 +143,9 @@ def setup_test_db(test_db, test_user_data, test_admin_data, test_role_data):
         "login_count": 0,
     }
     users_coll.update_one(
-        {"username": admin_user["username"]},
-        {"$set": admin_user},
-        upsert=True
+        {"username": admin_user["username"]}, {"$set": admin_user}, upsert=True
     )
-    
+
     test_user = {
         "username": test_user_data["username"],
         "password_hash": hash_password(test_user_data["password"]),
@@ -163,14 +158,14 @@ def setup_test_db(test_db, test_user_data, test_admin_data, test_role_data):
         "login_count": 0,
     }
     users_coll.update_one(
-        {"username": test_user["username"]},
-        {"$set": test_user},
-        upsert=True
+        {"username": test_user["username"]}, {"$set": test_user}, upsert=True
     )
-    
+
     yield
-    
-    users_coll.delete_many({"username": {"$in": [test_user_data["username"], test_admin_data["username"]]}})
+
+    users_coll.delete_many(
+        {"username": {"$in": [test_user_data["username"], test_admin_data["username"]]}}
+    )
     roles_coll.delete_many({"role_id": test_role_data["role_id"]})
 
 
@@ -200,7 +195,17 @@ def viewer_auth_headers(setup_test_db, test_user_data) -> Dict[str, str]:
             "user_id": "test_user_id",
             "role_id": test_user_data["role_id"],
             "is_superuser": False,
-            "permissions": ["user:view", "role:view", "plugin:view", "backtest:view", "selection:view", "holdings:view", "risk:view", "scheduler:view", "dingtalk:view"],
+            "permissions": [
+                "user:view",
+                "role:view",
+                "plugin:view",
+                "backtest:view",
+                "selection:view",
+                "holdings:view",
+                "risk:view",
+                "scheduler:view",
+                "dingtalk:view",
+            ],
         }
     )
     return {"Authorization": f"Bearer {token}"}

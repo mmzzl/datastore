@@ -9,6 +9,7 @@ from app.user.models import User
 from app.user.password import verify_password
 from app.storage import MongoStorage
 from app.role.models import Role
+from app.auth import verify_token as verify_custom_token
 
 logger = logging.getLogger(__name__)
 
@@ -64,21 +65,27 @@ async def get_current_user(
         )
 
     token = credentials.credentials
-    payload = security.verify_token(token)
-    if payload is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="无效的令牌",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
 
-    username = payload.get("sub")
-    if username is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="无效的令牌载荷",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    # Try custom token first
+    custom_user = verify_custom_token(token)
+    if custom_user:
+        username = custom_user
+    else:
+        # Try JWT token
+        payload = security.verify_token(token)
+        if payload is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="无效的令牌",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        username = payload.get("sub")
+        if username is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="无效的令牌载荷",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
     storage = get_storage()
     try:

@@ -150,7 +150,9 @@ class MongoStorage:
             self.connect()
 
         try:
-            return self.strategy_plugins_collection.find_one({"_id": ObjectId(plugin_id)})
+            return self.strategy_plugins_collection.find_one(
+                {"_id": ObjectId(plugin_id)}
+            )
         except PyMongoError as e:
             logger.error(f"Get strategy plugin failed: {e}")
             raise
@@ -170,7 +172,9 @@ class MongoStorage:
             self.connect()
 
         try:
-            result = self.strategy_plugins_collection.delete_one({"_id": ObjectId(plugin_id)})
+            result = self.strategy_plugins_collection.delete_one(
+                {"_id": ObjectId(plugin_id)}
+            )
             return result.deleted_count > 0
         except PyMongoError as e:
             logger.error(f"Delete strategy plugin failed: {e}")
@@ -503,7 +507,9 @@ class MongoStorage:
             self.connect()
 
         try:
-            return self.users_collection.find_one({"_id": ObjectId(user_id)})
+            if ObjectId.is_valid(user_id):
+                return self.users_collection.find_one({"_id": ObjectId(user_id)})
+            return self.users_collection.find_one({"username": user_id})
         except PyMongoError as e:
             logger.error(f"Get user by id failed: {e}")
             raise
@@ -532,9 +538,14 @@ class MongoStorage:
 
         try:
             update_data["updated_at"] = datetime.now()
-            result = self.users_collection.update_one(
-                {"_id": ObjectId(user_id)}, {"$set": update_data}
-            )
+            if ObjectId.is_valid(user_id):
+                result = self.users_collection.update_one(
+                    {"_id": ObjectId(user_id)}, {"$set": update_data}
+                )
+            else:
+                result = self.users_collection.update_one(
+                    {"username": user_id}, {"$set": update_data}
+                )
             return result.modified_count > 0
         except PyMongoError as e:
             logger.error(f"Update user failed: {e}")
@@ -545,7 +556,10 @@ class MongoStorage:
             self.connect()
 
         try:
-            result = self.users_collection.delete_one({"_id": ObjectId(user_id)})
+            if ObjectId.is_valid(user_id):
+                result = self.users_collection.delete_one({"_id": ObjectId(user_id)})
+            else:
+                result = self.users_collection.delete_one({"username": user_id})
             return result.deleted_count > 0
         except PyMongoError as e:
             logger.error(f"Delete user failed: {e}")
@@ -559,7 +573,10 @@ class MongoStorage:
             result = self.users_collection.update_one(
                 {"_id": ObjectId(user_id)},
                 {
-                    "$set": {"last_login": datetime.now(), "updated_at": datetime.now()},
+                    "$set": {
+                        "last_login": datetime.now(),
+                        "updated_at": datetime.now(),
+                    },
                     "$inc": {"login_count": 1},
                 },
             )

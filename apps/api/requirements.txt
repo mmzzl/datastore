@@ -3,6 +3,7 @@ uvicorn
 pymongo
 numpy
 python-jose[cryptography]
+pydantic[email]
 pydantic-settings
 python-multipart
 akshare

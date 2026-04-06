@@ -257,7 +257,7 @@ async def upload_plugin(
 
         existing = registry.get_by_name(name)
         if existing:
-            existing_versions = registry.get_existing_versions(existing["id"])
+            existing_versions = registry.get_existing_versions(existing["_id"])
             version_valid, version_msg = check_version_rules(version, existing_versions)
             if not version_valid:
                 raise HTTPException(
@@ -297,7 +297,7 @@ async def upload_plugin(
             id=plugin_id,
             message="Plugin uploaded successfully",
             plugin=PluginResponse(
-                id=plugin["id"],
+                id=plugin["_id"],
                 name=plugin["name"],
                 version=plugin["version"],
                 display_name=plugin["manifest"].get("display_name", ""),
@@ -355,7 +355,7 @@ async def list_plugins(
             manifest = plugin.get("manifest", {})
             items.append(
                 PluginResponse(
-                    id=plugin["id"],
+                    id=plugin["_id"],
                     name=plugin["name"],
                     version=plugin["version"],
                     display_name=manifest.get("display_name", ""),
@@ -417,7 +417,7 @@ async def get_plugin(
         manifest = plugin.get("manifest", {})
 
         return PluginResponse(
-            id=plugin["id"],
+            id=plugin["_id"],
             name=plugin["name"],
             version=plugin["version"],
             display_name=manifest.get("display_name", ""),
@@ -524,7 +524,7 @@ async def activate_plugin(
         logger.info(f"User {current_user.username} activated plugin {plugin_id}")
 
         return PluginResponse(
-            id=plugin["id"],
+            id=plugin["_id"],
             name=plugin["name"],
             version=plugin["version"],
             display_name=manifest.get("display_name", ""),
@@ -585,7 +585,7 @@ async def deactivate_plugin(
         logger.info(f"User {current_user.username} deactivated plugin {plugin_id}")
 
         return PluginResponse(
-            id=plugin["id"],
+            id=plugin["_id"],
             name=plugin["name"],
             version=plugin["version"],
             display_name=manifest.get("display_name", ""),

@@ -4,6 +4,10 @@ import { apiAuthNew, type User, type LoginResponse } from '../services/api_auth'
 import { authService } from '../services/api'
 import router from '../router'
 
+const STORAGE_KEY_PERMISSIONS = 'auth_permissions'
+const STORAGE_KEY_IS_SUPERUSER = 'auth_is_superuser'
+const STORAGE_KEY_USER = 'auth_user_data'
+
 export const useAuthStore = defineStore('auth', () => {
   const state = reactive({
     user: null as User | null,
@@ -32,6 +36,39 @@ export const useAuthStore = defineStore('auth', () => {
     return permissions.every(p => state.permissions.includes(p))
   }
 
+  function saveAuthToStorage(response: LoginResponse) {
+    localStorage.setItem(STORAGE_KEY_PERMISSIONS, JSON.stringify(response.permissions || []))
+    localStorage.setItem(STORAGE_KEY_IS_SUPERUSER, String(response.is_superuser || false))
+    if (response.user) {
+      localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(response.user))
+    }
+  }
+
+  function loadAuthFromStorage() {
+    try {
+      const permissionsStr = localStorage.getItem(STORAGE_KEY_PERMISSIONS)
+      if (permissionsStr) {
+        state.permissions = JSON.parse(permissionsStr)
+      }
+      const isSuperuserStr = localStorage.getItem(STORAGE_KEY_IS_SUPERUSER)
+      if (isSuperuserStr) {
+        state.is_superuser = isSuperuserStr === 'true'
+      }
+      const userStr = localStorage.getItem(STORAGE_KEY_USER)
+      if (userStr) {
+        state.user = JSON.parse(userStr)
+      }
+    } catch (e) {
+      console.error('Failed to load auth from storage:', e)
+    }
+  }
+
+  function clearAuthFromStorage() {
+    localStorage.removeItem(STORAGE_KEY_PERMISSIONS)
+    localStorage.removeItem(STORAGE_KEY_IS_SUPERUSER)
+    localStorage.removeItem(STORAGE_KEY_USER)
+  }
+
   async function login(username: string, password: string): Promise<boolean> {
     state.loading = true
     state.error = null
@@ -41,12 +78,13 @@ export const useAuthStore = defineStore('auth', () => {
       state.user = response.user
       state.permissions = response.permissions || []
       state.is_superuser = response.is_superuser || false
-      
+
       authService.setToken(response.token)
       if (state.user) {
         authService.setUser(state.user.username)
       }
-      
+      saveAuthToStorage(response)
+
       return true
     } catch (e: any) {
       state.error = e.response?.data?.detail || '登录失败'
@@ -67,6 +105,7 @@ export const useAuthStore = defineStore('auth', () => {
     state.permissions = []
     state.is_superuser = false
     authService.clearToken()
+    clearAuthFromStorage()
     router.push('/login')
   }
 
@@ -76,6 +115,7 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const user = await apiAuthNew.getCurrentUser()
       state.user = user
+      localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user))
       return user
     } catch (e) {
       console.error('Failed to fetch current user:', e)
@@ -89,6 +129,7 @@ export const useAuthStore = defineStore('auth', () => {
     const token = authService.getToken()
     if (token) {
       state.token = token
+      loadAuthFromStorage()
     }
   }
 

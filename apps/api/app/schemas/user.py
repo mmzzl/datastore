@@ -33,6 +33,14 @@ class ChangePasswordRequest(BaseModel):
     new_password: str = Field(..., min_length=6, max_length=72)
 
 
+class RegisterRequest(BaseModel):
+    username: str = Field(..., min_length=3, max_length=50, pattern=r"^[a-zA-Z0-9_]+$")
+    password: str = Field(..., min_length=6, max_length=72)
+    display_name: str = Field(..., min_length=1, max_length=100)
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = Field(None, max_length=20)
+
+
 class UserCreate(BaseModel):
     username: str = Field(..., min_length=1, max_length=50, pattern=r"^[a-zA-Z0-9_]+$")
     password: str = Field(..., min_length=6, max_length=72)

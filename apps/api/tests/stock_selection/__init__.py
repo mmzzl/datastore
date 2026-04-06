@@ -1,0 +1,1 @@
+"""Stock selection module tests."""
