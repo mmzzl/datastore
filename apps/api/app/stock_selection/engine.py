@@ -24,7 +24,10 @@ from ..schemas.stock_selection import (
     StockIndicator,
     MarketTrendData,
     SelectionAIResult,
+    FiltrationLogEntry,
 )
+from ..schemas.quant_base import SignalModel, KLineData, KLineSet
+from ..core.quant.symbol import Symbol, normalize_symbol
 from .stock_pool import StockPoolService
 from .market_trend import MarketTrendAnalyzer
 from .ai_analyzer import AIAnalyzer
@@ -162,12 +165,29 @@ class StockSelectionEngine:
 
         return task_id
 
+    def validate_data_coverage(self, task: StockSelectionTask, codes: List[str]) -> bool:
+        """
+        Check if enough stocks in the pool have minimum required data.
+        Returns True if coverage is acceptable, False otherwise.
+        """
+        if not codes:
+            return False
+            
+        valid_count = 0
+        for code in codes:
+            klines = self.storage.get_kline(code, limit=1)
+            if klines and len(klines) >= 1:
+                valid_count += 1
+        
+        coverage = valid_count / len(codes)
+        logger.info(f"Task {task.id} data coverage: {coverage:.2%}")
+        
+        # Threshold: at least 20% of the pool must have some data
+        return coverage >= 0.2
+
     async def _run_selection_task(self, task_id: str) -> None:
         """
-        Execute selection task.
-
-        Args:
-            task_id: Task identifier
+        Execute selection task with detailed filtration logging and data guardrails.
         """
         logger.warning(f"_run_selection_task STARTED for {task_id}")
 
@@ -188,9 +208,18 @@ class StockSelectionEngine:
             )
 
             # Load stock pool
-            codes = self.stock_pool_service.get_codes(task.stock_pool.value)
+            raw_codes = self.stock_pool_service.get_codes(task.stock_pool.value)
+            codes = [Symbol(c).normalized for c in raw_codes]
             logger.info(f"Task {task_id} got {len(codes)} codes from stock pool")
             task.total_stocks = len(codes)
+
+            # --- DATA GUARDRAIL ---
+            if not self.validate_data_coverage(task, codes):
+                task.status = SelectionStatus.FAILED
+                task.error = "Critical data coverage failure: Most stocks in the pool have no historical data. Please check data collector."
+                self._save_task(task)
+                return
+            # ----------------------
 
             # Load industry map
             industry_map = self.stock_pool_service.load_industry_map()
@@ -213,26 +242,55 @@ class StockSelectionEngine:
                 # Get K-line data
                 klines = self.storage.get_kline(code, limit=100)
 
-                if not klines or len(klines) < 30:
+                if not klines:
+                    self._log_filtration(
+                        task, code, "NO_DATA", "No K-line data found in storage"
+                    )
+                    continue
+                if len(klines) <<  30:
+                    self._log_filtration(
+                        task,
+                        code,
+                        "INSUFFICIENT_DATA",
+                        f"Only {len(klines)} candles found, need 30",
+                    )
                     continue
 
                 df = pd.DataFrame(klines)
                 if "close" not in df.columns:
+                    self._log_filtration(
+                        task,
+                        code,
+                        "INVALID_DATA_FORMAT",
+                        "K-line data missing 'close' column",
+                    )
                     continue
 
                 # Calculate indicators for market trend
-                indicators = MarketTrendAnalyzer.calculate_indicators(df)
-                all_indicators[code] = indicators
+                try:
+                    indicators = MarketTrendAnalyzer.calculate_indicators(df)
+                    all_indicators[code] = indicators
+                except Exception as e:
+                    self._log_filtration(task, code, "INDICATOR_CALC_FAILED", str(e))
+                    continue
 
                 # Generate signal
                 try:
                     signal = strategy.generate_signals(df)
                 except Exception as e:
-                    logger.warning(f"Signal generation failed for {code}: {e}")
+                    self._log_filtration(
+                        task, code, "STRATEGY_EXECUTION_FAILED", str(e)
+                    )
                     continue
 
                 # Only keep BUY signals
                 if signal.signal_type != SignalType.BUY:
+                    self._log_filtration(
+                        task,
+                        code,
+                        "STRATEGY_MISMATCH",
+                        f"Signal type is {signal.signal_type}, expected BUY",
+                    )
                     continue
 
                 # Calculate score
@@ -339,16 +397,14 @@ class StockSelectionEngine:
     def _save_task(self, task: StockSelectionTask) -> None:
         """
         Save task to MongoDB.
-
-        Args:
-            task: Task to save
         """
         logger.warning(f"_save_task CALLED for {task.id}, status={task.status}")
 
         try:
             collection = self.storage.db["stock_selections"]
 
-            doc = task.to_dict()
+            # Use Pydantic's model_dump for consistent serialization
+            doc = task.model_dump()
             doc["_id"] = task.id
 
             logger.info(f"_save_task: saving task {task.id} with status {task.status}")
@@ -477,92 +533,43 @@ class StockSelectionEngine:
             logger.error(f"Failed to get history: {e}")
             return {"items": [], "total": 0, "page": page, "page_size": page_size}
 
+    def _log_filtration(
+        self, task: StockSelectionTask, code: str, reason: str, detail: str
+    ) -> None:
+        """
+        Record why a stock was filtered out during selection.
+        """
+        from ..schemas.stock_selection import FiltrationLogEntry
+        
+        log_entry = FiltrationLogEntry(code=code, reason=reason, detail=detail)
+        task.filtration_logs.append(log_entry)
+        logger.debug(f"Stock {code} filtered out: {reason} - {detail}")
+
     def _doc_to_task(self, doc: Dict[str, Any]) -> StockSelectionTask:
         """
-        Convert MongoDB document to StockSelectionTask.
-
-        Args:
-            doc: MongoDB document
-
-        Returns:
-            StockSelectionTask object
+        Convert MongoDB document to StockSelectionTask using Pydantic validation.
         """
-        # Convert results
-        results = []
-        for r in doc.get("results", []):
-            ind = r.get("indicators", {})
-            indicators = StockIndicator(
-                ma5=ind.get("ma5"),
-                ma10=ind.get("ma10"),
-                ma20=ind.get("ma20"),
-                rsi=ind.get("rsi"),
-                macd=ind.get("macd"),
-                macd_signal=ind.get("macd_signal"),
-                macd_hist=ind.get("macd_hist"),
-                boll_upper=ind.get("boll_upper"),
-                boll_mid=ind.get("boll_mid"),
-                boll_lower=ind.get("boll_lower"),
+        # Pydantic v2 handles the nested conversion automatically if types are defined as BaseModels
+        # We just need to ensure the _id is mapped to id
+        data = doc.copy()
+        data["id"] = data.pop("_id", "")
+        
+        # Handle potential legacy data in results or market_trend
+        # Pydantic's model_validate will handle the conversion of dicts to models
+        try:
+            return StockSelectionTask.model_validate(data)
+        except Exception as e:
+            logger.error(
+                f"Failed to validate task doc {doc.get('_id')} via Pydantic: {e}"
+            )
+            # Fallback to a basic object to avoid complete crash, but log the error
+            return StockSelectionTask(
+                id=data.get("_id", ""),
+                strategy_type=data.get("strategy_type", "unknown"),
+                error=f"Data validation error: {str(e)}",
             )
 
-            results.append(
-                SelectionStockResult(
-                    code=r.get("code", ""),
-                    name=r.get("name", ""),
-                    score=r.get("score", 0),
-                    signal_type=r.get("signal_type", ""),
-                    signal_strength=r.get("signal_strength", ""),
-                    confidence=r.get("confidence", 0),
-                    indicators=indicators,
-                    industry=r.get("industry", ""),
-                    ai_analysis=None,  # Will be populated from ai_result
-                )
-            )
-
-        # Convert market trend
-        mt = doc.get("market_trend") or {}
-        market_trend = None
-        if mt:
-            market_trend = MarketTrendData(
-                total_stocks=mt.get("total_stocks", 0),
-                analyzed_stocks=mt.get("analyzed_stocks", 0),
-                macd_golden_cross_count=mt.get("macd_golden_cross_count", 0),
-                macd_golden_cross_ratio=mt.get("macd_golden_cross_ratio", 0),
-                ma_golden_cross_count=mt.get("ma_golden_cross_count", 0),
-                ma_golden_cross_ratio=mt.get("ma_golden_cross_ratio", 0),
-                full_bullish_alignment_count=mt.get("full_bullish_alignment_count", 0),
-                full_bullish_alignment_ratio=mt.get("full_bullish_alignment_ratio", 0),
-                partial_bullish_alignment_count=mt.get(
-                    "partial_bullish_alignment_count", 0
-                ),
-                partial_bullish_alignment_ratio=mt.get(
-                    "partial_bullish_alignment_ratio", 0
-                ),
-                selected_macd_golden_cross=mt.get("selected_macd_golden_cross", 0),
-                selected_bullish_alignment=mt.get("selected_bullish_alignment", 0),
-                rsi_oversold_count=mt.get("rsi_oversold_count", 0),
-                rsi_overbought_count=mt.get("rsi_overbought_count", 0),
-                rsi_neutral_count=mt.get("rsi_neutral_count", 0),
-                trend_direction=mt.get("trend_direction", "震荡"),
-                trend_strength=mt.get("trend_strength", "中"),
-            )
-
-        return StockSelectionTask(
-            id=doc.get("_id", ""),
-            strategy_type=doc.get("strategy_type", ""),
-            strategy_params=doc.get("strategy_params", {}),
-            plugin_id=doc.get("plugin_id"),
-            stock_pool=StockPoolType(doc.get("stock_pool", "hs300")),
-            status=SelectionStatus(doc.get("status", "pending")),
-            created_at=doc.get("created_at", datetime.now()),
-            completed_at=doc.get("completed_at"),
-            results=results,
-            ai_result=None,  # TODO: Parse if needed
-            market_trend=market_trend,
-            error=doc.get("error"),
-            total_stocks=doc.get("total_stocks", 0),
-            selected_count=doc.get("selected_count", 0),
-        )
-
+    
 
 # Global engine instance
 _engine: Optional[StockSelectionEngine] = None

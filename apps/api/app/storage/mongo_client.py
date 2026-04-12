@@ -64,8 +64,11 @@ class MongoStorage:
             self.strategy_plugins_collection = self.db["strategy_plugins"]
             self.users_collection = self.db["users"]
             self.roles_collection = self.db["roles"]
+            self.watch_list_collection = self.db["watch_list"]
+            self.market_signals_collection = self.db["market_signals"]
             self._create_user_indexes()
             self._create_role_indexes()
+            self._create_signal_indexes()
             self.client.admin.command("ping")
             logger.info(f"MongoDB connected: {self.host}:{self.port}/{self.db_name}")
         except PyMongoError as e:
@@ -478,19 +481,19 @@ class MongoStorage:
             logger.info("Roles collection indexes created")
         except PyMongoError as e:
             logger.error(f"Create roles indexes failed: {e}")
-
-    def save_user(self, user_data: Dict[str, Any]) -> str:
-        if self.users_collection is None:
-            self.connect()
-
-        try:
-            user_data["created_at"] = datetime.now()
-            user_data["updated_at"] = datetime.now()
-            result = self.users_collection.insert_one(user_data)
-            return str(result.inserted_id)
-        except PyMongoError as e:
-            logger.error(f"Save user failed: {e}")
             raise
+
+    def _create_signal_indexes(self):
+        if self.watch_list_collection is None or self.market_signals_collection is None:
+            return
+        try:
+            self.watch_list_collection.create_index("symbol", unique=True)
+            self.market_signals_collection.create_index([("symbol", 1), ("timestamp", -1)])
+            logger.info("Signal and Watchlist indexes created")
+        except PyMongoError as e:
+            logger.error(f"Create signal indexes failed: {e}")
+            raise
+
 
     def get_user_by_username(self, username: str) -> Optional[Dict[str, Any]]:
         if self.users_collection is None:
@@ -642,10 +645,45 @@ class MongoStorage:
     def delete_role(self, role_id: str) -> bool:
         if self.roles_collection is None:
             self.connect()
-
         try:
             result = self.roles_collection.delete_one({"role_id": role_id})
             return result.deleted_count > 0
         except PyMongoError as e:
             logger.error(f"Delete role failed: {e}")
             raise
+
+    def add_to_watch_list(self, symbol: str, source: str, ttl_days: int) -> None:
+        if self.watch_list_collection is None:
+            self.connect()
+        expiry_date = datetime.now() + timedelta(days=ttl_days)
+        self.watch_list_collection.update_one(
+            {"symbol": symbol},
+            {"$set": {"symbol": symbol, "source": source, "expiry_date": expiry_date, "updated_at": datetime.now()}},
+            upsert=True
+        )
+
+    def get_watch_list(self) -> List[str]:
+        if self.watch_list_collection is None:
+            self.connect()
+        # Filter out expired stocks
+        cursor = self.watch_list_collection.find({"expiry_date": {"$gte": datetime.now()}})
+        return [doc["symbol"] for doc in cursor]
+
+    def save_market_signal(self, signal_data: Dict[str, Any]) -> str:
+        if self.market_signals_collection is None:
+            self.connect()
+        signal_data["timestamp"] = signal_data.get("timestamp", datetime.now())
+        result = self.market_signals_collection.insert_one(signal_data)
+        return str(result.inserted_id)
+
+    def get_recent_signals(self, limit: int = 10) -> List[Dict]:
+        if self.market_signals_collection is None:
+            self.connect()
+        cursor = self.market_signals_collection.find().sort("timestamp", -1).limit(limit)
+        results = []
+        for doc in cursor:
+            doc["_id"] = str(doc["_id"])
+            doc["timestamp"] = _serialize_datetime(doc.get("timestamp"))
+            results.append(doc)
+        return results
+

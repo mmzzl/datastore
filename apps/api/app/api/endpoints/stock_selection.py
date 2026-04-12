@@ -12,7 +12,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from ...core.auth import AuthenticatedUser, require_permission, get_storage
-from ...schemas.stock_selection import StockPoolType, SelectionStatus
+from ...schemas.stock_selection import (
+    StockPoolType,
+    SelectionStatus,
+    SelectionStockResult,
+    StockAIAnalysis,
+    MarketTrendData,
+    FiltrationLogEntry,
+)
 from ...stock_selection.engine import get_selection_engine, StockSelectionEngine
 from ...stock_selection.stock_pool import StockPoolService
 from ...storage import MongoStorage
@@ -77,6 +84,15 @@ class MarketTrendItem(BaseModel):
     rsi_neutral_count: int
 
 
+class FiltrationLogItem(BaseModel):
+    """Single filtration log entry."""
+
+    code: str
+    reason: str
+    detail: str
+    timestamp: str
+
+
 class SelectionResultResponse(BaseModel):
     """Response for selection result."""
 
@@ -90,6 +106,112 @@ class SelectionResultResponse(BaseModel):
     total_stocks: int
     selected_count: int
     results: List[StockResultItem]
+    filtration_logs: List[FiltrationLogItem] = Field(default_factory=list)
+    market_trend: Optional[MarketTrendItem]
+    ai_summary: Optional[str]
+    sector_overview: Optional[str]
+    market_risk: Optional[str]
+    error: Optional[str]
+
+
+class HistoryItem(BaseModel):
+    """History item."""
+
+    id: str
+    task_id: str
+    strategy_type: str
+    stock_pool: str
+    created_at: str
+    selected_count: int
+    status: str
+
+
+class HistoryResponse(BaseModel):
+    """Response for history query."""
+
+    items: List[HistoryItem]
+    total: int
+    page: int
+    page_size: int
+
+
+class StockPoolItem(BaseModel):
+    """Stock pool info item."""
+
+    id: str
+    name: str
+    count: int
+    description: str
+
+
+class StockPoolsResponse(BaseModel):
+    """Response for stock pools list."""
+
+    pools: List[StockPoolItem]
+
+
+class RunSelectionResponse(BaseModel):
+    """Response for selection task start."""
+
+    task_id: str
+    status: str
+    message: str
+
+
+class StockResultItem(BaseModel):
+    """Single stock result item."""
+
+    code: str
+    name: str
+    score: float
+    signal_type: str
+    signal_strength: str
+    confidence: float
+    industry: str
+    indicators: Dict[str, Any]
+    ai_analysis: Optional[Dict[str, Any]] = None
+
+
+class MarketTrendItem(BaseModel):
+    """Market trend data item."""
+
+    total_stocks: int
+    macd_golden_cross_count: int
+    macd_golden_cross_ratio: float
+    ma_golden_cross_count: int
+    ma_golden_cross_ratio: float
+    full_bullish_alignment_count: int
+    full_bullish_alignment_ratio: float
+    trend_direction: str
+    trend_strength: str
+    rsi_oversold_count: int
+    rsi_overbought_count: int
+    rsi_neutral_count: int
+
+
+class FiltrationLogItem(BaseModel):
+    """Single filtration log entry."""
+
+    code: str
+    reason: str
+    detail: str
+    timestamp: str
+
+
+class SelectionResultResponse(BaseModel):
+    """Response for selection result."""
+
+    id: str
+    task_id: str
+    strategy_type: str
+    stock_pool: str
+    status: str
+    created_at: str
+    completed_at: Optional[str]
+    total_stocks: int
+    selected_count: int
+    results: List[StockResultItem]
+    filtration_logs: List[FiltrationLogItem] = Field(default_factory=list)
     market_trend: Optional[MarketTrendItem]
     ai_summary: Optional[str]
     sector_overview: Optional[str]
@@ -316,52 +438,49 @@ async def get_selection_result(
         raise HTTPException(status_code=404, detail="Selection task not found")
 
     # Build response
-    results = []
-    for r in task.results:
-        ai_analysis = None
-        if task.ai_result:
-            for a in task.ai_result.stock_analyses:
-                if a.code == r.code:
-                    ai_analysis = {
-                        "sector": a.sector,
-                        "sector_features": a.sector_features,
-                        "risk_factors": a.risk_factors,
-                        "operation_suggestion": a.operation_suggestion,
-                        "brief_analysis": a.brief_analysis,
-                    }
-                    break
-
-        results.append(
-            StockResultItem(
-                code=r.code,
-                name=r.name,
-                score=r.score,
-                signal_type=r.signal_type,
-                signal_strength=r.signal_strength,
-                confidence=r.confidence,
-                industry=r.industry,
-                indicators=r.indicators.to_dict() if r.indicators else {},
-                ai_analysis=ai_analysis,
-            )
+    results = [
+        SelectionStockResult(
+            code=r.code,
+            name=r.name,
+            score=r.score,
+            signal_type=r.signal_type,
+            signal_strength=r.signal_strength,
+            confidence=r.confidence,
+            industry=r.industry,
+            indicators=r.indicators,
+            ai_analysis=next(
+                (
+                    StockAIAnalysis(
+                        code=a.code,
+                        name=a.name,
+                        sector=a.sector,
+                        sector_features=a.sector_features,
+                        risk_factors=a.risk_factors,
+                        operation_suggestion=a.operation_suggestion,
+                        brief_analysis=a.brief_analysis,
+                    )
+                    for a in (task.ai_result.stock_analyses if task.ai_result else [])
+                    if a.code == r.code
+                ),
+                None,
+            ),
         )
+        for r in task.results
+    ]
 
     # Market trend
-    market_trend = None
-    if task.market_trend:
-        market_trend = MarketTrendItem(
-            total_stocks=task.market_trend.total_stocks,
-            macd_golden_cross_count=task.market_trend.macd_golden_cross_count,
-            macd_golden_cross_ratio=task.market_trend.macd_golden_cross_ratio,
-            ma_golden_cross_count=task.market_trend.ma_golden_cross_count,
-            ma_golden_cross_ratio=task.market_trend.ma_golden_cross_ratio,
-            full_bullish_alignment_count=task.market_trend.full_bullish_alignment_count,
-            full_bullish_alignment_ratio=task.market_trend.full_bullish_alignment_ratio,
-            trend_direction=task.market_trend.trend_direction,
-            trend_strength=task.market_trend.trend_strength,
-            rsi_oversold_count=task.market_trend.rsi_oversold_count,
-            rsi_overbought_count=task.market_trend.rsi_overbought_count,
-            rsi_neutral_count=task.market_trend.rsi_neutral_count,
+    market_trend = task.market_trend if task.market_trend else None
+
+    # Filtration logs
+    filtration_logs = [
+        FiltrationLogEntry(
+            code=log.code,
+            reason=log.reason,
+            detail=log.detail,
+            timestamp=log.timestamp,
         )
+        for log in task.filtration_logs
+    ]
 
     return SelectionResultResponse(
         id=task.id,
@@ -374,6 +493,7 @@ async def get_selection_result(
         total_stocks=task.total_stocks,
         selected_count=task.selected_count,
         results=results,
+        filtration_logs=filtration_logs,
         market_trend=market_trend,
         ai_summary=task.ai_result.summary if task.ai_result else None,
         sector_overview=task.ai_result.sector_overview if task.ai_result else None,

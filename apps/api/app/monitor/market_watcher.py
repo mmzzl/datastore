@@ -4,9 +4,9 @@ import time
 from datetime import date, timedelta
 from typing import List, Dict, Any, Optional, Callable
 
-from app.data_source import DataSourceManager
-from app.monitor.market_signals import add_signal  # type: ignore
+from app.storage.mongo_client import MongoStorage
 from app.monitor.brain.analyzer import BrainAnalyzer
+from app.data_source import DataSourceManager
 from app.monitor.analysis.technical import TechnicalAnalyzer
 
 
@@ -22,6 +22,7 @@ class MarketWatcher:
         report_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
     ):
         self.data_manager = data_manager or DataSourceManager()
+        self.storage = MongoStorage(host="localhost", port=27017, db_name="datastore")
         self.brain = BrainAnalyzer()
         self._ta = TechnicalAnalyzer()
         self.interval_sec = max(1, int(interval_sec))
@@ -104,11 +105,11 @@ class MarketWatcher:
                 "price": current_price,
                 "capital_flow": cap_flow,
             }
-            try:
-                # 将信号写入全局信号仓库，供前端仪表盘读取
-                add_signal(signal)
-            except Exception:
-                pass
+        try:
+            # 将信号写入 MongoDB 存储，替代原有的内存 list
+            self.storage.save_market_signal(signal)
+        except Exception:
+            pass
             self.signals_log.append(signal)
             if self.report_callback:
                 try:

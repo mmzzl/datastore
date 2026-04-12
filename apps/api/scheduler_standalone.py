@@ -123,6 +123,30 @@ def run_daily_kline_job():
         logging.error(traceback.format_exc())
 
 
+def run_daily_scanner_job():
+    if datetime.now().weekday() >= 5:
+        logging.info("Skipping daily signal scan: weekend")
+        return
+    try:
+        from app.storage.mongo_client import MongoStorage
+        from app.monitor.daily_scanner import DailySignalScanner
+
+        storage = MongoStorage(
+            host=settings.mongodb_host,
+            port=settings.mongodb_port,
+            db_name=settings.mongodb_database,
+        )
+        storage.connect()
+
+        scanner = DailySignalScanner(storage)
+        scanner.scan()
+
+        storage.close()
+    except Exception as e:
+        logging.error(f"Daily signal scanner failed: {e}")
+        logging.error(traceback.format_exc())
+
+
 def run_5min_kline_job():
     if datetime.now().weekday() >= 5:
         logging.info("Skipping 5min kline job: weekend")
@@ -204,7 +228,18 @@ def setup_scheduler():
         id="daily_kline_job",
         misfire_grace_time=3600,
     )
-    logging.info(f"Daily kline scraper configured to run at 15:30 ({timezone})")
+        logging.info(f"Daily kline scraper configured to run at 15:30 ({timezone})")
+
+    scheduler.add_job(
+        run_daily_scanner_job,
+        "cron",
+        hour=15,
+        minute=45,
+        timezone=timezone,
+        id="daily_signal_scanner_job",
+        misfire_grace_time=3600,
+    )
+    logging.info(f"Daily signal scanner configured to run at 15:45 ({timezone})")
 
     # scheduler.add_job(
     #     run_5min_kline_job,
