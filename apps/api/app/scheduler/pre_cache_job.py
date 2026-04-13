@@ -25,7 +25,7 @@ class PreCacheJob:
             self.news_client = NewsClient(
                 after_market_config.get("news_api_url", "https://www.life233.top"),
                 after_market_config.get("news_api_username", "admin"),
-                after_market_config.get("news_api_password", "admin")
+                after_market_config.get("news_api_password", "aa123aaqqA@")
             )
         
         if self.llm_client is None:

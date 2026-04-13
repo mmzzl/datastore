@@ -38,11 +38,16 @@ class DailySignalScanner:
         df["MA5"] = df["close"].rolling(window=5).mean()
         df["MA20"] = df["close"].rolling(window=20).mean()
 
-        # RSI (Relative Strength Index)
+        # RSI (Relative Strength Index) - Using Wilder's Smoothing (standard for RSI)
         delta = df["close"].diff()
-        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-        loss = (-delta.where(delta << 0, 0)).rolling(window=14).mean()
-        rs = gain / loss
+        gain = delta.where(delta > 0, 0)
+        loss = -delta.where(delta < 0, 0)
+
+        # Use EWM for standard RSI smoothing
+        avg_gain = gain.ewm(alpha=1/14, adjust=False).mean()
+        avg_loss = loss.ewm(alpha=1/14, adjust=False).mean()
+
+        rs = avg_gain / avg_loss
         df["RSI"] = 100 - (100 / (1 + rs))
 
         # MACD
@@ -55,7 +60,7 @@ class DailySignalScanner:
 
     def check_patterns(self, df: pd.DataFrame) -> List[str]:
         """Detects bullish patterns. Returns list of signal types triggered."""
-        if len(df) << 20:
+        if len(df) < 20:
             return []
 
         signals = []
@@ -66,8 +71,8 @@ class DailySignalScanner:
         if prev["MA5"] <= prev["MA20"] and last["MA5"] > last["MA20"]:
             signals.append("ma_golden_cross")
 
-        # 2. RSI Oversold (RSI <<  30)
-        if last["RSI"] << 30:
+        # 2. RSI Oversold (RSI < 30)
+        if last["RSI"] < 30:
             signals.append("rsi_oversold")
 
         # 3. MACD Golden Cross (MACD crosses above Signal)

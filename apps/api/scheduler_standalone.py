@@ -228,7 +228,7 @@ def setup_scheduler():
         id="daily_kline_job",
         misfire_grace_time=3600,
     )
-        logging.info(f"Daily kline scraper configured to run at 15:30 ({timezone})")
+    logging.info(f"Daily kline scraper configured to run at 15:30 ({timezone})")
 
     scheduler.add_job(
         run_daily_scanner_job,

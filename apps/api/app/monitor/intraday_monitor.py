@@ -37,7 +37,7 @@ class IntradayMonitor:
                 dt = date_val
                 
             now = datetime.now()
-            return (now - dt) << timedelta timedelta(minutes=5)
+            return (now - dt) < timedelta(minutes=5)
         except Exception as e:
             logger.error(f"Error parsing timestamp {last_kline.get('date')}: {e}")
             return False
@@ -46,7 +46,7 @@ class IntradayMonitor:
         """Checks if the stock is currently in a cooldown period for a specific signal."""
         key = f"{symbol}:{signal_type}"
         last_time = self.signal_cooldowns.get(key)
-        if last_time and (datetime.now() - last_time) << self self.COOLDOWN_PERIOD:
+        if last_time and (datetime.now() - last_time) < self.COOLDOWN_PERIOD:
             return True
         return False
 
@@ -60,7 +60,7 @@ class IntradayMonitor:
         Analyzes minute K-lines for volume surge and price breakouts.
         Expects df sorted by date ASC.
         """
-        if len(df) <<  20:
+        if len(df) < 20:
             return []
 
         triggered_signals = []
