@@ -9,7 +9,6 @@ from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
 from dataclasses import dataclass
 from .industry_normalizer import IndustryNormalizer
-from .baostock_kline_fetcher import BaostockKlineFetcher
 from .technical_indicators import TechnicalIndicators
 
 logger = logging.getLogger(__name__)
@@ -65,7 +64,6 @@ class StockAnalyzer:
         logger.info(
             f"开始多维度共振筛选: hot_sectors={hot_sectors}, hot_stocks={hot_stocks}"
         )
-
         try:
             target_stocks = self._get_target_stocks(hot_sectors, hot_stocks)
             logger.info(f"目标股票数量: {len(target_stocks)}")
@@ -166,7 +164,7 @@ class StockAnalyzer:
                 if stock_codes:
                     target.update(stock_codes)
                     logger.info(f"从行业 {sector} 获取到 {len(stock_codes)} 只股票")
-
+                    
         for stock in hot_stocks:
             if isinstance(stock, str):
                 # 解析股票代码，支持格式：贵州茅台(sh.600519) 或 sh.600519 或 600519
@@ -189,29 +187,55 @@ class StockAnalyzer:
                     else:
                         target.add(f"sz.{code}")
 
-        return list(target)
+        return [s for s in list(target) if not re.search(r'\d{6}', s).group().startswith('9')]
 
     def _get_klines_with_indicators(
         self, names: List[str], days: int = 60
     ) -> pd.DataFrame:
-        """从baostock获取K线数据并计算技术指标"""
-        end_date = datetime.now().strftime("%Y-%m-%d")
+        """从MongoDB获取K线数据并计算技术指标"""
+        from app.storage.mongo_client import MongoStorage
+
         start_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
 
         try:
-            with BaostockKlineFetcher() as fetcher:
-                kline_data = fetcher.get_klines_batch(names, start_date, end_date)
-                
-                if kline_data.empty:
-                    logger.warning("未获取到K线数据")
-                    return pd.DataFrame()
-                
-                # 计算技术指标
-                kline_data = TechnicalIndicators.calculate_all(kline_data)
-                
-                logger.info(f"成功获取并计算K线数据，共 {len(kline_data)} 条记录")
-                return kline_data
-                
+            mongo = MongoStorage(**self.mongo_config)
+            mongo.connect()
+
+            all_data = []
+            for symbol in names:
+                code_match = re.search(r'\d{6}', symbol)
+                if not code_match:
+                    continue
+                code = code_match.group()
+                data = mongo.get_kline(code, start_date=start_date, limit=days)
+                if data:
+                    for doc in data:
+                        doc["symbol"] = symbol
+                    all_data.extend(data)
+
+            mongo.close()
+
+            if not all_data:
+                logger.warning("未获取到K线数据")
+                return pd.DataFrame()
+
+            df = pd.DataFrame(all_data)
+            df["date"] = pd.to_datetime(df["date"])
+            df = df.sort_values("date")
+
+            numeric_cols = ["open", "high", "low", "close", "volume", "amount"]
+            for col in numeric_cols:
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors="coerce")
+
+            if "change_pct" not in df.columns:
+                df["change_pct"] = df.groupby("symbol")["close"].pct_change() * 100
+
+            df = TechnicalIndicators.calculate_all(df)
+
+            logger.info(f"成功获取并计算K线数据，共 {len(df)} 条记录")
+            return df
+
         except Exception as e:
             logger.error(f"获取K线数据失败: {e}")
             import traceback

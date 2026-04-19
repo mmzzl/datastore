@@ -24,19 +24,16 @@ class TDXAdapter(IDataSource):
         self._name = "通达信"
         self._provider = "tdx"
         self._client = None
-        self._init_client()
 
-    def _init_client(self):
-        """初始化通达信客户端"""
-        if not MOOTDX_AVAILABLE:
-            logger.warning("mootdx library not available")
-            return
-
-        try:
-            # mootdx不需要显式初始化客户端，每次使用时创建
-            logger.info("通达信适配器初始化成功")
-        except Exception as e:
-            logger.error(f"初始化通达信适配器失败: {e}")
+    def _get_client(self):
+        """获取或创建通达信客户端（单例）"""
+        if self._client is None and MOOTDX_AVAILABLE:
+            try:
+                self._client = Quotes.factory(market="std", multithread=True, heartbeat=False)
+                logger.info("通达信适配器初始化成功")
+            except Exception as e:
+                logger.error(f"初始化通达信适配器失败: {e}")
+        return self._client
 
     @property
     def name(self) -> str:
@@ -62,8 +59,9 @@ class TDXAdapter(IDataSource):
         try:
             # 转换代码格式 sh.600000 -> 600000, sz.000001 -> 000001
             stock_code = code.split(".")[-1] if "." in code else code
-            # 初始化行情客户端
-            client = Quotes.factory(market="std", multithread=True, heartbeat=True)
+            client = self._get_client()
+            if client is None:
+                return []
             # 获取K线数据
             # 使用 bars 方法获取K线数据
             frequency = 9
@@ -118,35 +116,34 @@ class TDXAdapter(IDataSource):
         """获取股票基本信息"""
         if not MOOTDX_AVAILABLE:
             return None
-
         try:
             # 转换代码格式
             stock_code = code.split(".")[-1] if "." in code else code
 
-            # 判断市场代码
+                # 判断市场代码
             if stock_code.startswith("6") or stock_code.startswith("9"):
-                market = 0  # 沪市
+                market = 0 # 沪市
             else:
-                market = 1  # 深市
+                market = 1 # 深市
 
-            # 初始化行情客户端
-            client = Quotes.factory(market="std", multithread=True, heartbeat=True)
+            client = self._get_client()
+            if client is None:
+                return None
 
             # 获取实时数据
             data = client.quotes(symbol=stock_code, market=market)
 
             if data is not None and len(data) > 0:
                 row = data.iloc[0]
-
                 # 确定交易所
                 exchange = "SH" if market == 0 else "SZ"
                 return StockInfo(
-                    code=code,
-                    name=stock_code,  # 通达信不提供股票名称，使用代码
-                    exchange=exchange,
-                    industry=None,
-                    market_value=None,
-                )
+                            code=code,
+                            name=stock_code,  # 通达信不提供股票名称，使用代码
+                            exchange=exchange,
+                            industry=None,
+                            market_value=None,
+                        )
             return None
 
         except Exception as e:
@@ -169,12 +166,13 @@ class TDXAdapter(IDataSource):
 
             # 判断市场代码
             if stock_code.startswith("6") or stock_code.startswith("9"):
-                market = 0  # 沪市
+                market = 0 # 沪市
             else:
-                market = 1  # 深市
+                market = 1 # 深市
 
-            # 初始化行情客户端
-            client = Quotes.factory(market="std", multithread=True, heartbeat=True)
+            client = self._get_client()
+            if client is None:
+                return {}
 
             # 获取实时数据
             data = client.quotes(symbol=stock_code, market=market)

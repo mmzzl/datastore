@@ -130,7 +130,23 @@ class StockKlineScraper:
         if self.client is None:
             if not MOOTDX_AVAILABLE:
                 raise RuntimeError("mootdx is not installed")
-            self.client = Quotes.factory(market="std", multithread=True, heartbeat=True)
+            self.client = Quotes.factory(market="std", multithread=True, heartbeat=False)
+
+    def _get_index_stock_codes(self) -> List[str]:
+        """从HS300和ZZ500 CSV文件加载股票代码"""
+        codes = set()
+        for filename in ["hs300_stocks.csv", "zz500_stocks.csv"]:
+            path = os.path.join(os.path.dirname(__file__), "data", filename)
+            try:
+                df = pd.read_csv(path)
+                for _, row in df.iterrows():
+                    code = str(row.get("code", row.get("symbol", ""))).strip().zfill(6)
+                    if code:
+                        codes.add(code)
+                logger.info(f"Loaded {len(codes)} codes from {filename}")
+            except Exception as e:
+                logger.warning(f"Failed to load {path}: {e}")
+        return sorted(list(codes))
 
     def _get_all_stock_codes(self) -> List[str]:
         self._ensure_storage()
@@ -207,60 +223,60 @@ class StockKlineScraper:
         self._ensure_client()
         try:
             code = code.split(".")[-1]
-        df = self.client.bars(
-            symbol=code,
-            freq=frequency,
-            start=start,
-            offset=count,
-        )
-        if df is None or df.empty:
+            df = self.client.bars(
+                symbol=code,
+                freq=frequency,
+                start=start,
+                offset=count,
+            )
+            if df is None or df.empty:
+                return []
+
+            import pandas as pd
+            if isinstance(df.columns, pd.RangeIndex):
+                df.columns = ["date", "open", "high", "low", "close", "amount", "volume"]
+            else:
+                column_map = {
+                    "datetime": "date",
+                    "open": "open",
+                    "high": "high",
+                    "low": "low",
+                    "close": "close",
+                    "amount": "amount",
+                    "volume": "volume",
+                }
+                available_cols = [c for c in column_map.keys() if c in df.columns]
+                df = df[available_cols].rename(columns=column_map)
+
+            records = []
+            for _, row in df.iterrows():
+                try:
+                    records.append(
+                        {
+                            "code": code,
+                            "date": str(row["date"]),
+                            "open": float(row["open"]),
+                            "high": float(row["high"]),
+                            "low": float(row["low"]),
+                            "close": float(row["close"]),
+                            "volume": int(row["volume"])
+                            if pd.notna(row["volume"])
+                            else 0,
+                            "amount": float(row["amount"])
+                            if pd.notna(row["amount"])
+                            else 0.0,
+                            "frequency": frequency,
+                            "adjust": adjust,
+                            "crawl_time": datetime.now().isoformat(),
+                        }
+                    )
+                except (ValueError, TypeError, KeyError) as e:
+                    logger.error(f"Parse error for {code}: {e}")
+                    continue
+            return records
+        except Exception as e:
+            logger.error(f"Failed to fetch kline for {code}: {e}")
             return []
-
-        import pandas as pd
-        if isinstance(df.columns, pd.RangeIndex):
-            df.columns = ["date", "open", "high", "low", "close", "amount", "volume"]
-        else:
-            column_map = {
-                "datetime": "date",
-                "open": "open",
-                "high": "high",
-                "low": "low",
-                "close": "close",
-                "amount": "amount",
-                "volume": "volume",
-            }
-            available_cols = [c for c in column_map.keys() if c in df.columns]
-            df = df[available_cols].rename(columns=column_map)
-
-        records = []
-        for _, row in df.iterrows():
-            try:
-                records.append(
-                    {
-                        "code": code,
-                        "date": str(row["date"]),
-                        "open": float(row["open"]),
-                        "high": float(row["high"]),
-                        "low": float(row["low"]),
-                        "close": float(row["close"]),
-                        "volume": int(row["volume"])
-                        if pd.notna(row["volume"])
-                        else 0,
-                        "amount": float(row["amount"])
-                        if pd.notna(row["amount"])
-                        else 0.0,
-                        "frequency": frequency,
-                        "adjust": adjust,
-                        "crawl_time": datetime.now().isoformat(),
-                    }
-                )
-            except (ValueError, TypeError, KeyError) as e:
-                logger.error(f"Parse error for {code}: {e}")
-                continue
-        return records
-    except Exception as e:
-        logger.error(f"Failed to fetch kline for {code}: {e}")
-        return []
 
     def _need_fetch(self, code: str, frequency: int = 9) -> bool:
         self._ensure_storage()
@@ -286,7 +302,6 @@ class StockKlineScraper:
                     {
                         "code": record["code"],
                         "date": record["date"],
-                        "frequency": record_frequency,
                     },
                     {"$set": record},
                     upsert=True,
@@ -296,8 +311,6 @@ class StockKlineScraper:
             logger.debug(
                 f"Saved {saved_count}/{len(records)} kline records for {records[0]['code']}"
             )
-        except Exception as e:
-            logger.error(f"Failed to save klines: {e}")
         except Exception as e:
             logger.error(f"Failed to save klines: {e}")
 
@@ -509,7 +522,9 @@ def run_daily_job():
     scraper = StockKlineScraper()
     try:
         logger.info("Starting daily stock kline fetch job...")
-        result = scraper.fetch_daily_klines(adjust="qfq", skip_existing=True)
+        codes = scraper._get_index_stock_codes()
+        logger.info(f"Index stock count: {len(codes)}")
+        result = scraper.fetch_daily_klines(codes=codes, adjust="qfq", skip_existing=True)
         logger.info(f"Daily job result: {result}")
     except Exception as e:
         logger.error(f"Daily kline job failed: {e}")

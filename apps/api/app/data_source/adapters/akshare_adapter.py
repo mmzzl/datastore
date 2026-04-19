@@ -22,8 +22,10 @@ class AkshareAdapter(IDataSource):
         self._provider = "akshare"
         # 内存缓存：存储 (data, timestamp) 元组
         self._capital_flow_cache: Dict[str, Tuple[List[Dict[str, Any]], datetime]] = {}
+        self._realtime_cache: Optional[Tuple[pd.DataFrame, datetime]] = None
         # 缓存有效期（秒）：市场数据缓存1分钟
         self._cache_ttl = timedelta(minutes=60)
+        self._realtime_cache_ttl = timedelta(seconds=30)
 
     @property
     def name(self) -> str:
@@ -120,11 +122,30 @@ class AkshareAdapter(IDataSource):
             logger.error(f"获取股票列表失败: {e}")
             return []
 
+    def _get_realtime_df(self) -> pd.DataFrame:
+        """获取全市场实时行情DataFrame（带缓存）"""
+        now = datetime.now()
+        if (
+            self._realtime_cache is not None
+            and (now - self._realtime_cache[1]) < self._realtime_cache_ttl
+        ):
+            return self._realtime_cache[0]
+        try:
+            df = ak.stock_zh_a_spot_em()
+            self._realtime_cache = (df, now)
+            logger.info(f"刷新全市场实时行情缓存，共 {len(df)} 条")
+            return df
+        except Exception as e:
+            logger.error(f"获取全市场实时行情失败: {e}")
+            if self._realtime_cache is not None:
+                return self._realtime_cache[0]
+            return pd.DataFrame()
+
     def get_realtime_data(self, code: str) -> Dict[str, Any]:
         try:
             stock_code = code.split(".")[-1] if "." in code else code
 
-            df = ak.stock_zh_a_spot_em()
+            df = self._get_realtime_df()
             stock_data = df[df["代码"] == stock_code]
 
             if not stock_data.empty:

@@ -70,7 +70,6 @@ class MonitorJob:
             
             # 执行监控
             results = self.monitor.monitor_stocks()
-            
             # 统计结果
             buy_signals = sum(1 for r in results if r.signal.signal == "buy")
             sell_signals = sum(1 for r in results if r.signal.signal == "sell")

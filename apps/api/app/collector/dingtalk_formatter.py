@@ -10,7 +10,7 @@ class DingTalkFormatter:
     """钉钉消息格式化器"""
 
     @staticmethod
-    def format(brief: Dict, stock_info: Dict = None) -> str:
+    def format(brief: Dict, stock_info: Dict = None, news_analysis: Dict = None) -> str:
         """格式化简报为钉钉消息"""
         if stock_info is None:
             stock_info = {}
@@ -23,7 +23,9 @@ class DingTalkFormatter:
         DingTalkFormatter._add_buy_section(
             lines, brief.get("buy_opportunities", {}), stock_info
         )
-        DingTalkFormatter.format_news_analysis(lines, brief.get("news_analysis", {}))
+        DingTalkFormatter.format_news_analysis(
+            lines, news_analysis or brief.get("news_analysis", {})
+        )
         return "\n".join(lines)
 
     @staticmethod
@@ -33,8 +35,8 @@ class DingTalkFormatter:
         lines.append("")
 
         # 今日概要
-        summary = news_analysis.get("summary", "")
-        if summary:
+        summary = news_analysis.get("summary")
+        if summary is not None:
             lines.append(f"### 📝 今日概要")
             lines.append(f"{summary}")
             lines.append("")

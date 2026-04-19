@@ -23,9 +23,9 @@ class PreCacheJob:
         if self.news_client is None:
             after_market_config = self.config.get("after_market", {})
             self.news_client = NewsClient(
-                after_market_config.get("news_api_url", "https://www.life233.top"),
-                after_market_config.get("news_api_username", "admin"),
-                after_market_config.get("news_api_password", "aa123aaqqA@")
+                after_market_config.get("news_api_url"),
+                after_market_config.get("news_api_username"),
+                after_market_config.get("news_api_password")
             )
         
         if self.llm_client is None:
@@ -76,12 +76,10 @@ class PreCacheJob:
             logger.info("Step 1: Pre-caching news data...")
             news = self._fetch_news(date_str)
             logger.info(f"News data cached: {len(news)} items")
-            
             # 2. 预缓存新闻分析结果
             logger.info("Step 2: Pre-caching news analysis...")
             news_analysis = self._analyze_news(news, max_retries=10)
             logger.info(f"News analysis cached: {news_analysis}")
-            
             # 3. 预缓存股票数据（使用新闻分析结果）
             logger.info("Step 3: Pre-caching stock data...")
             data = self.akshare_client.format_dingtalk(news_analysis=news_analysis, llm_client=self.llm_client) 

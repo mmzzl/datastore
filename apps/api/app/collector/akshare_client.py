@@ -93,4 +93,4 @@ class AkshareClient:
                     'close': row.get('close', 0)
                 }
         logger.info(f"brief: {brief}, stock_info: {stock_info}")
-        return DingTalkFormatter.format(brief, stock_info)
+        return DingTalkFormatter.format(brief, stock_info, news_analysis=news_analysis)

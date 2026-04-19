@@ -121,9 +121,8 @@ class StockMonitor:
                 code=stock_code,
                 start_date=start_date,
                 end_date=end_date,
-                provider="tdx"
+                provider="mongodb"
             )
-            
             if not klines:
                 logger.warning(f"Failed to get history data for {stock_code}")
                 return {}
@@ -441,7 +440,6 @@ class StockMonitor:
         """
         results = []
         stocks = self.monitor_config.get_stocks()
-        
         for stock_config in stocks:
             logger.info(f"Monitoring stock: {stock_config.get('name', stock_config.get('code'))}")
             result = self.analyze_stock(stock_config)

@@ -480,8 +480,7 @@ class MongoStorage:
             self.roles_collection.create_index("role_id", unique=True)
             logger.info("Roles collection indexes created")
         except PyMongoError as e:
-            logger.error(f"Create roles indexes failed: {e}")
-            raise
+            logger.warning(f"Create roles indexes skipped: {e}")
 
     def _create_signal_indexes(self):
         if self.watch_list_collection is None or self.market_signals_collection is None:
@@ -491,8 +490,7 @@ class MongoStorage:
             self.market_signals_collection.create_index([("symbol", 1), ("timestamp", -1)])
             logger.info("Signal and Watchlist indexes created")
         except PyMongoError as e:
-            logger.error(f"Create signal indexes failed: {e}")
-            raise
+            logger.warning(f"Create signal indexes skipped: {e}")
 
 
     def get_user_by_username(self, username: str) -> Optional[Dict[str, Any]]:
