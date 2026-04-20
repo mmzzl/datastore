@@ -11,7 +11,30 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-_data_manager = DataSourceManager()
+
+def _get_data_manager() -> DataSourceManager:
+    """获取 DataSourceManager 单例，如果 MongoDB adapter 未初始化则尝试重新初始化"""
+    global _data_manager, _adapter_ok
+    if _data_manager is None:
+        _data_manager = DataSourceManager()
+        _adapter_ok = False
+    if not _adapter_ok:
+        adapter = _data_manager.get_adapter("mongodb")
+        if adapter and adapter.storage:
+            _adapter_ok = True
+        else:
+            try:
+                adapter._init_storage()
+                if adapter and adapter.storage:
+                    _adapter_ok = True
+                    logger.info("MongoDB adapter re-initialized successfully")
+            except Exception as e:
+                logger.warning(f"MongoDB adapter re-init failed: {e}")
+    return _data_manager
+
+
+_data_manager = None
+_adapter_ok = False
 
 
 class HoldingInput(BaseModel):
@@ -33,7 +56,7 @@ def get_holdings(
             status_code=status.HTTP_403_FORBIDDEN, detail="无权限访问此持仓"
         )
     try:
-        adapter = _data_manager.get_adapter("mongodb")
+        adapter = _get_data_manager().get_adapter("mongodb")
         if adapter and hasattr(adapter, "get_holdings"):
             return adapter.get_holdings(user_id, page, page_size)
         return {
@@ -59,13 +82,12 @@ def get_holdings_history(
     user_id: str,
     current_user: AuthenticatedUser = Depends(require_permission("holdings:view"))
 ):
-    """获取用户的持仓历史，包括已卖出的"""
     if current_user.user_id != user_id and not current_user.is_superuser:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="无权限访问此持仓"
         )
     try:
-        adapter = _data_manager.get_adapter("mongodb")
+        adapter = _get_data_manager().get_adapter("mongodb")
         if adapter and hasattr(adapter, "get_holdings_history"):
             return adapter.get_holdings_history(user_id) or []
         return []
@@ -84,7 +106,7 @@ def upsert_holding(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="无权限访问此持仓"
         )
-    adapter = _data_manager.get_adapter("mongodb")
+    adapter = _get_data_manager().get_adapter("mongodb")
     if not adapter:
         return {"holding_id": None, "success": False}
 
@@ -111,7 +133,7 @@ def remove_holding(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="无权限访问此持仓"
         )
-    adapter = _data_manager.get_adapter("mongodb")
+    adapter = _get_data_manager().get_adapter("mongodb")
     if not adapter:
         raise HTTPException(status_code=500, detail="MongoDB adapter not available")
     count = adapter.remove_holding(user_id, code)
@@ -130,7 +152,7 @@ def get_transactions(
 ):
     if current_user.user_id != user_id and not current_user.is_superuser:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权限访问")
-    adapter = _data_manager.get_adapter("mongodb")
+    adapter = _get_data_manager().get_adapter("mongodb")
     if not adapter:
         raise HTTPException(status_code=500, detail="MongoDB adapter not available")
     result = adapter.get_transactions(user_id, code, page, page_size)
@@ -153,7 +175,7 @@ def get_realized_pnl(
 ):
     if current_user.user_id != user_id and not current_user.is_superuser:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权限访问")
-    adapter = _data_manager.get_adapter("mongodb")
+    adapter = _get_data_manager().get_adapter("mongodb")
     if not adapter:
         raise HTTPException(status_code=500, detail="MongoDB adapter not available")
     return adapter.calculate_realized_pnl(user_id, code)
@@ -167,7 +189,7 @@ def delete_transaction(
 ):
     if current_user.user_id != user_id and not current_user.is_superuser:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权限访问")
-    adapter = _data_manager.get_adapter("mongodb")
+    adapter = _get_data_manager().get_adapter("mongodb")
     if not adapter:
         raise HTTPException(status_code=500, detail="MongoDB adapter not available")
     try:
@@ -195,8 +217,10 @@ def portfolio(
     _req: Optional[PortfolioRequest] = None,
     current_user: AuthenticatedUser = Depends(require_permission("holdings:view")),
 ):
+    dm = _get_data_manager()
+
     def price_fetcher(code: str) -> float:
-        data = _data_manager.get_realtime_data(code)
+        data = dm.get_realtime_data(code)
         if isinstance(data, dict):
             return float(data.get("price", 0.0) or 0.0)
         return 0.0
@@ -206,9 +230,9 @@ def portfolio(
             status_code=status.HTTP_403_FORBIDDEN, detail="无权限访问此持仓"
         )
 
-    summary = _data_manager.get_portfolio_summary(user_id, price_fetcher)
+    summary = dm.get_portfolio_summary(user_id, price_fetcher)
 
-    mongodb_adapter = _data_manager.get_adapter("mongodb")
+    mongodb_adapter = dm.get_adapter("mongodb")
     if mongodb_adapter:
         pnl_data = mongodb_adapter.calculate_realized_pnl(user_id)
         summary["realized_pnl"] = pnl_data.get("realized_pnl", 0.0)
