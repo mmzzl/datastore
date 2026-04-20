@@ -1040,54 +1040,58 @@ def _fetch_realtime_prices(codes: List[str]) -> Dict[str, Dict[str, Any]]:
             tencent_code = f"sh{pure_code}"
         code_map[tencent_code] = code
 
-    # Try Tencent API first (supports batch query)
-    tencent_codes = [f"s_{c}" for c in code_map.keys()]
-    tencent_url = f"http://qt.gtimg.cn/q={','.join(tencent_codes)}"
-    try:
-        headers = {"User-Agent": "Mozilla/5.0"}
-        resp = requests.get(tencent_url, headers=headers, timeout=10)
-        resp.encoding = "gbk"
+        # Try Tencent API first (supports batch query)
+        # Use full format (no s_ prefix) to get complete fields
+        tencent_codes = list(code_map.keys())
+        tencent_url = f"http://qt.gtimg.cn/q={','.join(tencent_codes)}"
+        try:
+            headers = {"User-Agent": "Mozilla/5.0"}
+            resp = requests.get(tencent_url, headers=headers, timeout=10)
+            resp.encoding = "gbk"
 
-        if resp.status_code == 200:
-            for line in resp.text.strip().split("\n"):
-                if "=" not in line:
-                    continue
-                try:
-                    var_part, data_part = line.split('="')
-                    tencent_code = var_part.replace("v_s_", "").replace('"', "")
-                    data = data_part.rstrip('";').split("~")
-                    if len(data) < 10:
+            if resp.status_code == 200:
+                for line in resp.text.strip().split("\n"):
+                    if "=" not in line:
                         continue
+                    try:
+                        var_part, data_part = line.split('="')
+                        tencent_code = var_part.replace("v_", "").replace('"', "")
+                        data = data_part.rstrip('";').split("~")
+                        if len(data) < 35:
+                            continue
 
-                    original_code = code_map.get(tencent_code, tencent_code)
-                    name = data[1]
-                    price = float(data[3]) if data[3] else 0.0
-                    prev_close = float(data[4]) if data[4] else 0.0
-                    change = float(data[5]) if data[5] else 0.0
-                    change_pct = float(data[6]) if data[6] else 0.0
-                    volume = int(float(data[7])) if data[7] else 0
-                    amount = float(data[8]) if data[8] else 0.0
+                        original_code = code_map.get(tencent_code, tencent_code)
+                        name = data[1]
+                        price = float(data[3]) if data[3] else 0.0
+                        prev_close = float(data[4]) if data[4] else 0.0
+                        open_price = float(data[5]) if data[5] else 0.0
+                        volume = int(float(data[6])) if data[6] else 0
+                        high = float(data[33]) if len(data) > 33 and data[33] else 0.0
+                        low = float(data[34]) if len(data) > 34 and data[34] else 0.0
+                        amount = float(data[37]) * 10000 if len(data) > 37 and data[37] else 0.0
+                        change_pct = float(data[32]) if len(data) > 32 and data[32] else (round((price - prev_close) / prev_close * 100, 2) if prev_close > 0 else 0.0)
+                        change = round(price - prev_close, 2) if prev_close > 0 else 0.0
 
-                    if price > 0:
-                        result[original_code] = {
-                            "code": original_code,
-                            "name": name,
-                            "price": price,
-                            "open": 0,
-                            "high": 0,
-                            "low": 0,
-                            "prev_close": prev_close,
-                            "volume": volume,
-                            "amount": amount,
-                            "change": round(change, 2),
-                            "change_pct": round(change_pct, 2),
-                            "time": datetime.now().isoformat(),
-                            "source": "tencent",
-                        }
-                except (ValueError, IndexError) as e:
-                    logger.warning(f"解析腾讯数据失败: {line}, error: {e}")
-    except Exception as e:
-        logger.warning(f"腾讯API请求失败: {e}")
+                        if price > 0:
+                            result[original_code] = {
+                                "code": original_code,
+                                "name": name,
+                                "price": price,
+                                "open": open_price,
+                                "high": high,
+                                "low": low,
+                                "prev_close": prev_close,
+                                "volume": volume,
+                                "amount": amount,
+                                "change": round(change, 2),
+                                "change_pct": round(change_pct, 2),
+                                "time": datetime.now().isoformat(),
+                                "source": "tencent",
+                            }
+                    except (ValueError, IndexError) as e:
+                        logger.warning(f"解析腾讯数据失败: {line}, error: {e}")
+        except Exception as e:
+            logger.warning(f"腾讯API请求失败: {e}")
 
     # Try Sina API for missing codes
     missing_codes = [c for c in codes if c not in result]
