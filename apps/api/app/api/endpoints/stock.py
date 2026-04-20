@@ -1014,7 +1014,7 @@ def _get_prev_close_from_db(code: str) -> Optional[float]:
 
 
 def _fetch_realtime_prices(codes: List[str]) -> Dict[str, Dict[str, Any]]:
-    """从新浪获取实时股票价格，如果为0则从MongoDB获取昨日收盘价"""
+    """从腾讯/新浪/通达信获取实时股票价格"""
     import requests
 
     global _realtime_price_cache, _price_cache_time
@@ -1026,91 +1026,186 @@ def _fetch_realtime_prices(codes: List[str]) -> Dict[str, Dict[str, Any]]:
     if not codes:
         return {}
 
+    result = {}
+
+    # Build code mapping
     code_map = {}
-    sina_codes = []
     for code in codes:
         pure_code = code.split("SZ")[-1].split("SH")[-1].split("sz")[-1].split("sh")[-1]
         if code.upper().startswith("SH") or pure_code.startswith("6"):
-            sina_code = f"sh{pure_code}"
+            tencent_code = f"sh{pure_code}"
         elif code.upper().startswith("SZ") or pure_code.startswith(("0", "3")):
-            sina_code = f"sz{pure_code}"
+            tencent_code = f"sz{pure_code}"
         else:
-            sina_code = f"sh{pure_code}"
-        sina_codes.append(sina_code)
-        code_map[sina_code] = code
+            tencent_code = f"sh{pure_code}"
+        code_map[tencent_code] = code
 
-    url = f"https://hq.sinajs.cn/list={','.join(sina_codes)}"
-
+    # Try Tencent API first (supports batch query)
+    tencent_codes = [f"s_{c}" for c in code_map.keys()]
+    tencent_url = f"http://qt.gtimg.cn/q={','.join(tencent_codes)}"
     try:
-        headers = {
-            "Referer": "https://finance.sina.com.cn/",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        }
-        resp = requests.get(url, headers=headers, timeout=10)
+        headers = {"User-Agent": "Mozilla/5.0"}
+        resp = requests.get(tencent_url, headers=headers, timeout=10)
         resp.encoding = "gbk"
 
-        result = {}
-        for line in resp.text.strip().split("\n"):
-            if "=" not in line or '""' in line:
-                continue
-            try:
-                var_part, data_part = line.split('="')
-                sina_code = var_part.split("_")[-1].replace('"', "")
-                data = data_part.rstrip('";').split(",")
-                if len(data) < 32:
+        if resp.status_code == 200:
+            for line in resp.text.strip().split("\n"):
+                if "=" not in line:
                     continue
+                try:
+                    var_part, data_part = line.split('="')
+                    tencent_code = var_part.replace("v_s_", "").replace('"', "")
+                    data = data_part.rstrip('";').split("~")
+                    if len(data) < 10:
+                        continue
 
-                original_code = code_map.get(sina_code, sina_code)
-                price = float(data[3]) if data[3] else 0.0
-                prev_close = float(data[2]) if data[2] else 0.0
-                open_price = float(data[1]) if data[1] else 0.0
-                high = float(data[4]) if data[4] else 0.0
-                low = float(data[5]) if data[5] else 0.0
-                volume = int(data[8]) if data[8] else 0
-                amount = float(data[9]) if data[9] else 0.0
+                    original_code = code_map.get(tencent_code, tencent_code)
+                    name = data[1]
+                    price = float(data[3]) if data[3] else 0.0
+                    prev_close = float(data[4]) if data[4] else 0.0
+                    change = float(data[5]) if data[5] else 0.0
+                    change_pct = float(data[6]) if data[6] else 0.0
+                    volume = int(float(data[7])) if data[7] else 0
+                    amount = float(data[8]) if data[8] else 0.0
 
-                if price == 0 or prev_close == 0:
-                    db_close = _get_prev_close_from_db(original_code)
-                    if db_close:
-                        if price == 0:
-                            price = db_close
-                        if prev_close == 0:
-                            prev_close = db_close
-                        high = max(high, price) if high > 0 else price
-                        low = min(low, price) if low > 0 else price
-
-                change = price - prev_close if prev_close > 0 else 0
-                change_pct = (change / prev_close * 100) if prev_close > 0 else 0
-
-                result[original_code] = {
-                    "code": original_code,
-                    "name": data[0],
-                    "price": price,
-                    "open": open_price,
-                    "high": high,
-                    "low": low,
-                    "prev_close": prev_close,
-                    "volume": volume,
-                    "amount": amount,
-                    "change": round(change, 2),
-                    "change_pct": round(change_pct, 2),
-                    "time": datetime.now().isoformat(),
-                    "source": "sina" if price > 0 else "mongodb",
-                }
-            except (ValueError, IndexError) as e:
-                logger.warning(f"解析股票数据失败: {line}, error: {e}")
-                continue
-
-        _realtime_price_cache = result
-        _price_cache_time = now
-        return result
-
+                    if price > 0:
+                        result[original_code] = {
+                            "code": original_code,
+                            "name": name,
+                            "price": price,
+                            "open": 0,
+                            "high": 0,
+                            "low": 0,
+                            "prev_close": prev_close,
+                            "volume": volume,
+                            "amount": amount,
+                            "change": round(change, 2),
+                            "change_pct": round(change_pct, 2),
+                            "time": datetime.now().isoformat(),
+                            "source": "tencent",
+                        }
+                except (ValueError, IndexError) as e:
+                    logger.warning(f"解析腾讯数据失败: {line}, error: {e}")
     except Exception as e:
-        logger.error(f"获取实时价格失败: {e}")
-        return _realtime_price_cache
+        logger.warning(f"腾讯API请求失败: {e}")
 
-    if not codes:
-        return {}
+    # Try Sina API for missing codes
+    missing_codes = [c for c in codes if c not in result]
+    if missing_codes:
+        sina_codes = []
+        sina_code_map = {}
+        for code in missing_codes:
+            pure_code = code.split("SZ")[-1].split("SH")[-1].split("sz")[-1].split("sh")[-1]
+            if pure_code.startswith("6"):
+                sina_code = f"sh{pure_code}"
+            elif pure_code.startswith(("0", "3")):
+                sina_code = f"sz{pure_code}"
+            else:
+                sina_code = f"sh{pure_code}"
+            sina_codes.append(sina_code)
+            sina_code_map[sina_code] = code
+
+        sina_url = f"https://hq.sinajs.cn/list={','.join(sina_codes)}"
+        try:
+            headers = {
+                "Referer": "https://finance.sina.com.cn/",
+                "User-Agent": "Mozilla/5.0",
+            }
+            resp = requests.get(sina_url, headers=headers, timeout=10)
+            resp.encoding = "gbk"
+
+            if resp.status_code == 200:
+                for line in resp.text.strip().split("\n"):
+                    if "=" not in line or '""' in line:
+                        continue
+                    try:
+                        var_part, data_part = line.split('="')
+                        sina_code = var_part.split("_")[-1].replace('"', "")
+                        data = data_part.rstrip('";').split(",")
+                        if len(data) < 32:
+                            continue
+
+                        original_code = sina_code_map.get(sina_code, sina_code)
+                        price = float(data[3]) if data[3] else 0.0
+                        prev_close = float(data[2]) if data[2] else 0.0
+
+                        if price > 0:
+                            change = price - prev_close if prev_close > 0 else 0
+                            change_pct = (change / prev_close * 100) if prev_close > 0 else 0
+                            result[original_code] = {
+                                "code": original_code,
+                                "name": data[0],
+                                "price": price,
+                                "open": float(data[1]) if data[1] else 0.0,
+                                "high": float(data[4]) if data[4] else 0.0,
+                                "low": float(data[5]) if data[5] else 0.0,
+                                "prev_close": prev_close,
+                                "volume": int(data[8]) if data[8] else 0,
+                                "amount": float(data[9]) if data[9] else 0.0,
+                                "change": round(change, 2),
+                                "change_pct": round(change_pct, 2),
+                                "time": datetime.now().isoformat(),
+                                "source": "sina",
+                            }
+                    except (ValueError, IndexError) as e:
+                        logger.warning(f"解析新浪数据失败: {line}, error: {e}")
+        except Exception as e:
+            logger.warning(f"新浪API请求失败: {e}")
+
+    # Try TDX adapter for remaining missing codes
+    missing_codes = [c for c in codes if c not in result]
+    if missing_codes:
+        try:
+            from app.data_source.adapters.tdx_adapter import TdxAdapter
+            tdx = TdxAdapter()
+            for code in missing_codes:
+                try:
+                    rt_data = tdx.get_realtime_data(code)
+                    if rt_data and rt_data.get("price", 0) > 0:
+                        result[code] = {
+                            "code": code,
+                            "name": rt_data.get("name", ""),
+                            "price": rt_data["price"],
+                            "open": rt_data.get("open", 0),
+                            "high": rt_data.get("high", 0),
+                            "low": rt_data.get("low", 0),
+                            "prev_close": rt_data.get("last_close", rt_data["price"]),
+                            "volume": rt_data.get("volume", 0),
+                            "amount": rt_data.get("amount", 0),
+                            "change": rt_data.get("change", 0),
+                            "change_pct": rt_data.get("change_pct", 0),
+                            "time": datetime.now().isoformat(),
+                            "source": "tdx",
+                        }
+                except Exception as ex:
+                    logger.warning(f"TDX获取 {code} 失败: {ex}")
+        except Exception as e:
+            logger.warning(f"TDX adapter初始化失败: {e}")
+
+    # Final fallback: MongoDB
+    for code in codes:
+        if code not in result:
+            db_close = _get_prev_close_from_db(code)
+            if db_close:
+                result[code] = {
+                    "code": code,
+                    "name": "",
+                    "price": db_close,
+                    "open": db_close,
+                    "high": db_close,
+                    "low": db_close,
+                    "prev_close": db_close,
+                    "volume": 0,
+                    "amount": 0,
+                    "change": 0,
+                    "change_pct": 0,
+                    "time": datetime.now().isoformat(),
+                    "source": "mongodb",
+                }
+
+    _realtime_price_cache = result
+    _price_cache_time = now
+    return result
 
     code_map = {}
     sina_codes = []
