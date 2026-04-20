@@ -1156,8 +1156,8 @@ def _fetch_realtime_prices(codes: List[str]) -> Dict[str, Dict[str, Any]]:
     missing_codes = [c for c in codes if c not in result]
     if missing_codes:
         try:
-            from app.data_source.adapters.tdx_adapter import TdxAdapter
-            tdx = TdxAdapter()
+            from app.data_source.adapters.tdx_adapter import TDXAdapter
+            tdx = TDXAdapter()
             for code in missing_codes:
                 try:
                     rt_data = tdx.get_realtime_data(code)
