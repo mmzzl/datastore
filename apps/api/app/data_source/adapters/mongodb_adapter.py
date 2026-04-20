@@ -802,8 +802,51 @@ class MongoDBAdapter(IDataSource):
     def calculate_realized_pnl(
         self, user_id: str, code: Optional[str] = None
     ) -> Dict[str, float]:
-        """计算已实现盈亏（移动平均法，与东方财富一致）"""
+        """计算已实现盈亏（按股票代码分别移动平均法，与东方财富一致）"""
         if not self.storage:
+            return {
+                "realized_pnl": 0.0,
+                "total_sell_value": 0.0,
+                "total_sell_cost": 0.0,
+            }
+        try:
+            transactions = self.get_transactions(user_id, code).get("items", [])
+            total_sell_value = 0.0
+            total_sell_cost = 0.0
+
+            per_stock: Dict[str, Dict[str, float]] = {}
+
+            for tx in sorted(transactions, key=lambda x: x["created_at"]):
+                tx_code = tx.get("code", "")
+                if tx_code not in per_stock:
+                    per_stock[tx_code] = {"qty": 0, "cost": 0.0}
+                stock = per_stock[tx_code]
+
+                if tx["type"] == "buy":
+                    buy_qty = tx["quantity"]
+                    buy_price = tx["price"]
+                    if stock["qty"] > 0:
+                        stock["cost"] = (
+                            stock["qty"] * stock["cost"] + buy_qty * buy_price
+                        ) / (stock["qty"] + buy_qty)
+                    else:
+                        stock["cost"] = buy_price
+                    stock["qty"] += buy_qty
+                else:
+                    sell_qty = tx["quantity"]
+                    sell_price = tx["price"]
+                    total_sell_value += sell_qty * sell_price
+                    total_sell_cost += sell_qty * stock["cost"]
+                    stock["qty"] -= sell_qty
+
+            realized_pnl = total_sell_value - total_sell_cost
+            return {
+                "realized_pnl": realized_pnl,
+                "total_sell_value": total_sell_value,
+                "total_sell_cost": total_sell_cost,
+            }
+        except Exception as e:
+            logger.error(f"计算已实现盈亏失败: {e}")
             return {
                 "realized_pnl": 0.0,
                 "total_sell_value": 0.0,
