@@ -45,13 +45,15 @@ class AuthenticatedUser:
 
 
 def get_storage() -> MongoStorage:
-    return MongoStorage(
+    storage = MongoStorage(
         host=settings.mongodb_host,
         port=settings.mongodb_port,
         db_name=settings.mongodb_database,
         username=settings.mongodb_username,
         password=settings.mongodb_password,
     )
+    storage.connect()
+    return storage
 
 
 async def get_current_user(

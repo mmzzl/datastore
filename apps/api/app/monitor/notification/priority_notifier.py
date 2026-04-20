@@ -19,12 +19,14 @@ class PriorityNotifier:
     def send(self, alert_signal: AlertSignal):
         priority = alert_signal.priority
 
+        signal_value = alert_signal.signal.value if hasattr(alert_signal.signal, 'value') else str(alert_signal.signal)
+
         payload = NotificationPayload(
             title=self._get_title(alert_signal),
             body="\n".join(alert_signal.reasons),
             level=priority,
             code=alert_signal.code,
-            signal=alert_signal.signal.value,
+            signal=signal_value,
             confidence=alert_signal.confidence,
             price=alert_signal.price,
             reasons=alert_signal.reasons,
@@ -43,10 +45,11 @@ class PriorityNotifier:
             self._send_low(payload, alert_signal)
 
     def _get_title(self, sig: AlertSignal) -> str:
+        signal_val = sig.signal.value if hasattr(sig.signal, 'value') else str(sig.signal)
         action = (
             "买入"
-            if sig.signal == SignalType.BUY
-            else ("卖出" if sig.signal == SignalType.SELL else "观望")
+            if signal_val == "buy"
+            else ("卖出" if signal_val == "sell" else "观望")
         )
         return f"{sig.name} {action}信号"
 
