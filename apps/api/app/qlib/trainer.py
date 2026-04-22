@@ -250,10 +250,11 @@ class QlibTrainer:
         try:
             import qlib
             from qlib.config import REG_CN
-            
+            from .config import QlibConfig
+
             if not hasattr(qlib, '_initialized') or not qlib._initialized:
                 qlib.init(
-                    provider_uri="~/.qlib/qlib_data/cn_data",
+                    provider_uri=QlibConfig.provider_uri,
                     region=REG_CN,
                     verbose=False,
                 )
@@ -332,6 +333,171 @@ class QlibTrainer:
         from qlib.data.dataset import DatasetH
         return dataset.prepare("test", col_set=["feature", "label"], data_key=DatasetH.DK_L)
     
+    def _calculate_rank_ic(self, predictions: pd.Series, labels: Any) -> float:
+        """Calculate Spearman Rank IC between predictions and labels.
+
+        Args:
+            predictions: Prediction scores
+            labels: True labels
+
+        Returns:
+            Spearman rank correlation coefficient
+        """
+        try:
+            from scipy.stats import spearmanr
+
+            if isinstance(labels, pd.DataFrame):
+                labels_series = labels.iloc[:, 0] if len(labels.columns) > 0 else pd.Series()
+            else:
+                labels_series = pd.Series(labels)
+
+            aligned_pred = predictions.dropna()
+            aligned_labels = labels_series.dropna()
+
+            common_index = aligned_pred.index.intersection(aligned_labels.index)
+
+            if len(common_index) == 0:
+                return 0.0
+
+            pred_aligned = aligned_pred.loc[common_index]
+            label_aligned = aligned_labels.loc[common_index]
+
+            rank_ic, _ = spearmanr(pred_aligned, label_aligned)
+            return float(rank_ic) if not np.isnan(rank_ic) else 0.0
+
+        except Exception:
+            return 0.0
+
+    def _calculate_icir(self, predictions: pd.Series, labels: Any) -> float:
+        """Calculate ICIR (mean IC / std IC over time periods).
+
+        Computes Spearman IC per cross-sectional time period,
+        then returns the ratio of mean IC to std IC.
+
+        Args:
+            predictions: Prediction scores with MultiIndex (datetime, instrument)
+            labels: True labels
+
+        Returns:
+            ICIR value. Returns 0.0 if fewer than 10 time periods.
+        """
+        try:
+            from scipy.stats import spearmanr
+
+            if isinstance(labels, pd.DataFrame):
+                labels_series = labels.iloc[:, 0] if len(labels.columns) > 0 else pd.Series()
+            else:
+                labels_series = pd.Series(labels)
+
+            aligned_pred = predictions.dropna()
+            aligned_labels = labels_series.dropna()
+            common_index = aligned_pred.index.intersection(aligned_labels.index)
+
+            if len(common_index) == 0:
+                return 0.0
+
+            pred_aligned = aligned_pred.loc[common_index]
+            label_aligned = aligned_labels.loc[common_index]
+
+            if not isinstance(pred_aligned.index, pd.MultiIndex):
+                return 0.0
+
+            period_ics = []
+            for date in pred_aligned.index.get_level_values(0).unique():
+                try:
+                    pred_slice = pred_aligned.loc[date]
+                    label_slice = label_aligned.loc[date]
+
+                    if isinstance(pred_slice, pd.Series) and isinstance(label_slice, pd.Series):
+                        common = pred_slice.index.intersection(label_slice.index)
+                        if len(common) >= 5:
+                            ic_val, _ = spearmanr(
+                                pred_slice.loc[common],
+                                label_slice.loc[common],
+                            )
+                            if not np.isnan(ic_val):
+                                period_ics.append(ic_val)
+                except Exception:
+                    continue
+
+            if len(period_ics) < 10:
+                return 0.0
+
+            mean_ic = np.mean(period_ics)
+            std_ic = np.std(period_ics, ddof=1)
+
+            if std_ic == 0:
+                return 0.0
+
+            return float(mean_ic / std_ic)
+
+        except Exception:
+            return 0.0
+
+    def _calculate_long_short_return(self, predictions: pd.Series, labels: Any) -> float:
+        """Calculate long-short return from quintile groups.
+
+        Groups stocks by prediction quintile per time period, then
+        computes the return of the top quintile minus the bottom quintile.
+
+        Args:
+            predictions: Prediction scores with MultiIndex (datetime, instrument)
+            labels: True labels (future returns)
+
+        Returns:
+            Average long-short return across time periods
+        """
+        try:
+            if isinstance(labels, pd.DataFrame):
+                labels_series = labels.iloc[:, 0] if len(labels.columns) > 0 else pd.Series()
+            else:
+                labels_series = pd.Series(labels)
+
+            aligned_pred = predictions.dropna()
+            aligned_labels = labels_series.dropna()
+            common_index = aligned_pred.index.intersection(aligned_labels.index)
+
+            if len(common_index) == 0:
+                return 0.0
+
+            pred_aligned = aligned_pred.loc[common_index]
+            label_aligned = aligned_labels.loc[common_index]
+
+            if not isinstance(pred_aligned.index, pd.MultiIndex):
+                return 0.0
+
+            period_ls_returns = []
+            for date in pred_aligned.index.get_level_values(0).unique():
+                try:
+                    pred_slice = pred_aligned.loc[date]
+                    label_slice = label_aligned.loc[date]
+
+                    if isinstance(pred_slice, pd.Series) and isinstance(label_slice, pd.Series):
+                        common = pred_slice.index.intersection(label_slice.index)
+                        if len(common) >= 10:
+                            pred_rank = pred_slice.loc[common].rank(pct=True)
+                            label_vals = label_slice.loc[common]
+
+                            top_mask = pred_rank >= 0.8
+                            bottom_mask = pred_rank <= 0.2
+
+                            if top_mask.sum() > 0 and bottom_mask.sum() > 0:
+                                top_return = label_vals[top_mask].mean()
+                                bottom_return = label_vals[bottom_mask].mean()
+                                ls_return = top_return - bottom_return
+                                if not np.isnan(ls_return):
+                                    period_ls_returns.append(ls_return)
+                except Exception:
+                    continue
+
+            if len(period_ls_returns) == 0:
+                return 0.0
+
+            return float(np.mean(period_ls_returns))
+
+        except Exception:
+            return 0.0
+
     def _calculate_metrics(self, predictions: Any, test_data: Any) -> Dict[str, float]:
         """Calculate model metrics."""
         try:
@@ -351,6 +517,9 @@ class QlibTrainer:
             metrics = {
                 "sharpe_ratio": self._estimate_sharpe_ratio(aligned_pred),
                 "ic": self._calculate_ic(aligned_pred, labels),
+                "rank_ic": self._calculate_rank_ic(aligned_pred, labels),
+                "icir": self._calculate_icir(pred_series, test_data),
+                "long_short_return": self._calculate_long_short_return(pred_series, test_data),
                 "num_predictions": len(aligned_pred),
             }
             
@@ -358,7 +527,7 @@ class QlibTrainer:
             
         except Exception as e:
             logger.error(f"Error calculating metrics: {e}")
-            return {"sharpe_ratio": 0.0, "ic": 0.0, "num_predictions": 0}
+            return {"sharpe_ratio": 0.0, "ic": 0.0, "rank_ic": 0.0, "icir": 0.0, "long_short_return": 0.0, "num_predictions": 0}
     
     def _estimate_sharpe_ratio(self, predictions: pd.Series) -> float:
         """Estimate Sharpe ratio from predictions."""
