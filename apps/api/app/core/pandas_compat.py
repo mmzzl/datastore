@@ -36,14 +36,13 @@ def _patched_fillna(
         else:
             raise ValueError(f"Invalid fillna method: {method}")
     
-    # Call original fillna without method parameter
+    # Call original fillna without method/downcast parameters (removed in pandas 3.0+)
     return _original_fillna(
         self,
         value=value,
         axis=axis,
         inplace=inplace,
         limit=limit,
-        downcast=downcast,
     )
 
 
