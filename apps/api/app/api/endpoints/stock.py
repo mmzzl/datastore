@@ -932,47 +932,7 @@ def search_stock(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/search")
-def search_stock(
-    q: str = Query(..., min_length=1, description="搜索关键词"),
-    limit: int = Query(20, ge=1, le=100, description="返回数量"),
-):
-    """
-    快速搜索股票/指数/ETF
 
-    简化的搜索接口，用于自动补全等场景
-
-    参数:
-    q: 搜索关键词
-    limit: 返回数量 (1-100)
-
-    返回:
-    匹配的列表(优先返回代码匹配的结果)
-    """
-    try:
-        data = _load_stock_list()
-
-        all_items = data["stocks"] + data["indices"] + data["etfs"]
-
-        q_lower = q.lower()
-
-        code_matches = []
-        name_matches = []
-
-        for item in all_items:
-            if q_lower == item["pure_code"].lower()[: len(q_lower)]:
-                code_matches.append(item)
-            elif q_lower in item["name"].lower():
-                name_matches.append(item)
-
-        results = code_matches + name_matches
-        results = results[:limit]
-
-        return {"success": True, "query": q, "count": len(results), "data": results}
-
-    except Exception as e:
-        logger.error(f"搜索股票失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 _realtime_price_cache: Dict[str, Dict[str, Any]] = {}
