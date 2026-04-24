@@ -7,6 +7,7 @@ from app.monitor.models.notification_config import (
     NotificationPayload,
     NotificationLevel,
 )
+from app.notify.dedup_filter import NotificationDedupFilter
 
 
 class PriorityNotifier:
@@ -15,11 +16,43 @@ class PriorityNotifier:
         self._logger = logging.getLogger(__name__)
         self._sent_history: Dict[str, datetime] = {}
         self._repeat_history: Dict[str, datetime] = {}
+        self.dedup_filter = NotificationDedupFilter()
 
     def send(self, alert_signal: AlertSignal):
-        priority = alert_signal.priority
-
         signal_value = alert_signal.signal.value if hasattr(alert_signal.signal, 'value') else str(alert_signal.signal)
+
+        ok, resolved_signal = self.dedup_filter.should_send(
+            alert_signal.code, signal_value, alert_signal.reasons
+        )
+        if not ok:
+            self._logger.info(f"Notification filtered: {alert_signal.code} -> {resolved_signal}")
+            return
+
+        if resolved_signal != signal_value:
+            alert_signal = AlertSignal(
+                timestamp=alert_signal.timestamp,
+                code=alert_signal.code,
+                name=alert_signal.name,
+                signal=SignalType(resolved_signal),
+                confidence=alert_signal.confidence,
+                priority=alert_signal.priority,
+                reasons=alert_signal.reasons,
+                technical_data=alert_signal.technical_data,
+                market_breadth=alert_signal.market_breadth,
+                correlated_assets=alert_signal.correlated_assets,
+                price=alert_signal.price,
+                volume_ratio=alert_signal.volume_ratio,
+                alert_type=alert_signal.alert_type,
+                strategy_type=alert_signal.strategy_type,
+                action_price=alert_signal.action_price,
+                target_price=alert_signal.target_price,
+                stop_loss=alert_signal.stop_loss,
+            )
+            signal_value = resolved_signal
+
+        self.dedup_filter.record_sent(alert_signal.code, signal_value, alert_signal.reasons)
+
+        priority = alert_signal.priority
 
         payload = NotificationPayload(
             title=self._get_title(alert_signal),
@@ -32,7 +65,7 @@ class PriorityNotifier:
             reasons=alert_signal.reasons,
             action_price=alert_signal.action_price,
             target_price=alert_signal.target_price,
-            stop_loss=alert_signal.stop_loss,
+            stop_loss=alert_signal.stop_price if hasattr(alert_signal, 'stop_price') else alert_signal.stop_loss,
         )
 
         if priority == "critical":

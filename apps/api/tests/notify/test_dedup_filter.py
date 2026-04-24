@@ -137,3 +137,69 @@ class TestDedupKeyGeneration:
         key1 = filter_instance._make_dedup_key("SH600519", "buy", ["RSI", "MACD"])
         key2 = filter_instance._make_dedup_key("SH600519", "buy", ["MACD", "RSI"])
         assert key1 == key2
+
+
+class TestPriorityNotifierIntegration:
+    def test_no_code_signal_skipped(self):
+        from app.monitor.models.alert_signal import AlertSignal, SignalType
+        from app.monitor.notification.priority_notifier import PriorityNotifier
+
+        notifier = PriorityNotifier(dingtalk_client=None)
+        sig = AlertSignal(
+            timestamp=datetime.now(),
+            code="",
+            name="",
+            signal=SignalType.BUY,
+            confidence=0.8,
+            priority="high",
+            reasons=["test"],
+        )
+        with patch.object(notifier, "dedup_filter") as mock_filter:
+            mock_filter.should_send.return_value = (False, "no_stock_code")
+            mock_filter.record_sent = MagicMock()
+            notifier._send_high = MagicMock()
+            notifier.send(sig)
+            notifier._send_high.assert_not_called()
+
+    def test_duplicate_signal_skipped(self):
+        from app.monitor.models.alert_signal import AlertSignal, SignalType
+        from app.monitor.notification.priority_notifier import PriorityNotifier
+
+        notifier = PriorityNotifier(dingtalk_client=None)
+        sig = AlertSignal(
+            timestamp=datetime.now(),
+            code="SH600519",
+            name="贵州茅台",
+            signal=SignalType.BUY,
+            confidence=0.8,
+            priority="high",
+            reasons=["RSI oversold"],
+        )
+        with patch.object(notifier, "dedup_filter") as mock_filter:
+            mock_filter.should_send.return_value = (False, "duplicate")
+            mock_filter.record_sent = MagicMock()
+            notifier._send_high = MagicMock()
+            notifier.send(sig)
+            notifier._send_high.assert_not_called()
+
+    def test_delisted_buy_converted_and_sent(self):
+        from app.monitor.models.alert_signal import AlertSignal, SignalType
+        from app.monitor.notification.priority_notifier import PriorityNotifier
+
+        notifier = PriorityNotifier(dingtalk_client=None)
+        sig = AlertSignal(
+            timestamp=datetime.now(),
+            code="SH600519",
+            name="贵州茅台",
+            signal=SignalType.BUY,
+            confidence=0.8,
+            priority="high",
+            reasons=["新闻命中关键词「退市」"],
+        )
+        with patch.object(notifier, "dedup_filter") as mock_filter:
+            mock_filter.should_send.return_value = (True, "sell")
+            mock_filter.record_sent = MagicMock()
+            dingtalk = MagicMock()
+            notifier._dingtalk = dingtalk
+            notifier.send(sig)
+            assert mock_filter.record_sent.called
