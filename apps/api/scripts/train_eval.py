@@ -21,10 +21,13 @@ import argparse
 import asyncio
 import itertools
 import logging
+import os
 import sys
 import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 logging.basicConfig(
     level=logging.INFO,

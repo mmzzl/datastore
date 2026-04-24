@@ -94,23 +94,35 @@ class QlibPredictor:
                 logger.debug(f"Returning cached prediction for {cache_key}")
                 return cached_result.get("predictions", [])
 
-        model = self.model_manager.load_model(model_id)
-        if model is None:
+        load_result = self.model_manager.load_model(model_id, include_config=True)
+        if load_result is None:
             logger.error(f"Model not found: {model_id}")
             return []
 
-        try:
-            scores = self._generate_predictions(model, instruments, date)
+        model, model_config = load_result
 
-            sorted_scores = scores.sort_values(ascending=False)
+        try:
+            all_scores = self._generate_predictions(model, model_config, instruments, date)
+
+            day_scores = self._filter_scores_by_date(all_scores, date)
+
+            if day_scores.empty:
+                logger.warning(f"No predictions available for date {date}")
+                return []
+
+            sorted_scores = day_scores.sort_values(ascending=False)
 
             top_stocks = sorted_scores.head(min(topk, len(sorted_scores)))
 
             predictions = []
-            for rank, (instrument, score) in enumerate(top_stocks.items(), 1):
+            for rank, (idx, score) in enumerate(top_stocks.items(), 1):
+                if isinstance(idx, tuple):
+                    code = str(idx[-1])
+                else:
+                    code = str(idx)
                 predictions.append({
-                    "code": instrument,
-                    "name": self._get_stock_name(instrument),
+                    "code": code,
+                    "name": self._get_stock_name(code),
                     "score": float(score),
                     "rank": rank,
                 })
@@ -138,32 +150,35 @@ class QlibPredictor:
     def _generate_predictions(
         self,
         model: Any,
+        model_config: Dict[str, Any],
         instruments: List[str],
         date: str,
     ) -> pd.Series:
         """
         Generate prediction scores for instruments.
-        
+
+        Creates a DatasetH with the same handler config used during training,
+        configured to cover the prediction date in the test segment,
+        then calls model.predict(dataset).
+
         Args:
-            model: Loaded Qlib model
+            model: Loaded Qlib model (e.g. LGBModel)
+            model_config: Training config saved with the model
             instruments: List of stock codes
             date: Prediction date
-        
+
         Returns:
             Series of scores indexed by instrument
         """
         try:
-            import qlib
-            from qlib.data.dataset.utils import convert_index_to_str
-            
-            qlib_data = self._prepare_qlib_data(instruments, date)
-            
-            if qlib_data is None or qlib_data.empty:
-                logger.warning(f"No data available for prediction on {date}")
+            dataset = self._create_prediction_dataset(model_config, instruments, date)
+
+            if dataset is None:
+                logger.warning(f"Could not create prediction dataset for {date}")
                 return pd.Series(index=instruments, dtype=float)
-            
-            predictions = model.predict(qlib_data)
-            
+
+            predictions = model.predict(dataset)
+
             if isinstance(predictions, pd.Series):
                 return predictions
             elif isinstance(predictions, pd.DataFrame):
@@ -171,42 +186,129 @@ class QlibPredictor:
             else:
                 logger.warning(f"Unexpected prediction type: {type(predictions)}")
                 return pd.Series(predictions, index=instruments)
-                
+
         except Exception as e:
             logger.error(f"Error generating predictions: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             scores = np.random.uniform(0, 1, len(instruments))
             return pd.Series(scores, index=instruments)
-    
-    def _prepare_qlib_data(
+
+    def _filter_scores_by_date(
         self,
+        scores: pd.Series,
+        date: str,
+    ) -> pd.Series:
+        """Filter prediction scores for a specific date.
+
+        If the scores have a MultiIndex (datetime, instrument),
+        returns the cross-section for the requested date or the
+        closest available date before it.
+
+        Args:
+            scores: Prediction scores with potential MultiIndex
+            date: Target date string (YYYY-MM-DD)
+
+        Returns:
+            Series of scores for the target date, indexed by instrument
+        """
+        if not isinstance(scores.index, pd.MultiIndex):
+            return scores
+
+        target_date = pd.Timestamp(date)
+        available_dates = scores.index.get_level_values(0).unique()
+
+        if target_date in available_dates:
+            day_scores = scores.loc[target_date]
+            if isinstance(day_scores, pd.Series):
+                return day_scores
+
+        closest_date = None
+        for d in available_dates:
+            if d <= target_date:
+                closest_date = d
+            else:
+                break
+
+        if closest_date is not None:
+            day_scores = scores.loc[closest_date]
+            if isinstance(day_scores, pd.Series):
+                logger.info(
+                    f"Using predictions from {closest_date.strftime('%Y-%m-%d')} "
+                    f"for requested date {date}"
+                )
+                return day_scores
+
+        return pd.Series(dtype=float)
+
+    def _create_prediction_dataset(
+        self,
+        model_config: Dict[str, Any],
         instruments: List[str],
         date: str,
-    ) -> Optional[pd.DataFrame]:
-        """
-        Prepare data in Qlib format for prediction.
-        
+    ) -> Optional[Any]:
+        """Create a DatasetH for prediction.
+
+        Builds a dataset with the test segment covering the prediction date,
+        using the same factor handler and instruments as training.
+
         Args:
-            instruments: List of stock codes
-            date: Prediction date
-        
+            model_config: Training config (contains factor_type, start/end times)
+            instruments: Stock codes to predict
+            date: Prediction date (used as start of test segment)
+
         Returns:
-            DataFrame in Qlib format, or None if unavailable
+            DatasetH instance, or None on failure
         """
         try:
             import qlib
-            from qlib.data import D
-            
-            features = D.features(
-                instruments=instruments,
-                fields=["$close", "$open", "$high", "$low", "$volume"],
-                start_time=date,
-                end_time=date,
-            )
-            
-            return features
-            
+            from qlib.utils import init_instance_by_config
+            from qlib.config import REG_CN
+            from .config import QlibConfig, get_factor_config
+
+            if not hasattr(qlib, '_initialized') or not qlib._initialized:
+                qlib.init(
+                    provider_uri=QlibConfig.provider_uri,
+                    region=REG_CN,
+                    kernels=1,
+                    verbose=False,
+                )
+                qlib._initialized = True
+
+            factor_type = model_config.get("factor_type", "alpha158")
+            factor_config = get_factor_config(factor_type)
+
+            start_time = model_config.get("start_time", "2015-01-01")
+            end_time = model_config.get("end_time", "2026-01-01")
+
+            dataset_config = {
+                "class": "qlib.data.dataset.DatasetH",
+                "module_path": "qlib.data.dataset",
+                "kwargs": {
+                    "handler": {
+                        **factor_config,
+                        "kwargs": {
+                            "start_time": start_time,
+                            "end_time": end_time,
+                            "fit_start_time": start_time,
+                            "fit_end_time": end_time,
+                            "instruments": instruments,
+                        },
+                    },
+                    "segments": {
+                        "train": (start_time, "2022-12-31"),
+                        "valid": ("2023-01-01", "2024-06-30"),
+                        "test": ("2024-07-01", end_time),
+                    },
+                },
+            }
+
+            return init_instance_by_config(dataset_config)
+
         except Exception as e:
-            logger.error(f"Error preparing Qlib data: {e}")
+            logger.error(f"Error creating prediction dataset: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return None
     
     def _get_stock_name(self, code: str) -> str:

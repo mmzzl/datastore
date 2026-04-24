@@ -162,6 +162,24 @@ def run_alert_orchestrator_job():
         logging.error(f"Alert orchestrator job failed: {e}")
         logging.error(traceback.format_exc())
 
+def run_qlib_data_sync_job():
+    if datetime.now().weekday() >= 5:
+        logging.info("Skipping qlib data sync job: weekend")
+        return
+    try:
+        import asyncio
+        from app.scheduler import QlibDataSyncJob
+        job = QlibDataSyncJob(build_config())
+        loop = asyncio.new_event_loop()
+        try:
+            result = loop.run_until_complete(job.run(mode="incremental"))
+            logging.info(f"Qlib data sync job result: {result}")
+        finally:
+            loop.close()
+    except Exception as e:
+        logging.error(f"Qlib data sync job failed: {e}")
+        logging.error(traceback.format_exc())
+
 # ====================== 调度配置 ======================
 def setup_scheduler():
     job_time = settings.after_market_scheduler_time
@@ -240,6 +258,17 @@ def setup_scheduler():
         minutes=5,
         id="alert_orchestrator_job",
         misfire_grace_time=300,
+        coalesce=True
+    )
+
+    scheduler.add_job(
+        run_qlib_data_sync_job,
+        "cron",
+        hour=16,
+        minute=0,
+        timezone=timezone,
+        id="qlib_data_sync_job",
+        misfire_grace_time=3600,
         coalesce=True
     )
 

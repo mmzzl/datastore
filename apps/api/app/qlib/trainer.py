@@ -6,6 +6,7 @@ MongoDB K-line data with configurable parameters.
 """
 
 import os
+import sys
 import logging
 import pickle
 import hashlib
@@ -129,23 +130,20 @@ class QlibTrainer:
             self._update_status(task_id, TrainingStatus.RUNNING, 10, progress_message="Loading data")
             
             dataset = self._create_dataset(config)
-            
+
             self._update_status(task_id, TrainingStatus.RUNNING, 30, progress_message="Initializing model")
-            
+
             model = self._create_model(config)
-            
+
             self._update_status(task_id, TrainingStatus.RUNNING, 40, progress_message="Training model")
-            
-            train_data = self._prepare_train_data(dataset, config)
-            valid_data = self._prepare_valid_data(dataset, config)
-            
-            model.fit(train_data, valid_data)
-            
+
+            model.fit(dataset)
+
             self._update_status(task_id, TrainingStatus.RUNNING, 70, progress_message="Evaluating model")
-            
-            test_data = self._prepare_test_data(dataset, config)
-            predictions = model.predict(test_data)
-            
+
+            predictions = model.predict(dataset)
+
+            test_data = dataset.prepare("test", col_set=["feature", "label"], data_key="learn")
             metrics = self._calculate_metrics(predictions, test_data)
             
             self._update_status(task_id, TrainingStatus.RUNNING, 85, progress_message="Saving model")
@@ -256,7 +254,7 @@ class QlibTrainer:
                 qlib.init(
                     provider_uri=QlibConfig.provider_uri,
                     region=REG_CN,
-                    verbose=False,
+                    kernels=1,
                 )
                 qlib._initialized = True
             return True
@@ -267,7 +265,12 @@ class QlibTrainer:
     def _create_dataset(self, config: Dict[str, Any]) -> Any:
         """Create Qlib dataset from config."""
         from qlib.utils import init_instance_by_config
-        
+        from .config import get_instruments
+
+        instruments = config.get("instruments", "csi300")
+        if isinstance(instruments, str):
+            instruments = get_instruments(instruments)
+
         dataset_config = {
             "class": "qlib.data.dataset.DatasetH",
             "module_path": "qlib.data.dataset",
@@ -280,7 +283,7 @@ class QlibTrainer:
                         "end_time": config.get("end_time", "2026-01-01"),
                         "fit_start_time": config.get("start_time", "2015-01-01"),
                         "fit_end_time": config.get("end_time", "2026-01-01"),
-                        "instruments": config.get("instruments", "csi300"),
+                        "instruments": instruments,
                     },
                 },
                 "segments": {
@@ -290,48 +293,47 @@ class QlibTrainer:
                 },
             },
         }
-        
+
         return init_instance_by_config(dataset_config)
     
     def _create_model(self, config: Dict[str, Any]) -> Any:
         """Create Qlib model from config."""
         from qlib.utils import init_instance_by_config
-        
+
         model_type = config.get("model_type", "lgbm")
-        
+
         if model_type == "lgbm":
+            default_kwargs = {
+                "loss": "mse",
+                "colsample_bytree": 0.8,
+                "learning_rate": 0.01,
+                "n_estimators": 1000,
+                "num_leaves": 63,
+                "subsample": 0.8,
+                "early_stopping_rounds": 50,
+            }
+            default_kwargs.update(config.get("lgbm_kwargs", {}))
             model_config = {
                 "class": "qlib.contrib.model.gbdt.LGBModel",
                 "module_path": "qlib.contrib.model.gbdt",
-                "kwargs": {
-                    "loss": "mse",
-                    "colsample_bytree": 0.8,
-                    "learning_rate": 0.01,
-                    "n_estimators": 1000,
-                    "num_leaves": 63,
-                    "subsample": 0.8,
-                    "early_stopping_rounds": 50,
-                },
+                "kwargs": default_kwargs,
             }
         else:
             raise ValueError(f"Unsupported model type: {model_type}")
-        
+
         return init_instance_by_config(model_config)
     
     def _prepare_train_data(self, dataset, config: Dict[str, Any]) -> Any:
         """Prepare training data from dataset."""
-        from qlib.data.dataset import DatasetH
-        return dataset.prepare("train", col_set=["feature", "label"], data_key=DatasetH.DK_L)
-    
+        return dataset.prepare("train", col_set=["feature", "label"], data_key="learn")
+
     def _prepare_valid_data(self, dataset, config: Dict[str, Any]) -> Any:
         """Prepare validation data from dataset."""
-        from qlib.data.dataset import DatasetH
-        return dataset.prepare("valid", col_set=["feature", "label"], data_key=DatasetH.DK_L)
-    
+        return dataset.prepare("valid", col_set=["feature", "label"], data_key="learn")
+
     def _prepare_test_data(self, dataset, config: Dict[str, Any]) -> Any:
         """Prepare test data from dataset."""
-        from qlib.data.dataset import DatasetH
-        return dataset.prepare("test", col_set=["feature", "label"], data_key=DatasetH.DK_L)
+        return dataset.prepare("test", col_set=["feature", "label"], data_key="learn")
     
     def _calculate_rank_ic(self, predictions: pd.Series, labels: Any) -> float:
         """Calculate Spearman Rank IC between predictions and labels.

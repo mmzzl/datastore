@@ -163,8 +163,7 @@ class AsyncBacktestEngine:
             return False
 
         for raw_code in config.instruments:
-            # Normalize symbol to ensure consistency
-            code = Symbol(raw_code).normalized
+            code = Symbol(raw_code).to_provider("tdx")
             try:
                 klines = storage.get_kline(
                     code=code,
@@ -284,7 +283,8 @@ class AsyncBacktestEngine:
 
         all_data = []
 
-        for code in config.instruments:
+        for raw_code in config.instruments:
+            code = Symbol(raw_code).to_provider("tdx")
             try:
                 klines = storage.get_kline(
                     code=code,
@@ -320,11 +320,179 @@ class AsyncBacktestEngine:
         """
         Execute backtest logic.
 
-        Args:
-            task_id: Task identifier
-            config: Backtest configuration
-            strategy: Strategy instance
-            data: Market data
+        Dispatches to portfolio-level or per-stock execution based on
+        strategy.is_portfolio_strategy.
+        """
+        if strategy.is_portfolio_strategy:
+            await self._execute_portfolio_backtest(
+                task_id, config, strategy, data
+            )
+        else:
+            await self._execute_per_stock_backtest(
+                task_id, config, strategy, data
+            )
+
+    async def _execute_portfolio_backtest(
+        self,
+        task_id: str,
+        config: BacktestConfig,
+        strategy: BaseStrategy,
+        data: pd.DataFrame,
+    ) -> None:
+        """
+        Execute backtest for portfolio-level strategies (e.g. QlibModelStrategy).
+
+        On each rebalance date:
+        1. Call strategy.predict_stocks(instruments, date) to get top-k
+        2. Sell positions not in the current top-k
+        3. Allocate capital equally across top-k stocks and buy
+        """
+        result = self._tasks[task_id]
+
+        cash = config.initial_capital
+        positions: Dict[str, Position] = {}
+        portfolio_values: List[float] = []
+        dates: List[str] = []
+        trades: List[Dict[str, Any]] = []
+
+        if "date" not in data.columns:
+            result.status = BacktestStatus.FAILED
+            result.error = "Portfolio backtest requires date column in data"
+            return
+
+        grouped = data.groupby("date")
+        total_dates = len(grouped)
+        processed_count = 0
+        instruments = config.instruments
+
+        for date, day_data in grouped:
+            if self._tasks[task_id].status == BacktestStatus.CANCELLED:
+                break
+
+            date_str = str(date)
+
+            price_map: Dict[str, float] = {}
+            for _, row in day_data.iterrows():
+                row_code = str(row.get("code", ""))
+                close_price = row.get("close", 0)
+                if row_code and close_price:
+                    price_map[row_code] = float(close_price)
+
+            daily_portfolio_value = cash
+            for code, pos in positions.items():
+                if code in price_map:
+                    daily_portfolio_value += pos.value(price_map[code])
+
+            predicted = strategy.predict_stocks(
+                instruments=instruments, date=date_str
+            )
+
+            target_codes = set()
+            for pred in predicted:
+                pred_code = pred.get("code", "")
+                if pred_code:
+                    normalized = Symbol(pred_code).to_provider("tdx")
+                    target_codes.add(normalized)
+
+            current_codes = set(positions.keys())
+
+            codes_to_sell = current_codes - target_codes
+            for code in codes_to_sell:
+                if code not in price_map:
+                    continue
+                pos = positions[code]
+                price = price_map[code]
+                quantity = pos.quantity
+                if quantity > 0:
+                    executed_price = price * (1 - config.slippage)
+                    proceeds = quantity * executed_price
+                    commission = proceeds * config.commission_rate
+                    pnl = (executed_price - pos.entry_price) * quantity - commission
+                    cash += proceeds - commission
+                    trades.append({
+                        "code": code,
+                        "action": "sell",
+                        "quantity": quantity,
+                        "price": executed_price,
+                        "date": date_str,
+                        "commission": commission,
+                        "pnl": pnl,
+                        "cash_after": cash,
+                    })
+                    del positions[code]
+
+            codes_to_buy = target_codes - set(positions.keys())
+            buyable_codes = [c for c in codes_to_buy if c in price_map and price_map[c] > 0]
+
+            if buyable_codes and cash > 0:
+                per_stock_capital = cash / len(buyable_codes)
+                for code in buyable_codes:
+                    price = price_map[code]
+                    executed_price = price * (1 + config.slippage)
+                    quantity = int(per_stock_capital / executed_price / 100) * 100
+                    if quantity <= 0:
+                        continue
+                    cost = quantity * executed_price
+                    commission = cost * config.commission_rate
+                    total_cost = cost + commission
+                    if total_cost > cash:
+                        quantity = int((cash - commission) / executed_price / 100) * 100
+                        if quantity <= 0:
+                            continue
+                        cost = quantity * executed_price
+                        commission = cost * config.commission_rate
+                        total_cost = cost + commission
+                    if total_cost <= cash and quantity > 0:
+                        positions[code] = Position(
+                            code=code,
+                            quantity=quantity,
+                            entry_price=executed_price,
+                            entry_date=date_str,
+                        )
+                        cash -= total_cost
+                        trades.append({
+                            "code": code,
+                            "action": "buy",
+                            "quantity": quantity,
+                            "price": executed_price,
+                            "date": date_str,
+                            "commission": commission,
+                            "cash_after": cash,
+                            "pnl": 0,
+                        })
+
+            portfolio_values.append(daily_portfolio_value)
+            dates.append(date_str)
+
+            processed_count += 1
+            if processed_count % self.PROGRESS_UPDATE_INTERVAL == 0:
+                result.progress = processed_count / max(total_dates, 1)
+                await asyncio.sleep(0)
+
+        result.portfolio_values = portfolio_values
+        result.dates = dates
+        result.trades = trades
+        result.positions = {
+            code: {
+                "code": p.code,
+                "quantity": p.quantity,
+                "entry_price": p.entry_price,
+            }
+            for code, p in positions.items()
+        }
+
+    async def _execute_per_stock_backtest(
+        self,
+        task_id: str,
+        config: BacktestConfig,
+        strategy: BaseStrategy,
+        data: pd.DataFrame,
+    ) -> None:
+        """
+        Execute backtest for per-stock strategies (e.g. MACross, RSI).
+
+        Iterates over each instrument and date, calling
+        strategy.generate_signals(code_data) for individual signals.
         """
         result = self._tasks[task_id]
 
@@ -355,39 +523,40 @@ class AsyncBacktestEngine:
             if len(historical_data) < min_points:
                 continue
 
-            daily_portfolio_value = cash
+        daily_portfolio_value = cash
 
-            for code in config.instruments:
-                code_data = (
-                    historical_data[historical_data["code"] == code]
-                    if "code" in historical_data.columns
-                    else historical_data
-                )
+        for raw_code in config.instruments:
+            code = Symbol(raw_code).to_provider("tdx")
+            code_data = (
+                historical_data[historical_data["code"] == code]
+                if "code" in historical_data.columns
+                else historical_data
+            )
 
-                if len(code_data) == 0:
-                    continue
+            if len(code_data) == 0:
+                continue
 
-                current_price = code_data.iloc[-1].get("close", 0)
+            current_price = code_data.iloc[-1].get("close", 0)
 
-                if code in positions:
-                    pos = positions[code]
-                    daily_portfolio_value += pos.value(current_price)
+            if code in positions:
+                pos = positions[code]
+                daily_portfolio_value += pos.value(current_price)
 
-                signal = strategy.generate_signals(code_data)
+            signal = strategy.generate_signals(code_data)
 
-                trade = self._process_signal(
-                    signal=signal,
-                    code=code,
-                    price=current_price,
-                    date=str(date) if date else "",
-                    cash=cash,
-                    positions=positions,
-                    config=config,
-                )
+            trade = self._process_signal(
+                signal=signal,
+                code=code,
+                price=current_price,
+                date=str(date) if date else "",
+                cash=cash,
+                positions=positions,
+                config=config,
+            )
 
-                if trade:
-                    trades.append(trade)
-                    cash = trade.get("cash_after", cash)
+            if trade:
+                trades.append(trade)
+                cash = trade.get("cash_after", cash)
 
             portfolio_values.append(daily_portfolio_value)
             dates.append(str(date) if date else "")

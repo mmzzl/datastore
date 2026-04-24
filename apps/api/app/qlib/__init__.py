@@ -9,10 +9,12 @@ from .data_provider import MongoDataProvider
 from .trainer import QlibTrainer
 from .model_manager import ModelManager
 from .predictor import QlibPredictor
+from .bin_converter import QlibBinConverter
 
 __all__ = [
     "MongoDataProvider",
     "QlibTrainer",
     "ModelManager",
     "QlibPredictor",
+    "QlibBinConverter",
 ]

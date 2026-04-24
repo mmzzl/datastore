@@ -96,10 +96,14 @@ class BaseStrategy(ABC):
         return all(col in data.columns for col in required_columns)
     
     def get_required_data_points(self) -> int:
-        """
-        Return minimum number of data points needed.
-        
+        """Return minimum number of data points needed.
+
         Returns:
             Minimum data points required for this strategy
         """
         return 1
+
+    @property
+    def is_portfolio_strategy(self) -> bool:
+        """Whether this strategy selects stocks at portfolio level (not per-stock)."""
+        return False

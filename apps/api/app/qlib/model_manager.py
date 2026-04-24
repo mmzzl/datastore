@@ -141,29 +141,34 @@ class ModelManager:
         logger.info(f"Model saved: {model_id}")
         return model_id
     
-    def load_model(self, model_id: str) -> Optional[Any]:
+    def load_model(self, model_id: str, include_config: bool = False) -> Optional[Any]:
         """
         Load a trained model by ID.
-        
+
         Args:
             model_id: Model identifier
-        
+            include_config: If True, return (model, config) tuple
+
         Returns:
-            The model object, or None if not found
+            The model object, or (model, config) tuple if include_config=True,
+            or None if not found
         """
         model_path = self.model_dir / f"{model_id}.pkl"
-        
+
         if not model_path.exists():
             logger.warning(f"Model file not found: {model_path}")
             return None
-        
+
         try:
             with open(model_path, "rb") as f:
                 model_data = pickle.load(f)
-            
+
             logger.info(f"Model loaded: {model_id}")
-            return model_data.get("model")
-            
+            model = model_data.get("model")
+            if include_config:
+                return model, model_data.get("config", {})
+            return model
+
         except Exception as e:
             logger.error(f"Failed to load model {model_id}: {e}")
             return None

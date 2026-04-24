@@ -16,7 +16,8 @@ import logging
 from app.core.config import settings
 from app.core.auth import AuthenticatedUser, require_permission
 from app.qlib import QlibTrainer, ModelManager, QlibPredictor
-from app.qlib.config import CSI_300_STOCKS, get_csi300_instruments
+from app.qlib.config import CSI_300_STOCKS, get_csi300_instruments, QlibConfig
+from app.qlib.bin_converter import QlibBinConverter
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/qlib", tags=["qlib"])
@@ -24,6 +25,7 @@ router = APIRouter(prefix="/qlib", tags=["qlib"])
 _trainer: Optional[QlibTrainer] = None
 _model_manager: Optional[ModelManager] = None
 _predictor: Optional[QlibPredictor] = None
+_sync_tasks: Dict[str, Dict[str, Any]] = {}
 
 
 def get_trainer() -> QlibTrainer:
@@ -406,3 +408,136 @@ async def get_csi300():
         "instruments": get_csi300_instruments(),
         "count": len(CSI_300_STOCKS),
     }
+
+
+class SyncRequest(BaseModel):
+    mode: str = Field(
+        default="incremental",
+        description="Sync mode: 'incremental' or 'full'",
+    )
+
+
+class SyncResponse(BaseModel):
+    task_id: str
+    status: str
+    message: str
+
+
+class SyncStatusResponse(BaseModel):
+    task_id: str
+    status: str
+    mode: str
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    result: Optional[Dict[str, Any]] = None
+    error: Optional[str] = None
+
+
+@router.post("/sync", response_model=SyncResponse)
+async def start_qlib_sync(
+    request: SyncRequest,
+    current_user: AuthenticatedUser = Depends(require_permission("qlib:sync")),
+):
+    """Start a Qlib data sync task (incremental or full)."""
+    import threading
+    import uuid
+
+    if request.mode not in ("incremental", "full"):
+        raise HTTPException(status_code=400, detail="mode must be 'incremental' or 'full'")
+
+    task_id = f"sync_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
+
+    _sync_tasks[task_id] = {
+        "status": "pending",
+        "mode": request.mode,
+        "started_at": datetime.now(),
+        "completed_at": None,
+        "result": None,
+        "error": None,
+    }
+
+    def _run_sync(tid: str, mode: str):
+        try:
+            _sync_tasks[tid]["status"] = "running"
+
+            from app.storage.mongo_client import MongoStorage
+            storage = MongoStorage(
+                host=settings.mongodb_host,
+                port=settings.mongodb_port,
+                db_name=settings.mongodb_database,
+                username=settings.mongodb_username,
+                password=settings.mongodb_password,
+            )
+            storage.connect()
+
+            converter = QlibBinConverter(
+                target_dir=QlibConfig.provider_uri,
+                storage=storage,
+            )
+
+            if mode == "full":
+                result = converter.full_convert()
+            else:
+                result = converter.incremental_sync()
+
+            _sync_tasks[tid]["status"] = "completed"
+            _sync_tasks[tid]["result"] = result
+            _sync_tasks[tid]["completed_at"] = datetime.now()
+
+            logger.info(f"Qlib sync task {tid} completed: {result}")
+
+        except Exception as e:
+            logger.error(f"Qlib sync task {tid} failed: {e}")
+            _sync_tasks[tid]["status"] = "failed"
+            _sync_tasks[tid]["error"] = str(e)
+            _sync_tasks[tid]["completed_at"] = datetime.now()
+
+        finally:
+            try:
+                storage.close()
+            except Exception:
+                pass
+
+    thread = threading.Thread(target=_run_sync, args=(task_id, request.mode), daemon=True)
+    thread.start()
+
+    return SyncResponse(
+        task_id=task_id,
+        status="pending",
+        message=f"Qlib data sync started in {request.mode} mode",
+    )
+
+
+@router.get("/sync/status", response_model=List[SyncStatusResponse])
+async def list_sync_tasks():
+    """List all Qlib data sync tasks."""
+    return [
+        SyncStatusResponse(
+            task_id=tid,
+            status=task["status"],
+            mode=task["mode"],
+            started_at=task.get("started_at"),
+            completed_at=task.get("completed_at"),
+            result=task.get("result"),
+            error=task.get("error"),
+        )
+        for tid, task in sorted(_sync_tasks.items(), key=lambda x: x[1].get("started_at", datetime.min), reverse=True)
+    ]
+
+
+@router.get("/sync/{task_id}", response_model=SyncStatusResponse)
+async def get_sync_status(task_id: str):
+    """Get status of a specific Qlib data sync task."""
+    if task_id not in _sync_tasks:
+        raise HTTPException(status_code=404, detail="Sync task not found")
+
+    task = _sync_tasks[task_id]
+    return SyncStatusResponse(
+        task_id=task_id,
+        status=task["status"],
+        mode=task["mode"],
+        started_at=task.get("started_at"),
+        completed_at=task.get("completed_at"),
+        result=task.get("result"),
+        error=task.get("error"),
+    )
