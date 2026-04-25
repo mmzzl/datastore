@@ -16,8 +16,10 @@ import logging
 from app.core.config import settings
 from app.core.auth import AuthenticatedUser, require_permission
 from app.qlib import QlibTrainer, ModelManager, QlibPredictor
+from app.qlib.top_stocks_manager import TopStocksManager
 from app.qlib.config import CSI_300_STOCKS, get_csi300_instruments, QlibConfig
 from app.qlib.bin_converter import QlibBinConverter
+from app.experiment.tracker import ExperimentTracker
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/qlib", tags=["qlib"])
@@ -25,6 +27,8 @@ router = APIRouter(prefix="/qlib", tags=["qlib"])
 _trainer: Optional[QlibTrainer] = None
 _model_manager: Optional[ModelManager] = None
 _predictor: Optional[QlibPredictor] = None
+_tracker: Optional[ExperimentTracker] = None
+_top_stocks_manager: Optional[TopStocksManager] = None
 _sync_tasks: Dict[str, Dict[str, Any]] = {}
 
 
@@ -53,6 +57,20 @@ def get_predictor() -> QlibPredictor:
     if _predictor is None:
         _predictor = QlibPredictor()
     return _predictor
+
+
+def get_tracker() -> ExperimentTracker:
+    global _tracker
+    if _tracker is None:
+        _tracker = ExperimentTracker()
+    return _tracker
+
+
+def get_top_stocks_manager() -> TopStocksManager:
+    global _top_stocks_manager
+    if _top_stocks_manager is None:
+        _top_stocks_manager = TopStocksManager()
+    return _top_stocks_manager
 
 
 class TrainRequest(BaseModel):
@@ -408,6 +426,204 @@ async def get_csi300():
         "instruments": get_csi300_instruments(),
         "count": len(CSI_300_STOCKS),
     }
+
+
+@router.get("/experiments", response_model=ExperimentListResponse)
+async def list_experiments(
+    page: int = 1,
+    page_size: int = 20,
+    tag: Optional[str] = None,
+    status: Optional[str] = None,
+    tracker: ExperimentTracker = Depends(get_tracker),
+):
+    try:
+        results, total = tracker.list_experiments(
+            tag=tag, status=status, page=page, page_size=page_size
+        )
+        items = [
+            ExperimentItem(
+                experiment_id=r.get("experiment_id", ""),
+                tag=r.get("tag"),
+                config=r.get("config", {}),
+                training_metrics=r.get("training_metrics"),
+                backtest_result=r.get("backtest_result"),
+                model_id=r.get("model_id"),
+                status=r.get("status", "unknown"),
+                created_at=r.get("created_at"),
+                error=r.get("error"),
+            )
+            for r in results
+        ]
+        return ExperimentListResponse(
+            items=items, total=total, page=page, page_size=page_size
+        )
+    except Exception as e:
+        logger.error(f"Failed to list experiments: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to list experiments: {str(e)}")
+
+
+@router.get("/experiments/compare")
+async def compare_experiments(
+    ids: str,
+    tracker: ExperimentTracker = Depends(get_tracker),
+):
+    experiment_ids = [i.strip() for i in ids.split(",") if i.strip()]
+    if not experiment_ids:
+        raise HTTPException(status_code=400, detail="At least one experiment ID required")
+    try:
+        comparison = tracker.compare(experiment_ids)
+        return comparison
+    except Exception as e:
+        logger.error(f"Failed to compare experiments: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to compare experiments: {str(e)}")
+
+
+@router.get("/best-model", response_model=BestModelResponse)
+async def get_best_model(
+    tracker: ExperimentTracker = Depends(get_tracker),
+):
+    try:
+        best = tracker.get_best("backtest_result.sharpe_ratio")
+        if best is None:
+            raise HTTPException(status_code=404, detail="No completed experiment found")
+        return BestModelResponse(
+            experiment_id=best.get("experiment_id", ""),
+            model_id=best.get("model_id"),
+            tag=best.get("tag"),
+            config=best.get("config", {}),
+            training_metrics=best.get("training_metrics"),
+            backtest_result=best.get("backtest_result"),
+            status=best.get("status", "unknown"),
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get best model: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get best model: {str(e)}")
+
+
+@router.get("/top-stocks", response_model=List[TopStocksDayResponse])
+async def get_top_stocks(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    model_id: Optional[str] = None,
+    mgr: TopStocksManager = Depends(get_top_stocks_manager),
+):
+    try:
+        if start_date is None and end_date is None:
+            end_date = datetime.now().strftime("%Y-%m-%d")
+            start_date = end_date
+
+        results = mgr.get_top_stocks(
+            start_date=start_date,
+            end_date=end_date,
+            model_id=model_id,
+        )
+
+        return [
+            TopStocksDayResponse(
+                date=r.get("date", ""),
+                model_id=r.get("model_id", ""),
+                model_type=r.get("model_type", ""),
+                factor=r.get("factor", ""),
+                stocks=[TopStockItem(**s) for s in r.get("stocks", [])],
+                created_at=r.get("created_at"),
+            )
+            for r in results
+        ]
+    except Exception as e:
+        logger.error(f"Failed to get top stocks: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get top stocks: {str(e)}")
+
+
+@router.post("/top-stocks/refresh")
+async def refresh_top_stocks(
+    tracker: ExperimentTracker = Depends(get_tracker),
+    predictor: QlibPredictor = Depends(get_predictor),
+    mgr: TopStocksManager = Depends(get_top_stocks_manager),
+):
+    try:
+        best = tracker.get_best("backtest_result.sharpe_ratio")
+        if best is None:
+            raise HTTPException(status_code=404, detail="No completed experiment found")
+
+        model_id = best.get("model_id")
+        if not model_id:
+            raise HTTPException(status_code=400, detail="Best experiment has no model_id")
+
+        config = best.get("config", {})
+        today = datetime.now().strftime("%Y-%m-%d")
+
+        predictions = predictor.predict(
+            model_id=model_id,
+            topk=10,
+            date=today,
+        )
+
+        stocks = [
+            {"rank": p.get("rank", i + 1), "code": p.get("code", ""), "name": p.get("name", ""), "score": p.get("score", 0.0)}
+            for i, p in enumerate(predictions[:10])
+        ]
+
+        mgr.save_top_stocks(
+            date=today,
+            model_id=model_id,
+            model_type=config.get("model_type", "lgbm"),
+            factor=config.get("factor_type", "alpha158"),
+            stocks=stocks,
+        )
+
+        return {"message": "Top stocks refreshed", "date": today, "model_id": model_id, "count": len(stocks)}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to refresh top stocks: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to refresh top stocks: {str(e)}")
+
+
+class ExperimentItem(BaseModel):
+    experiment_id: str
+    tag: Optional[str] = None
+    config: Dict[str, Any]
+    training_metrics: Optional[Dict[str, Any]] = None
+    backtest_result: Optional[Dict[str, Any]] = None
+    model_id: Optional[str] = None
+    status: str
+    created_at: Optional[datetime] = None
+    error: Optional[str] = None
+
+
+class ExperimentListResponse(BaseModel):
+    items: List[ExperimentItem]
+    total: int
+    page: int
+    page_size: int
+
+
+class BestModelResponse(BaseModel):
+    experiment_id: str
+    model_id: Optional[str] = None
+    tag: Optional[str] = None
+    config: Dict[str, Any]
+    training_metrics: Optional[Dict[str, Any]] = None
+    backtest_result: Optional[Dict[str, Any]] = None
+    status: str
+
+
+class TopStockItem(BaseModel):
+    rank: int
+    code: str
+    name: Optional[str] = None
+    score: float
+
+
+class TopStocksDayResponse(BaseModel):
+    date: str
+    model_id: str
+    model_type: str
+    factor: str
+    stocks: List[TopStockItem]
+    created_at: Optional[datetime] = None
 
 
 class SyncRequest(BaseModel):

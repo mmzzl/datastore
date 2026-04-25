@@ -10,6 +10,7 @@ from .trainer import QlibTrainer
 from .model_manager import ModelManager
 from .predictor import QlibPredictor
 from .bin_converter import QlibBinConverter
+from .top_stocks_manager import TopStocksManager
 
 __all__ = [
     "MongoDataProvider",
@@ -17,4 +18,5 @@ __all__ = [
     "ModelManager",
     "QlibPredictor",
     "QlibBinConverter",
+    "TopStocksManager",
 ]

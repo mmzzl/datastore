@@ -134,6 +134,40 @@ class ExperimentTracker:
 
         return experiment_id
 
+    def list_experiments(
+        self,
+        tag: Optional[str] = None,
+        status: Optional[str] = None,
+        page: int = 1,
+        page_size: int = 20,
+    ) -> tuple:
+        if self.collection is None:
+            return [], 0
+
+        try:
+            query: Dict[str, Any] = {}
+            if tag:
+                query["tag"] = tag
+            if status:
+                query["status"] = status
+
+            total = self.collection.count_documents(query)
+
+            skip = (page - 1) * page_size
+            cursor = self.collection.find(query)
+            cursor = cursor.sort("created_at", -1).skip(skip).limit(page_size)
+
+            results = []
+            for doc in cursor:
+                doc.pop("_id", None)
+                results.append(doc)
+
+            return results, total
+
+        except Exception as e:
+            logger.error(f"Failed to list experiments: {e}")
+            return [], 0
+
     def get_by_tag(
         self,
         tag: str,

@@ -180,6 +180,24 @@ def run_qlib_data_sync_job():
         logging.error(f"Qlib data sync job failed: {e}")
         logging.error(traceback.format_exc())
 
+def run_qlib_top_stocks_job():
+    if datetime.now().weekday() >= 5:
+        logging.info("Skipping qlib top stocks job: weekend")
+        return
+    try:
+        import asyncio
+        from app.scheduler import QlibTopStocksJob
+        job = QlibTopStocksJob(build_config())
+        loop = asyncio.new_event_loop()
+        try:
+            result = loop.run_until_complete(job.run())
+            logging.info(f"Qlib top stocks job result: {result}")
+        finally:
+            loop.close()
+    except Exception as e:
+        logging.error(f"Qlib top stocks job failed: {e}")
+        logging.error(traceback.format_exc())
+
 # ====================== 调度配置 ======================
 def setup_scheduler():
     job_time = settings.after_market_scheduler_time
@@ -268,6 +286,17 @@ def setup_scheduler():
         minute=0,
         timezone=timezone,
         id="qlib_data_sync_job",
+        misfire_grace_time=3600,
+        coalesce=True
+    )
+
+    scheduler.add_job(
+        run_qlib_top_stocks_job,
+        "cron",
+        hour=15,
+        minute=30,
+        timezone=timezone,
+        id="qlib_top_stocks_job",
         misfire_grace_time=3600,
         coalesce=True
     )

@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { reactive } from 'vue'
-import { apiQlib, type Model, type TrainingStatus, type SelectionResult, type Instrument } from '../services/api_qlib'
+import { apiQlib, type Model, type TrainingStatus, type SelectionResult, type Instrument, type Experiment, type ExperimentListResult, type BestModel, type TopStocksDay } from '../services/api_qlib'
 
 export const useQlibStore = defineStore('qlib', () => {
   const state = reactive({
@@ -8,8 +8,14 @@ export const useQlibStore = defineStore('qlib', () => {
     currentModel: null as Model | null,
     trainingStatus: null as TrainingStatus | null,
     selectionResults: null as SelectionResult | null,
-    csi300Instruments: [] as Instrument[],
-    loading: false,
+  csi300Instruments: [] as Instrument[],
+  experiments: [] as Experiment[],
+  experimentsTotal: 0,
+  experimentsPage: 1,
+  bestModel: null as BestModel | null,
+  topStocks: [] as TopStocksDay[],
+  refreshingTopStocks: false,
+  loading: false,
     training: false,
     selecting: false,
     error: null as string | null,
@@ -103,6 +109,59 @@ export const useQlibStore = defineStore('qlib', () => {
     state.trainingStatus = null
   }
 
+  async function fetchExperiments(page: number = 1, pageSize: number = 20, tag?: string, status?: string) {
+    state.loading = true
+    state.error = null
+    try {
+      const res = await apiQlib.getExperiments(page, pageSize, tag, status)
+      state.experiments = res.items
+      state.experimentsTotal = res.total
+      state.experimentsPage = page
+    } catch (e: any) {
+      state.error = e.response?.data?.detail || '获取实验列表失败'
+    } finally {
+      state.loading = false
+    }
+  }
+
+  async function fetchBestModel() {
+    state.loading = true
+    state.error = null
+    try {
+      state.bestModel = await apiQlib.getBestModel()
+    } catch (e: any) {
+      state.error = e.response?.data?.detail || '获取最优模型失败'
+    } finally {
+      state.loading = false
+    }
+  }
+
+  async function fetchTopStocks(startDate?: string, endDate?: string, modelId?: string) {
+    state.loading = true
+    state.error = null
+    try {
+      state.topStocks = await apiQlib.getTopStocks(startDate, endDate, modelId)
+    } catch (e: any) {
+      state.error = e.response?.data?.detail || '获取Top10推荐失败'
+    } finally {
+      state.loading = false
+    }
+  }
+
+  async function refreshTopStocks() {
+    state.refreshingTopStocks = true
+    state.error = null
+    try {
+      await apiQlib.refreshTopStocks()
+      const today = new Date().toISOString().split('T')[0]
+      state.topStocks = await apiQlib.getTopStocks(today, today)
+    } catch (e: any) {
+      state.error = e.response?.data?.detail || '刷新Top10失败'
+    } finally {
+      state.refreshingTopStocks = false
+    }
+  }
+
   return {
     state,
     fetchModels,
@@ -113,5 +172,9 @@ export const useQlibStore = defineStore('qlib', () => {
     fetchCSI300,
     clearSelectionResults,
     clearTrainingStatus,
+    fetchExperiments,
+    fetchBestModel,
+    fetchTopStocks,
+    refreshTopStocks,
   }
 })
