@@ -428,6 +428,51 @@ async def get_csi300():
     }
 
 
+class ExperimentItem(BaseModel):
+    experiment_id: str
+    tag: Optional[str] = None
+    config: Dict[str, Any]
+    training_metrics: Optional[Dict[str, Any]] = None
+    backtest_result: Optional[Dict[str, Any]] = None
+    model_id: Optional[str] = None
+    status: str
+    created_at: Optional[datetime] = None
+    error: Optional[str] = None
+
+
+class ExperimentListResponse(BaseModel):
+    items: List[ExperimentItem]
+    total: int
+    page: int
+    page_size: int
+
+
+class BestModelResponse(BaseModel):
+    experiment_id: str
+    model_id: Optional[str] = None
+    tag: Optional[str] = None
+    config: Dict[str, Any]
+    training_metrics: Optional[Dict[str, Any]] = None
+    backtest_result: Optional[Dict[str, Any]] = None
+    status: str
+
+
+class TopStockItem(BaseModel):
+    rank: int
+    code: str
+    name: Optional[str] = None
+    score: float
+
+
+class TopStocksDayResponse(BaseModel):
+    date: str
+    model_id: str
+    model_type: str
+    factor: str
+    stocks: List[TopStockItem]
+    created_at: Optional[datetime] = None
+
+
 @router.get("/experiments", response_model=ExperimentListResponse)
 async def list_experiments(
     page: int = 1,
@@ -579,51 +624,6 @@ async def refresh_top_stocks(
     except Exception as e:
         logger.error(f"Failed to refresh top stocks: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to refresh top stocks: {str(e)}")
-
-
-class ExperimentItem(BaseModel):
-    experiment_id: str
-    tag: Optional[str] = None
-    config: Dict[str, Any]
-    training_metrics: Optional[Dict[str, Any]] = None
-    backtest_result: Optional[Dict[str, Any]] = None
-    model_id: Optional[str] = None
-    status: str
-    created_at: Optional[datetime] = None
-    error: Optional[str] = None
-
-
-class ExperimentListResponse(BaseModel):
-    items: List[ExperimentItem]
-    total: int
-    page: int
-    page_size: int
-
-
-class BestModelResponse(BaseModel):
-    experiment_id: str
-    model_id: Optional[str] = None
-    tag: Optional[str] = None
-    config: Dict[str, Any]
-    training_metrics: Optional[Dict[str, Any]] = None
-    backtest_result: Optional[Dict[str, Any]] = None
-    status: str
-
-
-class TopStockItem(BaseModel):
-    rank: int
-    code: str
-    name: Optional[str] = None
-    score: float
-
-
-class TopStocksDayResponse(BaseModel):
-    date: str
-    model_id: str
-    model_type: str
-    factor: str
-    stocks: List[TopStockItem]
-    created_at: Optional[datetime] = None
 
 
 class SyncRequest(BaseModel):
