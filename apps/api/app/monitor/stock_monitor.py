@@ -12,6 +12,7 @@ from .brain.backtest import BacktestEngine
 from app.data_source import DataSourceManager
 from .data_source import get_data_source_manager, MultiDataSourceManager
 from ..notify import DingTalkNotifier
+from ..notify.dedup_filter import NotificationDedupFilter
 from ..storage import MongoStorage
 from ..collector import AkshareClient
 
@@ -35,6 +36,7 @@ class StockMonitor:
         self.akshare_client = None
         self.dingtalk_notifier = None
         self.storage = None
+        self.dedup_filter = NotificationDedupFilter()
         
         self._ensure_clients()
     
@@ -419,13 +421,19 @@ class StockMonitor:
         )
     
     def send_notification(self, notification: MonitorNotification):
-        """
-        发送通知
-        
-        参数:
-            notification: 通知
-        """
         try:
+            signal_value = notification.type
+            reasons = [r for r in notification.signal.reasons] if notification.signal else []
+
+            ok, resolved_signal = self.dedup_filter.should_send(
+                notification.stock.code, signal_value, reasons
+            )
+            if not ok:
+                logger.info(f"Notification filtered: {notification.stock.code} -> {resolved_signal}")
+                return
+
+            self.dedup_filter.record_sent(notification.stock.code, resolved_signal, reasons)
+
             self.dingtalk_notifier.send(notification.message)
             logger.info(f"Notification sent for {notification.stock.code}: {notification.type}")
         except Exception as e:
