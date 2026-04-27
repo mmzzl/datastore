@@ -33,10 +33,8 @@ const currentReport = computed(() => store.state.currentReport)
 
 const isStaleData = computed(() => {
   if (!currentReport.value?.date) return false
-  const reportDate = new Date(currentReport.value.date)
-  const now = new Date()
-  const diffDays = Math.floor((now.getTime() - reportDate.getTime()) / (1000 * 60 * 60 * 24))
-  return diffDays > 1
+  const today = new Date().toISOString().split('T')[0]
+  return currentReport.value.date !== today
 })
 
 const riskScore = computed(() => {
@@ -326,20 +324,28 @@ watch(selectedDate, () => {
 
 onMounted(async () => {
   await store.fetchReports()
-  if (store.state.reports.length > 0) {
-    const todayReport = store.state.reports.find((r: any) => r.date === selectedDateStr.value)
-    if (todayReport) {
-      await store.fetchReport(todayReport.id)
-    } else {
-      await store.fetchReport(store.state.reports[0].id)
-      const latestDate = new Date(store.state.reports[0].date)
-      selectedDate.value = latestDate.getTime()
-    }
-  }
+  loadLatestReport()
   const userId = (currentReport.value as any)?.user_id
   if (userId) {
     await store.fetchTrend(userId, 30)
   }
+})
+
+function loadLatestReport() {
+  if (store.state.reports.length > 0) {
+    const todayReport = store.state.reports.find((r: any) => r.date === selectedDateStr.value)
+    if (todayReport) {
+      store.fetchReport(todayReport.id)
+    } else {
+      store.fetchReport(store.state.reports[0].id)
+      const latestDate = new Date(store.state.reports[0].date)
+      selectedDate.value = latestDate.getTime()
+    }
+  }
+}
+
+watch(() => store.state.reports, () => {
+  loadLatestReport()
 })
 </script>
 

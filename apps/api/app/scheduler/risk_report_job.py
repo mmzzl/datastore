@@ -19,17 +19,19 @@ logger = logging.getLogger(__name__)
 
 
 class IndustryMapper:
-    """Industry mapper for stocks."""
-
     def __init__(self):
         self._cache: Dict[str, Optional[str]] = {}
 
-    def get_industry(self, code: str) -> str:
-        if code in self._cache:
-            return self._cache[code]
+    def get_industry(self, code: str, name: Optional[str] = None) -> str:
+        cache_key = f"{code}:{name or ''}"
+        if cache_key in self._cache:
+            return self._cache[cache_key]
 
-        industry = extract_industry_from_name(code)
-        self._cache[code] = industry
+        if name:
+            industry = extract_industry_from_name(name)
+        else:
+            industry = extract_industry_from_name(code)
+        self._cache[cache_key] = industry
         return industry
 
 
@@ -143,7 +145,7 @@ class RiskReportJob:
                     }
                     # Add industry information
                     if code:
-                        holding["industry"] = self._industry_mapper.get_industry(code)
+                        holding["industry"] = self._industry_mapper.get_industry(code, doc.get("name"))
                     holdings.append(holding)
             return holdings
         except Exception as e:
@@ -156,7 +158,15 @@ class RiskReportJob:
 
         user_ids = config.get("user_ids", [])
         if not user_ids:
-            user_ids = [config.get("user_id", "default")]
+            try:
+                storage = self._get_storage()
+                db_user_ids = list(storage.db.get_collection("holdings").distinct("user_id"))
+                if db_user_ids:
+                    user_ids = db_user_ids
+                else:
+                    user_ids = [config.get("user_id", "default")]
+            except Exception:
+                user_ids = [config.get("user_id", "default")]
 
         await self._send_notification(
             f"🔄 {job_name}开始",
