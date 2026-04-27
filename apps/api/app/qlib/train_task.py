@@ -74,6 +74,15 @@ def run_training(self, config: dict):
             )
             self.update_state(state="PROGRESS", meta={"progress": progress, "message": message})
 
+            if self.is_revoked():
+                logger.info(f"Task {task_id} revoked by user")
+                coll.update_one(
+                    {"task_id": task_id},
+                    {"$set": {"status": "revoked", "message": "Cancelled by user", "completed_at": datetime.now()}}
+                )
+                trainer.close()
+                return {"status": "revoked", "message": "Cancelled by user"}
+
             if current_status in ("completed", "failed", "cancelled"):
                 break
 
