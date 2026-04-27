@@ -2,20 +2,49 @@
 import { ref, onMounted } from 'vue'
 import { useQlibStore } from '../../stores/qlib'
 import { apiQlib } from '../../services/api_qlib'
-import { NDataTable, NDatePicker, NButton, NTag, NEmpty, NSpin, NSpace, NAlert, NModal, NCard } from 'naive-ui'
+import { apiScheduler, type JobExecution } from '../../services/api_scheduler'
+import { NDataTable, NDatePicker, NButton, NTag, NEmpty, NSpin, NSpace, NAlert, NModal, NDivider } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import type { TopStockItem } from '../../services/api_qlib'
 
 const store = useQlibStore()
 
-const showTrainModal = ref(false)
-const training = ref(false)
-const trainStatus = ref('')
+const trainJobId = ref<string | null>(null)
+const executions = ref<JobExecution[]>([])
+const loadingExecutions = ref(false)
+const showHistory = ref(false)
 
 onMounted(async () => {
   const today = new Date().toISOString().split('T')[0]
   await store.fetchTopStocks(today, today)
+  await findTrainJob()
 })
+
+async function findTrainJob() {
+  try {
+    const res = await apiScheduler.getJobs()
+    const job = res.items.find((j: any) => j.task_type === 'qlib_train' || j.job_type === 'qlib_train')
+    if (job) {
+      trainJobId.value = job.id
+      await fetchExecutions()
+    }
+  } catch {
+    // ignore
+  }
+}
+
+async function fetchExecutions() {
+  if (!trainJobId.value) return
+  loadingExecutions.value = true
+  try {
+    const res = await apiScheduler.getExecutions(trainJobId.value, 1, 20)
+    executions.value = res.items || []
+  } catch {
+    // ignore
+  } finally {
+    loadingExecutions.value = false
+  }
+}
 
 function formatDate(ts: number): string {
   return new Date(ts).toISOString().split('T')[0]
@@ -33,35 +62,37 @@ async function handleRefresh() {
   await store.refreshTopStocks()
 }
 
-async function handleStartTraining() {
-  training.value = true
-  trainStatus.value = '训练中...'
+async function handleTrainNow() {
+  if (!trainJobId.value) return
   try {
-    const res = await apiQlib.startTraining({
-      model_type: 'lgbm',
-    })
-    const taskId = res.task_id
-    for (let i = 0; i < 60; i++) {
-      await new Promise(r => setTimeout(r, 5000))
-      const status = await apiQlib.getTrainingStatus(taskId)
-      if (status.status === 'completed') {
-        trainStatus.value = '训练完成，正在刷新推荐...'
-        await store.refreshTopStocks()
-        trainStatus.value = '训练完成！'
-        break
-      } else if (status.status === 'failed') {
-        trainStatus.value = `训练失败: ${status.error || '未知错误'}`
-        break
-      } else {
-        trainStatus.value = `训练中 (${i * 5}s)...`
-      }
-    }
+    await apiScheduler.triggerJob(trainJobId.value)
+    showHistory.value = true
+    setTimeout(fetchExecutions, 2000)
   } catch (e: any) {
-    trainStatus.value = e.response?.data?.detail || e.message || '启动训练失败'
-  } finally {
-    training.value = false
+    store.state.error = e.response?.data?.detail || '启动训练失败'
   }
 }
+
+const execColumns: DataTableColumns<JobExecution> = [
+  { title: '开始时间', key: 'started_at', width: 160,
+    render: (row) => row.started_at ? new Date(row.started_at).toLocaleString('zh-CN') : '-' },
+  { title: '状态', key: 'status', width: 80,
+    render: (row) => {
+      const map: Record<string, [string, string]> = {
+        pending: ['等待中', 'default'],
+        running: ['运行中', 'info'],
+        success: ['成功', 'success'],
+        failed: ['失败', 'error'],
+      }
+      const [label, type] = map[row.status] || [row.status, 'default']
+      return h(NTag, { type, size: 'small' }, () => label)
+    },
+  },
+  { title: '耗时', key: 'duration', width: 80,
+    render: (row) => row.duration ? `${row.duration.toFixed(1)}s` : '-' },
+  { title: '结果', key: 'result', ellipsis: { tooltip: true },
+    render: (row) => row.error || (row.result ? JSON.stringify(row.result).slice(0, 80) : '-') },
+]
 
 const columns: DataTableColumns<TopStockItem> = [
   { title: '排名', key: 'rank', width: 60 },
@@ -76,24 +107,32 @@ const columns: DataTableColumns<TopStockItem> = [
     <NSpace class="filter-bar" align="center">
       <NDatePicker type="daterange" clearable @update:value="handleDateRangeChange" style="width: 280px" />
       <NButton type="primary" :loading="store.state.refreshingTopStocks" @click="handleRefresh">刷新今日推荐</NButton>
-      <NButton type="warning" @click="showTrainModal = true">开始训练</NButton>
+      <NButton v-if="trainJobId" type="warning" @click="handleTrainNow">开始训练</NButton>
+      <NButton v-if="trainJobId" size="small" quaternary @click="showHistory = !showHistory">
+        {{ showHistory ? '隐藏训练记录' : '训练记录' }}
+      </NButton>
     </NSpace>
 
-    <NModal v-model:show="showTrainModal" :mask-closable="false" preset="card" title="模型训练" style="width: 400px">
-      <p>将使用默认参数（lgbm / alpha158 / CSI300）训练新模型。</p>
-      <p style="margin-top: 8px; color: #888; font-size: 13px;">训练完成后会自动刷新今日推荐。</p>
-      <template #footer>
-        <NSpace justify="end">
-          <NButton @click="showTrainModal = false" :disabled="training">取消</NButton>
-          <NButton type="primary" :loading="training" @click="handleStartTraining">开始训练</NButton>
-        </NSpace>
-      </template>
-      <div v-if="trainStatus" style="margin-top: 12px">
-        <NAlert :type="trainStatus.includes('失败') ? 'error' : 'info'" closable>{{ trainStatus }}</NAlert>
-      </div>
-    </NModal>
+    <NAlert v-if="!trainJobId && !store.state.loading" type="warning" style="margin-bottom: 12px">
+      未找到 Qlib 模型训练任务，请先在调度页面创建 job_type 为 qlib_train 的任务
+    </NAlert>
 
-    <NAlert v-if="store.state.error" type="error" style="margin-bottom: 12px">{{ store.state.error }}</NAlert>
+    <div v-if="showHistory && trainJobId" style="margin-bottom: 16px">
+      <NDivider>训练任务执行记录</NDivider>
+      <NSpin :show="loadingExecutions">
+        <NDataTable
+          v-if="executions.length > 0"
+          :columns="execColumns"
+          :data="executions"
+          :bordered="false"
+          size="small"
+          :max-height="200"
+        />
+        <NEmpty v-else description="暂无训练记录" />
+      </NSpin>
+    </div>
+
+    <NAlert v-if="store.state.error" type="error" style="margin-bottom: 12px" closable>{{ store.state.error }}</NAlert>
     <NSpin :show="store.state.loading">
       <div v-if="store.state.topStocks.length > 0">
         <div v-for="day in store.state.topStocks" :key="day.date" style="margin-bottom: 20px">
