@@ -81,8 +81,6 @@ def run_training(self, config: dict):
             )
             self.update_state(state="PROGRESS", meta={"progress": progress, "message": message})
 
-            if self.request.id != task_id or self.is_last_producer():
-                pass
             try:
                 from celery.app.control import Inspect
                 i = Inspect(app=celery_app)
