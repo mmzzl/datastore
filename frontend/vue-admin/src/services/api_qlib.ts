@@ -10,7 +10,7 @@ interface TrainingRequest {
 }
 
 interface TrainingStatus {
-  id: string
+  task_id: string
   status: 'pending' | 'running' | 'completed' | 'failed'
   progress: number
   message?: string

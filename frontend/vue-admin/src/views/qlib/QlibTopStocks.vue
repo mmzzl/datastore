@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted, h } from 'vue'
 import { useQlibStore } from '../../stores/qlib'
 import { apiQlib } from '../../services/api_qlib'
 import { apiScheduler, type JobExecution } from '../../services/api_scheduler'
-import { NDataTable, NDatePicker, NButton, NTag, NEmpty, NSpin, NSpace, NAlert, NModal, NDivider } from 'naive-ui'
+import { NDataTable, NDatePicker, NButton, NTag, NEmpty, NSpin, NSpace, NAlert, NDivider, NProgress } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
-import type { TopStockItem } from '../../services/api_qlib'
+import type { TopStockItem, TrainingStatus } from '../../services/api_qlib'
 
 const store = useQlibStore()
 
@@ -14,10 +14,19 @@ const executions = ref<JobExecution[]>([])
 const loadingExecutions = ref(false)
 const showHistory = ref(false)
 
+const activeTaskId = ref<string | null>(null)
+const activeProgress = ref(0)
+const activeStatus = ref('')
+const activePollTimer = ref<ReturnType<typeof setInterval> | null>(null)
+
 onMounted(async () => {
   const today = new Date().toISOString().split('T')[0]
   await store.fetchTopStocks(today, today)
   await findTrainJob()
+})
+
+onUnmounted(() => {
+  stopPolling()
 })
 
 async function findTrainJob() {
@@ -62,12 +71,44 @@ async function handleRefresh() {
   await store.refreshTopStocks()
 }
 
-async function handleTrainNow() {
-  if (!trainJobId.value) return
+function stopPolling() {
+  if (activePollTimer.value) {
+    clearInterval(activePollTimer.value)
+    activePollTimer.value = null
+  }
+}
+
+async function pollProgress(taskId: string) {
   try {
-    await apiScheduler.triggerJob(trainJobId.value)
+    const status: TrainingStatus = await apiQlib.getTrainingStatus(taskId)
+    activeProgress.value = status.progress || 0
+    activeStatus.value = status.message || status.status
+    if (status.status === 'completed') {
+      stopPolling()
+      activeTaskId.value = null
+      await store.refreshTopStocks()
+      await fetchExecutions()
+    } else if (status.status === 'failed') {
+      stopPolling()
+      activeTaskId.value = null
+      activeStatus.value = `失败: ${status.error || '未知错误'}`
+      await fetchExecutions()
+    }
+  } catch {
+    stopPolling()
+    activeTaskId.value = null
+  }
+}
+
+async function handleTrainNow() {
+  try {
+    const res = await apiQlib.startTraining({ model_type: 'lgbm' })
+    activeTaskId.value = res.task_id
+    activeProgress.value = 0
+    activeStatus.value = '提交成功'
     showHistory.value = true
-    setTimeout(fetchExecutions, 2000)
+    activePollTimer.value = setInterval(() => pollProgress(res.task_id), 3000)
+    setTimeout(() => pollProgress(res.task_id), 1000)
   } catch (e: any) {
     store.state.error = e.response?.data?.detail || '启动训练失败'
   }
@@ -94,7 +135,7 @@ const execColumns: DataTableColumns<JobExecution> = [
     render: (row) => row.error || (row.result ? JSON.stringify(row.result).slice(0, 80) : '-') },
 ]
 
-const columns: DataTableColumns<TopStockItem> = [
+const topColumns: DataTableColumns<TopStockItem> = [
   { title: '排名', key: 'rank', width: 60 },
   { title: '代码', key: 'code', width: 120 },
   { title: '名称', key: 'name', render: (row) => row.name || row.code },
@@ -107,15 +148,24 @@ const columns: DataTableColumns<TopStockItem> = [
     <NSpace class="filter-bar" align="center">
       <NDatePicker type="daterange" clearable @update:value="handleDateRangeChange" style="width: 280px" />
       <NButton type="primary" :loading="store.state.refreshingTopStocks" @click="handleRefresh">刷新今日推荐</NButton>
-      <NButton v-if="trainJobId" type="warning" @click="handleTrainNow">开始训练</NButton>
+      <NButton type="warning" :disabled="!!activeTaskId" @click="handleTrainNow">开始训练</NButton>
       <NButton v-if="trainJobId" size="small" quaternary @click="showHistory = !showHistory">
         {{ showHistory ? '隐藏训练记录' : '训练记录' }}
       </NButton>
     </NSpace>
 
-    <NAlert v-if="!trainJobId && !store.state.loading" type="warning" style="margin-bottom: 12px">
+    <NAlert v-if="!trainJobId && !store.state.loading && !activeTaskId" type="warning" style="margin-bottom: 12px">
       未找到 Qlib 模型训练任务，请先在调度页面创建 job_type 为 qlib_train 的任务
     </NAlert>
+
+    <div v-if="activeTaskId" style="margin-bottom: 16px; padding: 12px; background: #f5f7fa; border-radius: 6px;">
+      <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+        <span style="font-weight: 500;">训练进度</span>
+        <span style="color: #888; font-size: 13px;">{{ activeProgress }}%</span>
+      </div>
+      <NProgress :percentage="activeProgress" :height="10" :indicator-placement="'inside'" />
+      <div style="margin-top: 4px; color: #666; font-size: 13px;">{{ activeStatus }}</div>
+    </div>
 
     <div v-if="showHistory && trainJobId" style="margin-bottom: 16px">
       <NDivider>训练任务执行记录</NDivider>
@@ -137,7 +187,7 @@ const columns: DataTableColumns<TopStockItem> = [
       <div v-if="store.state.topStocks.length > 0">
         <div v-for="day in store.state.topStocks" :key="day.date" style="margin-bottom: 20px">
           <NTag type="info" style="margin-bottom: 8px">{{ day.date }} | 模型: {{ day.model_id }} | {{ day.model_type }} | {{ day.factor }}</NTag>
-          <NDataTable :columns="columns" :data="day.stocks" :bordered="false" size="small" striped :row-key="(row: TopStockItem) => row.code" />
+          <NDataTable :columns="topColumns" :data="day.stocks" :bordered="false" size="small" striped :row-key="(row: TopStockItem) => row.code" />
         </div>
       </div>
       <NEmpty v-else-if="!store.state.loading" description="暂无推荐数据，点击刷新按钮生成" />

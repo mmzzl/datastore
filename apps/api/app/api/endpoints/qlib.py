@@ -109,6 +109,7 @@ class TrainStatusResponse(BaseModel):
     task_id: str
     status: str
     progress: int
+    message: Optional[str] = None
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     model_id: Optional[str] = None
@@ -227,6 +228,7 @@ async def get_training_status(
         task_id=task_id,
         status=status.get("status", "unknown"),
         progress=status.get("progress", 0),
+        message=status.get("progress_message"),
         started_at=status.get("started_at"),
         completed_at=status.get("completed_at"),
         model_id=status.get("model_id"),
