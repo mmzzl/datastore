@@ -104,6 +104,50 @@ class RiskReportGenerator:
         self._storage = storage
         self._risk_collection = None
         self._industry_cache: Dict[str, Optional[str]] = {}
+        self._load_csv_mappings()
+
+    @staticmethod
+    def _load_code_to_name() -> Dict[str, str]:
+        import os
+        import pandas as pd
+        mapping = {}
+        csv_path = os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'all_stock.csv')
+        try:
+            df = pd.read_csv(csv_path, encoding='utf-8')
+            for _, row in df.iterrows():
+                raw_code = str(row.get('code', '')).strip()
+                name = str(row.get('code_name', '')).strip() if pd.notna(row.get('code_name')) else ''
+                if not raw_code or not name:
+                    continue
+                if raw_code.startswith('sh.') or raw_code.startswith('sz.'):
+                    mapping[raw_code[3:]] = name
+                mapping[raw_code] = name
+        except Exception as e:
+            logger.warning(f"Failed to load all_stock.csv: {e}")
+        return mapping
+
+    @staticmethod
+    def _load_code_to_industry() -> Dict[str, str]:
+        import os
+        import pandas as pd
+        mapping = {}
+        csv_path = os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'all_stock_industry.csv')
+        try:
+            df = pd.read_csv(csv_path, encoding='utf-8-sig')
+            for _, row in df.iterrows():
+                code = str(row.get('代码', '')).strip()
+                industry = str(row.get('板块名称', '')).strip() if pd.notna(row.get('板块名称')) else ''
+                if not code or not industry:
+                    continue
+                if code not in mapping:
+                    mapping[code] = industry
+        except Exception as e:
+            logger.warning(f"Failed to load all_stock_industry.csv: {e}")
+        return mapping
+
+    def _load_csv_mappings(self):
+        self._code_to_name = self._load_code_to_name()
+        self._code_to_industry_csv = self._load_code_to_industry()
 
     def _get_storage(self) -> MongoStorage:
         if self._storage is None:
@@ -307,6 +351,12 @@ class RiskReportGenerator:
         normalized = self._normalize_code(code)
         if normalized in self._industry_cache:
             return self._industry_cache[normalized]
+
+        industry = self._code_to_industry_csv.get(normalized)
+        if industry:
+            self._industry_cache[normalized] = industry
+            return industry
+
         storage = self._get_storage()
         try:
             stock_info_coll = storage.db.get_collection("stock_info")
@@ -315,6 +365,7 @@ class RiskReportGenerator:
         except Exception as e:
             logger.warning(f"Failed to get industry for {code}: {e}")
             industry = None
+
         self._industry_cache[normalized] = industry
         return industry
 
@@ -588,6 +639,8 @@ class RiskReportGenerator:
         for holding in holdings:
             code = holding.get("code", "")
             name = holding.get("name")
+            if not name:
+                name = self._code_to_name.get(self._normalize_code(code), "")
             quantity = holding.get("quantity", 0)
             cost_price = holding.get("average_cost", 0)
             if quantity <= 0:
