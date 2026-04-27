@@ -7,7 +7,7 @@ Provides REST API endpoints for:
 - Stock selection
 """
 
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Depends, Query
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 from datetime import datetime
@@ -172,17 +172,8 @@ class SelectionResponse(BaseModel):
 @router.post("/train", response_model=TrainResponse)
 async def start_training(
     request: TrainRequest,
-    background_tasks: BackgroundTasks,
-    trainer: QlibTrainer = Depends(get_trainer),
-    tracker: ExperimentTracker = Depends(get_tracker),
 ):
-    """
-    Start a model training task.
-
-    Training runs in background. Use the returned task_id to poll for status.
-    """
     instruments = request.instruments or get_csi300_instruments()
-
     config = {
         "instruments": instruments,
         "start_time": request.start_time,
@@ -190,39 +181,14 @@ async def start_training(
         "model_type": request.model_type,
         "factor_type": request.factor_type,
     }
-
     try:
-        task_id = trainer.start_training(config)
-
-        logger.info(f"Training started: task_id={task_id}")
-
-        try:
-            from datetime import datetime
-            import uuid
-            execution_data = {
-                "execution_id": str(uuid.uuid4()),
-                "job_id": "qlib_train",
-                "job_type": "qlib_train",
-                "status": "running",
-                "started_at": datetime.now(),
-                "task_id": task_id,
-            }
-            tracker.collection.database["job_executions"].insert_one(execution_data)
-        except Exception as e:
-            logger.warning(f"Failed to save training execution record: {e}")
-
-        return TrainResponse(
-            task_id=task_id,
-            status="pending",
-            message="Training task started successfully",
-        )
-
+        from app.celery_app import celery_app
+        task = celery_app.send_task("app.qlib.train_task.run_training", kwargs={"config": config})
+        logger.info(f"Training task submitted: {task.id}")
+        return TrainResponse(task_id=task.id, status="pending", message="Training task submitted")
     except Exception as e:
-        logger.error(f"Failed to start training: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to start training: {str(e)}"
-        )
+        logger.error(f"Failed to submit training task: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to submit training task: {str(e)}")
 
 
 @router.get("/train/{task_id}", response_model=TrainStatusResponse)
@@ -251,6 +217,96 @@ async def get_training_status(
         metrics=status.get("metrics"),
         error=status.get("error"),
     )
+
+
+@router.get("/tasks")
+async def list_training_tasks(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    current_user: AuthenticatedUser = Depends(require_permission("qlib:view")),
+):
+    try:
+        from pymongo import MongoClient
+        client = MongoClient(
+            host=settings.mongodb_host,
+            port=settings.mongodb_port,
+            username=settings.mongodb_username,
+            password=settings.mongodb_password,
+        )
+        coll = client[settings.mongodb_database]["job_executions"]
+        query = {"job_id": "qlib_train"}
+        total = coll.count_documents(query)
+        skip = (page - 1) * page_size
+        docs = list(coll.find(query).sort("created_at", -1).skip(skip).limit(page_size))
+        items = []
+        for doc in docs:
+            doc["_id"] = str(doc["_id"])
+            for f in ("created_at", "updated_at", "completed_at", "started_at"):
+                if isinstance(doc.get(f), datetime):
+                    doc[f] = doc[f].isoformat()
+            items.append(doc)
+        client.close()
+        return {"items": items, "total": total, "page": page, "page_size": page_size}
+    except Exception as e:
+        logger.error(f"Failed to list training tasks: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/train/{task_id}/revoke")
+async def revoke_training_task(
+    task_id: str,
+    current_user: AuthenticatedUser = Depends(require_permission("qlib:manage")),
+):
+    try:
+        from app.celery_app import celery_app
+        celery_app.control.revoke(task_id, terminate=True, signal="SIGTERM")
+        from pymongo import MongoClient
+        client = MongoClient(
+            host=settings.mongodb_host,
+            port=settings.mongodb_port,
+            username=settings.mongodb_username,
+            password=settings.mongodb_password,
+        )
+        coll = client[settings.mongodb_database]["job_executions"]
+        coll.update_one(
+            {"task_id": task_id},
+            {"$set": {"status": "revoked", "message": "Cancelled by user", "completed_at": datetime.now()}}
+        )
+        client.close()
+        logger.info(f"Training task revoked: {task_id}")
+        return {"ok": True, "task_id": task_id}
+    except Exception as e:
+        logger.error(f"Failed to revoke task {task_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/train/{task_id}/rerun")
+async def rerun_training_task(
+    task_id: str,
+    current_user: AuthenticatedUser = Depends(require_permission("qlib:manage")),
+):
+    try:
+        from pymongo import MongoClient
+        client = MongoClient(
+            host=settings.mongodb_host,
+            port=settings.mongodb_port,
+            username=settings.mongodb_username,
+            password=settings.mongodb_password,
+        )
+        coll = client[settings.mongodb_database]["job_executions"]
+        doc = coll.find_one({"task_id": task_id})
+        client.close()
+        if not doc:
+            raise HTTPException(status_code=404, detail="Task not found")
+        config = doc.get("config", {})
+        from app.celery_app import celery_app
+        task = celery_app.send_task("app.qlib.train_task.run_training", kwargs={"config": config})
+        return {"task_id": task.id, "message": "Training re-submitted"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to rerun task {task_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/models", response_model=List[ModelResponse])
