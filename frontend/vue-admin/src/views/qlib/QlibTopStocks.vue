@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, h } from 'vue'
+import { ref, onMounted, onActivated, onUnmounted, h } from 'vue'
 import { useQlibStore } from '../../stores/qlib'
 import { apiQlib } from '../../services/api_qlib'
 import { apiScheduler, type JobExecution } from '../../services/api_scheduler'
@@ -22,6 +22,10 @@ const activePollTimer = ref<ReturnType<typeof setInterval> | null>(null)
 onMounted(async () => {
   const today = new Date().toISOString().split('T')[0]
   await store.fetchTopStocks(today, today)
+  await findTrainJob()
+})
+
+onActivated(async () => {
   await findTrainJob()
 })
 
