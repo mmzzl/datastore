@@ -352,10 +352,18 @@ class RiskReportGenerator:
         if normalized in self._industry_cache:
             return self._industry_cache[normalized]
 
-        industry = self._code_to_industry_csv.get(normalized)
+        industry = self._code_to_industry_csv.get(str(normalized))
         if industry:
             self._industry_cache[normalized] = industry
             return industry
+
+        try:
+            industry = self._code_to_industry_csv.get(int(normalized))
+            if industry:
+                self._industry_cache[normalized] = industry
+                return industry
+        except (ValueError, TypeError):
+            pass
 
         storage = self._get_storage()
         try:
@@ -365,6 +373,12 @@ class RiskReportGenerator:
         except Exception as e:
             logger.warning(f"Failed to get industry for {code}: {e}")
             industry = None
+
+        if not industry:
+            name = self._code_to_name.get(normalized, "")
+            if name:
+                from .industry_utils import extract_industry_from_name
+                industry = extract_industry_from_name(name)
 
         self._industry_cache[normalized] = industry
         return industry
