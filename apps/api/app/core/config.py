@@ -89,6 +89,11 @@ class Settings(BaseSettings):
     qlib_training_cron: str = "0 2 * * 0"
     qlib_risk_report_cron: str = "30 15 * * 1-5"
     qlib_provider_uri: str = "~/.qlib/qlib_data/cn_data"
+    redis_host: str = "localhost"
+    redis_port: int = 6379
+    redis_db: int = 0
+    celery_broker_url: Optional[str] = None
+    celery_result_backend: Optional[str] = None
 
     # 备份配置
     backup_dir: str = "./backups"
