@@ -8,10 +8,9 @@ import asyncio
 import logging
 from datetime import datetime
 from typing import Any, Dict, Optional, List
-import os
-import pandas as pd
 
 from ..risk import RiskReportGenerator
+from ..risk.industry_utils import extract_industry_from_name
 from ..notify.dingtalk import DingTalkNotifier
 from ..core.config import settings
 from ..storage.mongo_client import MongoStorage
@@ -21,185 +20,17 @@ logger = logging.getLogger(__name__)
 
 class IndustryMapper:
     """Industry mapper for stocks."""
-    
+
     def __init__(self):
-        self.industry_map = self._load_industry_data()
-    
-    def _load_industry_data(self) -> Dict[str, str]:
-        """Load industry data from CSV file using pandas."""
-        industry_map = {}
-        csv_path = os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'all_stock.csv')
-        
-        try:
-            # Read CSV using pandas for better performance
-            df = pd.read_csv(csv_path, encoding='utf-8')
-            
-            # Create a mapping from code to industry
-            for _, row in df.iterrows():
-                code = row.get('code') or row.get('股票代码') or row.get('代码')
-                code_name = row.get('code_name') or row.get('名称')
-                if code:
-                    # Extract industry from code name for ETFs
-                    industry = self._extract_industry_from_name(code_name)
-                    industry_map[code] = industry
-            
-            logger.info(f"Loaded industry data for {len(industry_map)} stocks using pandas from all_stock.csv")
-        except Exception as e:
-            logger.error(f"Failed to load industry data: {e}")
-        
-        return industry_map
-    
-    def _extract_industry_from_name(self, name: str) -> str:
-        """Extract industry from stock name."""
-        if not name:
-            return '未知'
-        
-        # Common industry keywords in ETF names
-        industry_keywords = {
-            '能源': '能源',
-            '医药': '医药',
-            '医疗': '医药',
-            '科技': '科技',
-            '电子': '电子',
-            '金融': '金融',
-            '银行': '银行',
-            '证券': '金融',
-            '保险': '金融',
-            '消费': '消费',
-            '食品': '消费',
-            '饮料': '消费',
-            '农业': '农业',
-            '军工': '军工',
-            '国防': '军工',
-            '环保': '环保',
-            '新能源': '新能源',
-            '汽车': '汽车',
-            '钢铁': '钢铁',
-            '煤炭': '煤炭',
-            '有色': '有色金属',
-            '金属': '有色金属',
-            '化工': '化工',
-            '建材': '建材',
-            '地产': '房地产',
-            '房地产': '房地产',
-            '公用': '公用事业',
-            '电力': '公用事业',
-            '通信': '通信',
-            '传媒': '传媒',
-            '互联网': '互联网',
-            '计算机': '计算机',
-            '人工智能': '人工智能',
-            '半导体': '半导体',
-            '芯片': '半导体',
-            '光伏': '新能源',
-            '风电': '新能源',
-            '氢能': '新能源',
-            '锂电': '新能源',
-            '电池': '新能源',
-            '物联网': '物联网',
-            '5G': '通信',
-            '一带一路': '一带一路',
-            '央企': '央企',
-            '国企': '国企',
-            '民企': '民企',
-            '红利': '红利',
-            '价值': '价值',
-            '成长': '成长',
-            '低波': '低波',
-            '质量': '质量',
-            'ESG': 'ESG',
-            '碳中和': '环保',
-            '碳交易': '环保',
-            '创新': '创新',
-            '科技': '科技',
-            '高端制造': '制造业',
-            '制造业': '制造业',
-            '工业': '工业',
-            '材料': '材料',
-            '资源': '资源',
-            '黄金': '贵金属',
-            '白银': '贵金属',
-            '商品': '商品',
-            '原油': '能源',
-            '天然气': '能源',
-            '煤炭': '能源',
-            '有色': '有色金属',
-            '钢铁': '钢铁',
-            '化工': '化工',
-            '建材': '建材',
-            '基建': '基建',
-            '建筑': '建筑',
-            '运输': '交通运输',
-            '物流': '交通运输',
-            '航空': '交通运输',
-            '航运': '交通运输',
-            '铁路': '交通运输',
-            '公路': '交通运输',
-            '港口': '交通运输',
-            '地产': '房地产',
-            '房地产': '房地产',
-            '物业': '房地产',
-            '公用': '公用事业',
-            '电力': '公用事业',
-            '水务': '公用事业',
-            '燃气': '公用事业',
-            '通信': '通信',
-            '传媒': '传媒',
-            '互联网': '互联网',
-            '计算机': '计算机',
-            '软件': '计算机',
-            '人工智能': '人工智能',
-            '半导体': '半导体',
-            '芯片': '半导体',
-            '光伏': '新能源',
-            '风电': '新能源',
-            '氢能': '新能源',
-            '锂电': '新能源',
-            '电池': '新能源',
-            '物联网': '物联网',
-            '5G': '通信',
-            '一带一路': '一带一路',
-        }
-        
-        # Check for industry keywords in the name
-        for keyword, industry in industry_keywords.items():
-            if keyword in name:
-                return industry
-        
-        # Default to 'ETF' if no industry found
-        if 'ETF' in name:
-            return 'ETF'
-        
-        return '未知'
-    
-    def get_industry(self, code: str) -> Optional[str]:
-        """Get industry for a stock code."""
-        # Remove SH/SZ prefix if present
-        if code.startswith('SH'):
-            code = code[2:]
-        elif code.startswith('SZ'):
-            code = code[2:]
-        
-        # Also remove any suffix like .SH or .SZ if present
-        if code.endswith('.SH'):
-            code = code[:-3]
-        elif code.endswith('.SZ'):
-            code = code[:-3]
-        
-        # Try exact match first
-        if code in self.industry_map:
-            return self.industry_map[code]
-        
-        # Try matching with sz. or sh. prefix
-        sz_code = f"sz.{code}"
-        if sz_code in self.industry_map:
-            return self.industry_map[sz_code]
-        
-        sh_code = f"sh.{code}"
-        if sh_code in self.industry_map:
-            return self.industry_map[sh_code]
-        
-        return '未知'
+        self._cache: Dict[str, Optional[str]] = {}
+
+    def get_industry(self, code: str) -> str:
+        if code in self._cache:
+            return self._cache[code]
+
+        industry = extract_industry_from_name(code)
+        self._cache[code] = industry
+        return industry
 
 
 class RiskReportJob:
@@ -252,7 +83,9 @@ class RiskReportJob:
     def _get_price_fetcher(self, kline_data: Dict[str, Dict[str, float]]):
         def price_fetcher(code: str) -> float:
             return kline_data.get(code, {}).get("close", 0.0)
-        return price_fetcher
+        def volume_fetcher(code: str) -> float:
+            return kline_data.get(code, {}).get("volume", 0.0)
+        return price_fetcher, volume_fetcher
 
     async def _fetch_latest_prices(self, codes: List[str]) -> Dict[str, Dict[str, float]]:
         storage = self._get_storage()
@@ -280,10 +113,13 @@ class RiskReportJob:
                     prices[code] = {
                         "close": latest.get("close", 0.0),
                         "date": latest.get("date", ""),
+                        "volume": latest.get("volume", 0),
                     }
+                else:
+                    prices[code] = {"close": 0.0, "date": "", "volume": 0}
             except Exception as e:
                 logger.warning(f"Failed to fetch price for {code}: {e}")
-                prices[code] = {"close": 0.0, "date": ""}
+                prices[code] = {"close": 0.0, "date": "", "volume": 0}
 
         return prices
 
@@ -341,7 +177,7 @@ class RiskReportJob:
 
                     codes = [h.get("code") for h in holdings if h.get("code")]
                     prices = await self._fetch_latest_prices(codes)
-                    price_fetcher = self._get_price_fetcher(prices)
+                    price_fetcher, volume_fetcher = self._get_price_fetcher(prices)
 
                     report = await generator.generate_report(
                         user_id=user_id,

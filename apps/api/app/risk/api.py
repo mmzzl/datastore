@@ -11,6 +11,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from app.risk.industry_utils import extract_industry_from_name
 from app.risk.risk_report import RiskReportGenerator
 from app.core.config import settings
 from app.core.auth import AuthenticatedUser, require_permission
@@ -28,6 +29,8 @@ class RiskReportItem(BaseModel):
     portfolio_value: float
     metrics: dict
     created_at: str
+    stress_test: Optional[dict] = None
+    high_correlation_pairs: Optional[list] = None
 
 
 class RiskReportsResponse(BaseModel):
@@ -51,107 +54,6 @@ def get_storage():
     storage.connect()
     return storage
 
-
-def _extract_industry_from_name(name: str) -> str:
-    """Extract industry from stock name, especially for ETFs."""
-    industry_keywords = {
-        '能源': '能源',
-        '石油': '能源',
-        '煤炭': '能源',
-        '电力': '公用事业',
-        '水务': '公用事业',
-        '燃气': '公用事业',
-        '环保': '环保',
-        '医药': '医药',
-        '医疗': '医药',
-        '健康': '医药',
-        '生物': '医药',
-        '银行': '银行',
-        '证券': '非银金融',
-        '保险': '非银金融',
-        '金融': '非银金融',
-        '地产': '房地产',
-        '建筑': '建筑',
-        '建材': '建材',
-        '钢铁': '钢铁',
-        '有色': '有色金属',
-        '金属': '有色金属',
-        '化工': '化工',
-        '材料': '材料',
-        '机械': '机械',
-        '制造': '制造业',
-        '汽车': '汽车',
-        '家电': '家电',
-        '食品': '食品饮料',
-        '饮料': '食品饮料',
-        '白酒': '食品饮料',
-        '农业': '农林牧渔',
-        '农林': '农林牧渔',
-        '牧业': '农林牧渔',
-        '渔业': '农林牧渔',
-        '纺织': '纺织服装',
-        '服装': '纺织服装',
-        '轻工': '轻工制造',
-        '造纸': '轻工制造',
-        '电子': '电子',
-        '科技': '科技',
-        '计算机': '计算机',
-        '软件': '计算机',
-        '通信': '通信',
-        '传媒': '传媒',
-        '互联网': '互联网',
-        '人工智能': '人工智能',
-        '半导体': '半导体',
-        '芯片': '半导体',
-        '光伏': '新能源',
-        '风电': '新能源',
-        '氢能': '新能源',
-        '锂电': '新能源',
-        '电池': '新能源',
-        '物联网': '物联网',
-        '5G': '通信',
-        '一带一路': '一带一路',
-        '央企': '央企',
-        '国企': '国企',
-        '民企': '民企',
-        '红利': '红利',
-        '价值': '价值',
-        '成长': '成长',
-        '低波': '低波',
-        '质量': '质量',
-        'ESG': 'ESG',
-        '碳中和': '环保',
-        '碳交易': '环保',
-        '创新': '创新',
-        '高端制造': '制造业',
-        '工业': '工业',
-        '资源': '资源',
-        '黄金': '贵金属',
-        '白银': '贵金属',
-        '商品': '商品',
-        '原油': '能源',
-        '天然气': '能源',
-        '运输': '交通运输',
-        '物流': '交通运输',
-        '航空': '交通运输',
-        '航运': '交通运输',
-        '铁路': '交通运输',
-        '公路': '交通运输',
-        '港口': '交通运输',
-        '物业': '房地产',
-        '公用': '公用事业',
-    }
-    
-    # Check for industry keywords in the name
-    for keyword, industry in industry_keywords.items():
-        if keyword in name:
-            return industry
-    
-    # Default to 'ETF' if no industry found
-    if 'ETF' in name:
-        return 'ETF'
-    
-    return '未知'
 
 def get_stock_name_mapper():
     """Get stock name mapper from all_stock.csv."""
@@ -218,37 +120,34 @@ async def get_risk_reports(
             portfolio_risk = doc.get("portfolio_risk", {})
             total_value = portfolio_risk.get("total_value", 0)
             
-            # Calculate risk metrics based on actual data
-            var_95 = portfolio_risk.get("portfolio_var_95", 0)
             metrics = {
-                "var_95": var_95,
-                "var_99": var_95 * 1.5,
-                "expected_shortfall": var_95 * 0.5,
-                "beta": 1.0,
-                "volatility": var_95 * 2.0,
-                "max_drawdown": var_95 * 0.8,
+                "var_95": portfolio_risk.get("portfolio_var_95", 0),
+                "var_99": portfolio_risk.get("var_99", 0),
+                "expected_shortfall": portfolio_risk.get("expected_shortfall", 0),
+                "beta": portfolio_risk.get("beta", 0),
+                "volatility": portfolio_risk.get("volatility", 0),
+                "max_drawdown": portfolio_risk.get("max_drawdown", 0),
+                "sharpe_ratio": portfolio_risk.get("sharpe_ratio", 0),
+                "concentration_score": portfolio_risk.get("concentration_score", 0),
                 "concentration_risk": max(
                     (c.get("allocation_pct", 0) for c in portfolio_risk.get("industry_concentrations", [])),
                     default=0
                 ),
             }
-            
+
             holdings_risk = []
             for h in doc.get("holdings_risk", []):
                 code = h.get("code", "")
-                # Get stock name from mapper
                 name = h.get("name", "") or stock_name_mapper.get(code, "")
-                
-                # Get industry from the holding or extract from name
+
                 industry = h.get("industry", "")
                 if not industry and name:
-                    industry = _extract_industry_from_name(name)
-                
-                # Calculate weight
+                    industry = extract_industry_from_name(name)
+
                 quantity = h.get("quantity", 0)
                 current_price = h.get("current_price", 0)
                 weight = quantity * current_price
-                
+
                 holdings_risk.append({
                     "code": code,
                     "name": name,
@@ -261,15 +160,22 @@ async def get_risk_reports(
                     "quantity": quantity,
                     "pnl_percent": h.get("pnl_pct", 0) * 100,
                     "risk_score": h.get("risk_score", 0),
+                    "var_95": h.get("var_95", 0),
+                    "var_99": h.get("var_99", 0),
+                    "expected_shortfall": h.get("expected_shortfall", 0),
+                    "volatility": h.get("volatility", 0),
+                    "max_drawdown": h.get("max_drawdown", 0),
+                    "sharpe_ratio": h.get("sharpe_ratio", 0),
+                    "beta": h.get("beta", 0),
+                    "liquidity_days": h.get("liquidity_days", 0),
                 })
-            
-            # Handle created_at field properly
+
             created_at = doc.get("created_at")
             if isinstance(created_at, datetime):
                 created_at = created_at.isoformat()
             elif not created_at:
                 created_at = datetime.now().isoformat()
-            
+
             items.append(RiskReportItem(
                 id=doc.get("report_id", ""),
                 name=f"风险报告 - {doc.get('date', '')}",
@@ -278,8 +184,10 @@ async def get_risk_reports(
                 portfolio_value=total_value,
                 metrics=metrics,
                 created_at=created_at,
+                stress_test=doc.get("stress_test"),
+                high_correlation_pairs=portfolio_risk.get("high_correlation_pairs"),
             ))
-        
+
         return RiskReportsResponse(
             items=items,
             total=total,
@@ -328,31 +236,45 @@ async def get_risk_report(
                 h["pnl_percent"] = h["pnl_pct"] * 100
             # Extract industry from name if not present
             if not h.get("industry") and h.get("name"):
-                h["industry"] = _extract_industry_from_name(h.get("name", ""))
+                h["industry"] = extract_industry_from_name(h.get("name", ""))
             # Calculate weight
             quantity = h.get("quantity", 0)
             current_price = h.get("current_price", 0)
             h["weight"] = quantity * current_price
-        
+
         # Ensure metrics field is present
         if "metrics" not in doc:
             portfolio_risk = doc.get("portfolio_risk", {})
-            var_95 = portfolio_risk.get("portfolio_var_95", 0)
             doc["metrics"] = {
-                "var_95": var_95,
-                "var_99": var_95 * 1.5,
-                "expected_shortfall": var_95 * 0.5,
-                "beta": 1.0,
-                "volatility": var_95 * 2.0,
-                "max_drawdown": var_95 * 0.8,
+                "var_95": portfolio_risk.get("portfolio_var_95", 0),
+                "var_99": portfolio_risk.get("var_99", 0),
+                "expected_shortfall": portfolio_risk.get("expected_shortfall", 0),
+                "beta": portfolio_risk.get("beta", 0),
+                "volatility": portfolio_risk.get("volatility", 0),
+                "max_drawdown": portfolio_risk.get("max_drawdown", 0),
+                "sharpe_ratio": portfolio_risk.get("sharpe_ratio", 0),
+                "concentration_score": portfolio_risk.get("concentration_score", 0),
                 "concentration_risk": max(
                     (c.get("allocation_pct", 0) for c in portfolio_risk.get("industry_concentrations", [])),
                     default=0
                 ),
             }
-        
+
+        # Pass through stress_test data
+        if "stress_test" not in doc:
+            doc["stress_test"] = None
+
+        # Pass through correlation data
+        pr = doc.get("portfolio_risk", {})
+        if "correlation_matrix" not in doc:
+            doc["correlation_matrix"] = pr.get("correlation_matrix")
+        if "correlation_labels" not in doc:
+            doc["correlation_labels"] = pr.get("correlation_labels")
+        if "high_correlation_pairs" not in doc:
+            doc["high_correlation_pairs"] = pr.get("high_correlation_pairs")
+
         return doc
-    
+
     except HTTPException:
         raise
     except Exception as e:
@@ -360,3 +282,21 @@ async def get_risk_report(
         raise HTTPException(status_code=500, detail=f"Failed to get report: {str(e)}")
     finally:
         storage.close()
+
+
+@router.get("/reports/trend/{user_id}")
+async def get_risk_trend(
+    user_id: str,
+    days: int = Query(default=30, ge=7, le=365, description="Number of days"),
+    current_user: AuthenticatedUser = Depends(require_permission("risk:view")),
+):
+    """Get risk trend data for a user."""
+    generator = RiskReportGenerator()
+    try:
+        trend_data = await generator.get_trend_data(user_id, days)
+        return trend_data
+    except Exception as e:
+        logger.error(f"Failed to get risk trend for user {user_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get trend data: {str(e)}")
+    finally:
+        generator.close()

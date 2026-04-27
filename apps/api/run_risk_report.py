@@ -22,10 +22,23 @@ logger = logging.getLogger(__name__)
 async def main():
     """Main function to generate risk reports."""
     logger.info("Starting manual risk report generation...")
-    
-    # Configuration for risk report generation
+
+    from app.storage.mongo_client import MongoStorage
+    storage = MongoStorage(
+        host=settings.mongodb_host,
+        port=settings.mongodb_port,
+        db_name=settings.mongodb_database,
+        username=settings.mongodb_username,
+        password=settings.mongodb_password,
+    )
+    storage.connect()
+    user_ids = list(storage.db.get_collection("holdings").distinct("user_id"))
+    storage.close()
+    if not user_ids:
+        logger.warning("No users with holdings found in database")
+        return
     config = {
-        "user_ids": ["admin"],  # List of user IDs to generate reports for
+        "user_ids": user_ids,
         "dingtalk_webhook": settings.after_market_dingtalk_webhook,
         "dingtalk_secret": settings.after_market_dingtalk_secret,
     }

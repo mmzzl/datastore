@@ -198,6 +198,43 @@ def run_qlib_top_stocks_job():
         logging.error(f"Qlib top stocks job failed: {e}")
         logging.error(traceback.format_exc())
 
+def run_risk_report_job():
+    if datetime.now().weekday() >= 5:
+        logging.info("Skipping risk report job: weekend")
+        return
+    try:
+        import asyncio
+        from app.scheduler.risk_report_job import risk_report_handler
+        from app.storage.mongo_client import MongoStorage
+        storage = MongoStorage(
+            host=settings.mongodb_host,
+            port=settings.mongodb_port,
+            db_name=settings.mongodb_database,
+            username=settings.mongodb_username,
+            password=settings.mongodb_password,
+        )
+        storage.connect()
+        user_ids = list(storage.db.get_collection("holdings").distinct("user_id"))
+        storage.close()
+        if not user_ids:
+            logging.info("No users with holdings, skipping risk report")
+            return
+        config = {
+            "user_ids": user_ids,
+            "dingtalk_webhook": settings.after_market_dingtalk_webhook,
+            "dingtalk_secret": settings.after_market_dingtalk_secret,
+        }
+        job = risk_report_handler(config)
+        loop = asyncio.new_event_loop()
+        try:
+            result = loop.run_until_complete(job)
+            logging.info(f"Risk report job result: {result}")
+        finally:
+            loop.close()
+    except Exception as e:
+        logging.error(f"Risk report job failed: {e}")
+        logging.error(traceback.format_exc())
+
 # ====================== 调度配置 ======================
 def setup_scheduler():
     job_time = settings.after_market_scheduler_time
@@ -297,6 +334,17 @@ def setup_scheduler():
         minute=30,
         timezone=timezone,
         id="qlib_top_stocks_job",
+        misfire_grace_time=3600,
+        coalesce=True
+    )
+
+    scheduler.add_job(
+        run_risk_report_job,
+        "cron",
+        hour=15,
+        minute=35,
+        timezone=timezone,
+        id="risk_report_job",
         misfire_grace_time=3600,
         coalesce=True
     )

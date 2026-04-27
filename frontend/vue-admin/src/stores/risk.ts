@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { reactive } from 'vue'
-import { apiRisk, type RiskReport } from '../services/api_risk'
+import { apiRisk, type RiskReport, type RiskTrend } from '../services/api_risk'
 
 export const useRiskStore = defineStore('risk', () => {
   const state = reactive({
@@ -12,6 +12,7 @@ export const useRiskStore = defineStore('risk', () => {
     pageSize: 10,
     totalPages: 0,
     totalCount: 0,
+    trendData: null as RiskTrend | null,
   })
 
   async function fetchReports(page: number = 1, type?: string) {
@@ -42,6 +43,14 @@ export const useRiskStore = defineStore('risk', () => {
     }
   }
 
+  async function fetchTrend(userId: string, days: number = 30) {
+    try {
+      state.trendData = await apiRisk.getTrend(userId, days)
+    } catch (e: any) {
+      console.error('Failed to fetch trend data:', e)
+    }
+  }
+
   function clearCurrentReport() {
     state.currentReport = null
   }
@@ -50,6 +59,7 @@ export const useRiskStore = defineStore('risk', () => {
     state,
     fetchReports,
     fetchReport,
+    fetchTrend,
     clearCurrentReport,
   }
 })
