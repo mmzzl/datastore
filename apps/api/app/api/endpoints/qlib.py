@@ -174,6 +174,7 @@ async def start_training(
     request: TrainRequest,
     background_tasks: BackgroundTasks,
     trainer: QlibTrainer = Depends(get_trainer),
+    tracker: ExperimentTracker = Depends(get_tracker),
 ):
     """
     Start a model training task.
@@ -194,6 +195,21 @@ async def start_training(
         task_id = trainer.start_training(config)
 
         logger.info(f"Training started: task_id={task_id}")
+
+        try:
+            from datetime import datetime
+            import uuid
+            execution_data = {
+                "execution_id": str(uuid.uuid4()),
+                "job_id": "qlib_train",
+                "job_type": "qlib_train",
+                "status": "running",
+                "started_at": datetime.now(),
+                "task_id": task_id,
+            }
+            tracker.collection.database["job_executions"].insert_one(execution_data)
+        except Exception as e:
+            logger.warning(f"Failed to save training execution record: {e}")
 
         return TrainResponse(
             task_id=task_id,

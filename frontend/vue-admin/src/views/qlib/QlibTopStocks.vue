@@ -2,32 +2,45 @@
 import { ref, onMounted, onActivated, onUnmounted, h } from 'vue'
 import { useQlibStore } from '../../stores/qlib'
 import { apiQlib } from '../../services/api_qlib'
-import { apiScheduler, type JobExecution } from '../../services/api_scheduler'
 import { NDataTable, NDatePicker, NButton, NTag, NEmpty, NSpin, NSpace, NAlert, NDivider, NProgress } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
-import type { TopStockItem, TrainingStatus } from '../../services/api_qlib'
+import type { TopStockItem, TrainingStatus, Experiment } from '../../services/api_qlib'
 
 const store = useQlibStore()
 
-const trainJobId = ref<string | null>(null)
-const executions = ref<JobExecution[]>([])
-const loadingExecutions = ref(false)
 const showHistory = ref(false)
+const historyItems = ref<Experiment[]>([])
+const loadingHistory = ref(false)
 let activePollTimer: ReturnType<typeof setInterval> | null = null
 
 onMounted(async () => {
   const today = new Date().toISOString().split('T')[0]
   await store.fetchTopStocks(today, today)
-  await findTrainJob()
+  await fetchHistory()
 })
 
 onActivated(async () => {
-  await findTrainJob()
+  await fetchHistory()
+  if (store.state.activeTaskId) {
+    activePollTimer = setInterval(() => pollProgress(store.state.activeTaskId), 3000)
+  }
 })
 
 onUnmounted(() => {
   stopPolling()
 })
+
+async function fetchHistory() {
+  loadingHistory.value = true
+  try {
+    await store.fetchExperiments(1, 20, undefined, undefined)
+    historyItems.value = store.state.experiments
+  } catch {
+    // ignore
+  } finally {
+    loadingHistory.value = false
+  }
+}
 
 async function findTrainJob() {
   try {
@@ -100,12 +113,12 @@ async function pollProgress(taskId: string) {
       stopPolling()
       store.state.activeTaskId = null
       await store.refreshTopStocks()
-      await fetchExecutions()
+      await fetchHistory()
     } else if (status.status === 'failed') {
       stopPolling()
       store.state.activeTaskId = null
       store.state.activeStatus = `失败: ${status.error || '未知错误'}`
-      await fetchExecutions()
+      await fetchHistory()
     }
   } catch {
     stopPolling()
@@ -127,25 +140,37 @@ async function handleTrainNow() {
   }
 }
 
-const execColumns: DataTableColumns<JobExecution> = [
-  { title: '开始时间', key: 'started_at', width: 160,
-    render: (row) => row.started_at ? new Date(row.started_at).toLocaleString('zh-CN') : '-' },
-  { title: '状态', key: 'status', width: 80,
+const execColumns: DataTableColumns<Experiment> = [
+  { title: '开始时间', key: 'created_at', width: 160,
+    render: (row) => row.created_at ? new Date(row.created_at).toLocaleString('zh-CN') : '-' },
+  { title: '模型', key: 'model_type', width: 80 },
+  { title: '因子', key: 'factor_type', width: 80 },
+  { title: '状态', key: 'status', width: 70,
     render: (row) => {
       const map: Record<string, [string, string]> = {
-        pending: ['等待中', 'default'],
+        completed: ['成功', 'success'],
         running: ['运行中', 'info'],
-        success: ['成功', 'success'],
         failed: ['失败', 'error'],
+        skipped_low_ic: ['IC过低', 'warning'],
       }
       const [label, type] = map[row.status] || [row.status, 'default']
       return h(NTag, { type, size: 'small' }, () => label)
     },
   },
-  { title: '耗时', key: 'duration', width: 80,
-    render: (row) => row.duration ? `${row.duration.toFixed(1)}s` : '-' },
-  { title: '结果', key: 'result', ellipsis: { tooltip: true },
-    render: (row) => row.error || (row.result ? JSON.stringify(row.result).slice(0, 80) : '-') },
+  { title: 'Sharpe', key: 'sharpe_ratio', width: 80,
+    render: (row) => {
+      const sr = (row as any).backtest_result?.sharpe_ratio || (row as any).training_metrics?.sharpe_ratio
+      return sr ? sr.toFixed(3) : '-'
+    },
+  },
+  { title: 'IC', key: 'rank_ic', width: 80,
+    render: (row) => {
+      const ic = (row as any).training_metrics?.rank_ic
+      return ic ? ic.toFixed(4) : '-'
+    },
+  },
+  { title: '结果', key: 'error_message', ellipsis: { tooltip: true },
+    render: (row) => row.error_message || (row.model_id ? row.model_id : '-') },
 ]
 
 const topColumns: DataTableColumns<TopStockItem> = [
@@ -162,13 +187,13 @@ const topColumns: DataTableColumns<TopStockItem> = [
       <NDatePicker type="daterange" clearable @update:value="handleDateRangeChange" style="width: 280px" />
       <NButton type="primary" :loading="store.state.refreshingTopStocks" @click="handleRefresh">刷新今日推荐</NButton>
       <NButton type="warning" :disabled="!!store.state.activeTaskId" @click="handleTrainNow">开始训练</NButton>
-      <NButton v-if="trainJobId" size="small" quaternary @click="showHistory = !showHistory">
+      <NButton v-if="historyItems.length > 0 || store.state.activeTaskId" size="small" quaternary @click="showHistory = !showHistory">
         {{ showHistory ? '隐藏训练记录' : '训练记录' }}
       </NButton>
     </NSpace>
 
-    <NAlert v-if="!trainJobId && !store.state.loading && !store.state.activeTaskId" type="warning" style="margin-bottom: 12px">
-      未找到 Qlib 模型训练任务，请先在调度页面创建 job_type 为 qlib_train 的任务
+    <NAlert v-if="!store.state.loading && !store.state.activeTaskId" type="info" style="margin-bottom: 12px" closable>
+      点击"开始训练"使用 lgbm/alpha158/CSI300 训练新模型
     </NAlert>
 
     <div v-if="store.state.activeTaskId" style="margin-bottom: 16px; padding: 12px; background: #f5f7fa; border-radius: 6px;">
@@ -180,13 +205,13 @@ const topColumns: DataTableColumns<TopStockItem> = [
       <div style="margin-top: 4px; color: #666; font-size: 13px;">{{ store.state.activeStatus }}</div>
     </div>
 
-    <div v-if="showHistory && trainJobId" style="margin-bottom: 16px">
-      <NDivider>训练任务执行记录</NDivider>
-      <NSpin :show="loadingExecutions">
+    <div v-if="showHistory" style="margin-bottom: 16px">
+      <NDivider>训练历史</NDivider>
+      <NSpin :show="loadingHistory">
         <NDataTable
-          v-if="executions.length > 0"
+          v-if="historyItems.length > 0"
           :columns="execColumns"
-          :data="executions"
+          :data="historyItems"
           :bordered="false"
           size="small"
           :max-height="200"

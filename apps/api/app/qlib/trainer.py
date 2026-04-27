@@ -66,6 +66,37 @@ class QlibTrainer:
         
         self._training_tasks: Dict[str, Dict[str, Any]] = {}
         self._lock = threading.Lock()
+        self._mongo_collection = None
+
+    def _get_executions_collection(self):
+        if self._mongo_collection is not None:
+            return self._mongo_collection
+        try:
+            from app.core.config import settings
+            from pymongo import MongoClient
+            client = MongoClient(settings.mongodb_host, settings.mongodb_port,
+                                 username=settings.mongodb_username,
+                                 password=settings.mongodb_password)
+            self._mongo_collection = client[settings.mongodb_database]["job_executions"]
+        except Exception as e:
+            logger.warning(f"Cannot connect to MongoDB for execution records: {e}")
+            self._mongo_collection = False
+        return self._mongo_collection
+
+    def _update_execution_record(self, task_id: str, status: str, metrics: Optional[Dict] = None,
+                                  model_id: Optional[str] = None, error: Optional[str] = None):
+        coll = self._get_executions_collection()
+        if not coll:
+            return
+        try:
+            update = {"status": status, "completed_at": datetime.now()}
+            if metrics:
+                update["result"] = {"metrics": metrics, "model_id": model_id}
+            if error:
+                update["error_message"] = error
+            coll.update_one({"task_id": task_id}, {"$set": update})
+        except Exception as e:
+            logger.warning(f"Failed to update execution record: {e}")
     
     def start_training(
         self,
@@ -170,9 +201,11 @@ class QlibTrainer:
                 metrics=metrics,
                 completed_at=datetime.now(),
             )
-            
+
+            self._update_execution_record(task_id, "success", metrics=metrics, model_id=model_id)
+
             logger.info(f"Training task {task_id} completed with model {model_id}")
-            
+
         except Exception as e:
             logger.error(f"Training task {task_id} failed: {e}")
             import traceback
@@ -183,6 +216,7 @@ class QlibTrainer:
                 error=str(e),
                 completed_at=datetime.now(),
             )
+            self._update_execution_record(task_id, "failed", error=str(e))
     
     def get_status(self, task_id: str) -> Dict[str, Any]:
         """
