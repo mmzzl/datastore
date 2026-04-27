@@ -25,9 +25,8 @@ def _get_executions_collection():
 def run_training(self, config: dict):
     task_id = self.request.id
     coll = _get_executions_collection()
-    coll.update_one(
-        {"task_id": task_id},
-        {"$set": {
+    try:
+        coll.insert_one({
             "task_id": task_id,
             "job_id": "qlib_train",
             "job_type": "qlib_train",
@@ -37,9 +36,17 @@ def run_training(self, config: dict):
             "config": config,
             "created_at": datetime.now(),
             "started_at": datetime.now(),
-        }},
-        upsert=True,
-    )
+        })
+    except Exception:
+        coll.update_one(
+            {"task_id": task_id},
+            {"$set": {
+                "status": "running",
+                "progress": 0,
+                "message": "starting",
+                "updated_at": datetime.now(),
+            }}
+        )
 
     trainer = QlibTrainer(
         model_dir=config.get("model_dir", settings.qlib_model_dir),
