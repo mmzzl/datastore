@@ -13,11 +13,7 @@ const trainJobId = ref<string | null>(null)
 const executions = ref<JobExecution[]>([])
 const loadingExecutions = ref(false)
 const showHistory = ref(false)
-
-const activeTaskId = ref<string | null>(null)
-const activeProgress = ref(0)
-const activeStatus = ref('')
-const activePollTimer = ref<ReturnType<typeof setInterval> | null>(null)
+let activePollTimer: ReturnType<typeof setInterval> | null = null
 
 onMounted(async () => {
   const today = new Date().toISOString().split('T')[0]
@@ -89,42 +85,42 @@ async function handleRefresh() {
 }
 
 function stopPolling() {
-  if (activePollTimer.value) {
-    clearInterval(activePollTimer.value)
-    activePollTimer.value = null
+  if (activePollTimer) {
+    clearInterval(activePollTimer)
+    activePollTimer = null
   }
 }
 
 async function pollProgress(taskId: string) {
   try {
     const status: TrainingStatus = await apiQlib.getTrainingStatus(taskId)
-    activeProgress.value = status.progress || 0
-    activeStatus.value = status.message || status.status
+    store.state.activeProgress = status.progress || 0
+    store.state.activeStatus = status.message || status.status
     if (status.status === 'completed') {
       stopPolling()
-      activeTaskId.value = null
+      store.state.activeTaskId = null
       await store.refreshTopStocks()
       await fetchExecutions()
     } else if (status.status === 'failed') {
       stopPolling()
-      activeTaskId.value = null
-      activeStatus.value = `失败: ${status.error || '未知错误'}`
+      store.state.activeTaskId = null
+      store.state.activeStatus = `失败: ${status.error || '未知错误'}`
       await fetchExecutions()
     }
   } catch {
     stopPolling()
-    activeTaskId.value = null
+    store.state.activeTaskId = null
   }
 }
 
 async function handleTrainNow() {
   try {
     const res = await apiQlib.startTraining({ model_type: 'lgbm' })
-    activeTaskId.value = res.task_id
-    activeProgress.value = 0
-    activeStatus.value = '提交成功'
+    store.state.activeTaskId = res.task_id
+    store.state.activeProgress = 0
+    store.state.activeStatus = '提交成功'
     showHistory.value = true
-    activePollTimer.value = setInterval(() => pollProgress(res.task_id), 3000)
+    activePollTimer = setInterval(() => pollProgress(res.task_id), 3000)
     setTimeout(() => pollProgress(res.task_id), 1000)
   } catch (e: any) {
     store.state.error = e.response?.data?.detail || '启动训练失败'
@@ -165,23 +161,23 @@ const topColumns: DataTableColumns<TopStockItem> = [
     <NSpace class="filter-bar" align="center">
       <NDatePicker type="daterange" clearable @update:value="handleDateRangeChange" style="width: 280px" />
       <NButton type="primary" :loading="store.state.refreshingTopStocks" @click="handleRefresh">刷新今日推荐</NButton>
-      <NButton type="warning" :disabled="!!activeTaskId" @click="handleTrainNow">开始训练</NButton>
+      <NButton type="warning" :disabled="!!store.state.activeTaskId" @click="handleTrainNow">开始训练</NButton>
       <NButton v-if="trainJobId" size="small" quaternary @click="showHistory = !showHistory">
         {{ showHistory ? '隐藏训练记录' : '训练记录' }}
       </NButton>
     </NSpace>
 
-    <NAlert v-if="!trainJobId && !store.state.loading && !activeTaskId" type="warning" style="margin-bottom: 12px">
+    <NAlert v-if="!trainJobId && !store.state.loading && !store.state.activeTaskId" type="warning" style="margin-bottom: 12px">
       未找到 Qlib 模型训练任务，请先在调度页面创建 job_type 为 qlib_train 的任务
     </NAlert>
 
-    <div v-if="activeTaskId" style="margin-bottom: 16px; padding: 12px; background: #f5f7fa; border-radius: 6px;">
+    <div v-if="store.state.activeTaskId" style="margin-bottom: 16px; padding: 12px; background: #f5f7fa; border-radius: 6px;">
       <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
         <span style="font-weight: 500;">训练进度</span>
-        <span style="color: #888; font-size: 13px;">{{ activeProgress }}%</span>
+        <span style="color: #888; font-size: 13px;">{{ store.state.activeProgress }}%</span>
       </div>
-      <NProgress :percentage="activeProgress" :height="10" :indicator-placement="'inside'" />
-      <div style="margin-top: 4px; color: #666; font-size: 13px;">{{ activeStatus }}</div>
+      <NProgress :percentage="store.state.activeProgress" :height="10" :indicator-placement="'inside'" />
+      <div style="margin-top: 4px; color: #666; font-size: 13px;">{{ store.state.activeStatus }}</div>
     </div>
 
     <div v-if="showHistory && trainJobId" style="margin-bottom: 16px">

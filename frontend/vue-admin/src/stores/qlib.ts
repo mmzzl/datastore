@@ -19,6 +19,9 @@ export const useQlibStore = defineStore('qlib', () => {
     training: false,
     selecting: false,
     error: null as string | null,
+    activeTaskId: null as string | null,
+    activeProgress: 0,
+    activeStatus: '',
   })
 
   async function fetchModels() {
