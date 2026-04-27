@@ -4,82 +4,32 @@ import { useQlibStore } from '../../stores/qlib'
 import { apiQlib } from '../../services/api_qlib'
 import { NDataTable, NDatePicker, NButton, NTag, NEmpty, NSpin, NSpace, NAlert, NDivider, NProgress } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
-import type { TopStockItem, TrainingStatus, Experiment } from '../../services/api_qlib'
+import type { TopStockItem, TrainingTask } from '../../services/api_qlib'
 
 const store = useQlibStore()
-
 const showHistory = ref(false)
-const historyItems = ref<Experiment[]>([])
-const loadingHistory = ref(false)
-let activePollTimer: ReturnType<typeof setInterval> | null = null
+let pollTimer: ReturnType<typeof setInterval> | null = null
 
 onMounted(async () => {
   const today = new Date().toISOString().split('T')[0]
   await store.fetchTopStocks(today, today)
-  await fetchHistory()
+  await store.fetchTrainingTasks()
+  if (store.state.trainingTasks.some(t => t.status === 'running' || t.status === 'pending')) {
+    showHistory.value = true
+  }
+  pollTimer = setInterval(() => store.fetchTrainingTasks(), 15000)
 })
 
 onActivated(async () => {
-  await fetchHistory()
-  if (store.state.activeTaskId) {
-    activePollTimer = setInterval(() => pollProgress(store.state.activeTaskId), 3000)
+  await store.fetchTrainingTasks()
+  if (!pollTimer) {
+    pollTimer = setInterval(() => store.fetchTrainingTasks(), 15000)
   }
 })
 
 onUnmounted(() => {
-  stopPolling()
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
 })
-
-async function fetchHistory() {
-  loadingHistory.value = true
-  try {
-    await store.fetchExperiments(1, 20, undefined, undefined)
-    historyItems.value = store.state.experiments
-  } catch {
-    // ignore
-  } finally {
-    loadingHistory.value = false
-  }
-}
-
-async function findTrainJob() {
-  try {
-    const res = await apiScheduler.getJobs()
-    const job = res.items.find((j: any) => j.job_type === 'qlib_train')
-    if (job) {
-      trainJobId.value = job.job_id
-      await fetchExecutions()
-      return
-    }
-  } catch {
-    // ignore
-  }
-  try {
-    const created = await apiScheduler.createJob({
-      name: 'Qlib模型训练',
-      task_type: 'qlib_train',
-      schedule: '0 2 * * 0',
-      enabled: true,
-      config: { model_type: 'lgbm', instruments: 'csi300', factor_type: 'alpha158' },
-    })
-    trainJobId.value = (created as any).id || (created as any).job_id
-  } catch {
-    // ignore
-  }
-}
-
-async function fetchExecutions() {
-  if (!trainJobId.value) return
-  loadingExecutions.value = true
-  try {
-    const res = await apiScheduler.getExecutions(trainJobId.value, 1, 20)
-    executions.value = res.items || []
-  } catch {
-    // ignore
-  } finally {
-    loadingExecutions.value = false
-  }
-}
 
 function formatDate(ts: number): string {
   return new Date(ts).toISOString().split('T')[0]
@@ -97,80 +47,69 @@ async function handleRefresh() {
   await store.refreshTopStocks()
 }
 
-function stopPolling() {
-  if (activePollTimer) {
-    clearInterval(activePollTimer)
-    activePollTimer = null
-  }
-}
-
-async function pollProgress(taskId: string) {
-  try {
-    const status: TrainingStatus = await apiQlib.getTrainingStatus(taskId)
-    store.state.activeProgress = status.progress || 0
-    store.state.activeStatus = status.message || status.status
-    if (status.status === 'completed') {
-      stopPolling()
-      store.state.activeTaskId = null
-      await store.refreshTopStocks()
-      await fetchHistory()
-    } else if (status.status === 'failed') {
-      stopPolling()
-      store.state.activeTaskId = null
-      store.state.activeStatus = `失败: ${status.error || '未知错误'}`
-      await fetchHistory()
-    }
-  } catch {
-    stopPolling()
-    store.state.activeTaskId = null
-  }
-}
-
 async function handleTrainNow() {
-  try {
-    const res = await apiQlib.startTraining({ model_type: 'lgbm' })
-    store.state.activeTaskId = res.task_id
-    store.state.activeProgress = 0
-    store.state.activeStatus = '提交成功'
-    showHistory.value = true
-    activePollTimer = setInterval(() => pollProgress(res.task_id), 3000)
-    setTimeout(() => pollProgress(res.task_id), 1000)
-  } catch (e: any) {
-    store.state.error = e.response?.data?.detail || '启动训练失败'
-  }
+  await apiQlib.startTraining({ model_type: 'lgbm' })
+  showHistory.value = true
+  await store.fetchTrainingTasks()
 }
 
-const execColumns: DataTableColumns<Experiment> = [
-  { title: '开始时间', key: 'created_at', width: 160,
-    render: (row) => row.created_at ? new Date(row.created_at).toLocaleString('zh-CN') : '-' },
-  { title: '模型', key: 'model_type', width: 80 },
-  { title: '因子', key: 'factor_type', width: 80 },
-  { title: '状态', key: 'status', width: 70,
+async function handleRevoke(taskId: string) {
+  await store.revokeTask(taskId)
+}
+
+async function handleRerun(taskId: string) {
+  await store.rerunTask(taskId)
+}
+
+const taskColumns: DataTableColumns<TrainingTask> = [
+  { title: '时间', key: 'created_at', width: 150,
+    render: (row) => row.created_at ? new Date(row.created_at).toLocaleString('zh-CN') : '-',
+  },
+  { title: '状态', key: 'status', width: 80,
     render: (row) => {
       const map: Record<string, [string, string]> = {
-        completed: ['成功', 'success'],
+        pending: ['等待', 'default'],
         running: ['运行中', 'info'],
+        success: ['完成', 'success'],
         failed: ['失败', 'error'],
-        skipped_low_ic: ['IC过低', 'warning'],
+        revoked: ['已取消', 'warning'],
       }
       const [label, type] = map[row.status] || [row.status, 'default']
       return h(NTag, { type, size: 'small' }, () => label)
     },
   },
-  { title: 'Sharpe', key: 'sharpe_ratio', width: 80,
+  { title: '进度', key: 'progress', width: 150,
     render: (row) => {
-      const sr = (row as any).backtest_result?.sharpe_ratio || (row as any).training_metrics?.sharpe_ratio
-      return sr ? sr.toFixed(3) : '-'
+      if (row.status === 'success') return h(NProgress, { type: 'success', percentage: 100, height: 16, indicatorPlacement: 'inside' })
+      if (row.status === 'failed' || row.status === 'revoked') return '-'
+      return h(NProgress, { percentage: row.progress || 0, height: 16, indicatorPlacement: 'inside' })
     },
   },
-  { title: 'IC', key: 'rank_ic', width: 80,
+  { title: '消息', key: 'message', ellipsis: { tooltip: true },
+    render: (row) => row.message || row.error_message || '-',
+  },
+  { title: '操作', key: 'actions', width: 120,
     render: (row) => {
-      const ic = (row as any).training_metrics?.rank_ic
-      return ic ? ic.toFixed(4) : '-'
+      const btns = []
+      if (row.status === 'running' || row.status === 'pending') {
+        btns.push(h(NButton, { size: 'tiny', type: 'warning', onClick: () => handleRevoke(row.task_id) }, () => '取消'))
+      }
+      if (row.status === 'success' || row.status === 'failed' || row.status === 'revoked') {
+        btns.push(h(NButton, { size: 'tiny', type: 'primary', onClick: () => handleRerun(row.task_id) }, () => '重跑'))
+      }
+      return h(NSpace, { size: 'small' }, () => btns)
     },
   },
-  { title: '结果', key: 'error_message', ellipsis: { tooltip: true },
-    render: (row) => row.error_message || (row.model_id ? row.model_id : '-') },
+  { title: '结果', key: 'result', ellipsis: { tooltip: true }, width: 150,
+    render: (row) => {
+      if (row.error_message) return row.error_message
+      if (row.result) {
+        const sr = (row.result as any)?.metrics?.sharpe_ratio
+        return sr ? `Sharpe: ${sr.toFixed(3)}` : `模型: ${(row.result as any)?.model_id || ''}`
+      }
+      return '-'
+    },
+  },
 ]
 
 const topColumns: DataTableColumns<TopStockItem> = [
@@ -186,38 +125,24 @@ const topColumns: DataTableColumns<TopStockItem> = [
     <NSpace class="filter-bar" align="center">
       <NDatePicker type="daterange" clearable @update:value="handleDateRangeChange" style="width: 280px" />
       <NButton type="primary" :loading="store.state.refreshingTopStocks" @click="handleRefresh">刷新今日推荐</NButton>
-      <NButton type="warning" :disabled="!!store.state.activeTaskId" @click="handleTrainNow">开始训练</NButton>
-      <NButton v-if="historyItems.length > 0 || store.state.activeTaskId" size="small" quaternary @click="showHistory = !showHistory">
+      <NButton type="warning" @click="handleTrainNow">开始训练</NButton>
+      <NButton size="small" quaternary @click="showHistory = !showHistory">
         {{ showHistory ? '隐藏训练记录' : '训练记录' }}
       </NButton>
     </NSpace>
 
-    <NAlert v-if="!store.state.loading && !store.state.activeTaskId" type="info" style="margin-bottom: 12px" closable>
-      点击"开始训练"使用 lgbm/alpha158/CSI300 训练新模型
-    </NAlert>
-
-    <div v-if="store.state.activeTaskId" style="margin-bottom: 16px; padding: 12px; background: #f5f7fa; border-radius: 6px;">
-      <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-        <span style="font-weight: 500;">训练进度</span>
-        <span style="color: #888; font-size: 13px;">{{ store.state.activeProgress }}%</span>
-      </div>
-      <NProgress :percentage="store.state.activeProgress" :height="10" :indicator-placement="'inside'" />
-      <div style="margin-top: 4px; color: #666; font-size: 13px;">{{ store.state.activeStatus }}</div>
-    </div>
-
     <div v-if="showHistory" style="margin-bottom: 16px">
-      <NDivider>训练历史</NDivider>
-      <NSpin :show="loadingHistory">
-        <NDataTable
-          v-if="historyItems.length > 0"
-          :columns="execColumns"
-          :data="historyItems"
-          :bordered="false"
-          size="small"
-          :max-height="200"
-        />
-        <NEmpty v-else description="暂无训练记录" />
-      </NSpin>
+      <NDivider>训练任务</NDivider>
+      <NDataTable
+        v-if="store.state.trainingTasks.length > 0"
+        :columns="taskColumns"
+        :data="store.state.trainingTasks"
+        :bordered="false"
+        size="small"
+        :max-height="300"
+        :scroll-x="800"
+      />
+      <NEmpty v-else description="暂无训练任务" />
     </div>
 
     <NAlert v-if="store.state.error" type="error" style="margin-bottom: 12px" closable>{{ store.state.error }}</NAlert>
