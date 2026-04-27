@@ -32,9 +32,9 @@ onUnmounted(() => {
 async function findTrainJob() {
   try {
     const res = await apiScheduler.getJobs()
-    const job = res.items.find((j: any) => j.task_type === 'qlib_train' || j.job_type === 'qlib_train')
+    const job = res.items.find((j: any) => j.job_type === 'qlib_train')
     if (job) {
-      trainJobId.value = job.id
+      trainJobId.value = job.job_id
       await fetchExecutions()
       return
     }
