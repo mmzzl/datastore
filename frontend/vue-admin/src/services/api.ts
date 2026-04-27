@@ -119,8 +119,8 @@ export const apiHoldings = {
 }
 
 export const apiSignals = {
-  async getLatest(n: number = 10) {
-    const res = await api.get(`/signals/latest`, { params: { n } })
+  async getLatest(params: Record<string, any> = {}) {
+    const res = await api.get('/signals/latest', { params })
     return res.data
   },
   async push(signal: any) {
