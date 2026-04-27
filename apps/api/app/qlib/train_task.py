@@ -81,14 +81,22 @@ def run_training(self, config: dict):
             )
             self.update_state(state="PROGRESS", meta={"progress": progress, "message": message})
 
-            if self.is_revoked():
-                logger.info(f"Task {task_id} revoked by user")
-                coll.update_one(
-                    {"task_id": task_id},
-                    {"$set": {"status": "revoked", "message": "Cancelled by user", "completed_at": datetime.now()}}
-                )
-                trainer.close()
-                return {"status": "revoked", "message": "Cancelled by user"}
+            if self.request.id != task_id or self.is_last_producer():
+                pass
+            try:
+                from celery.app.control import Inspect
+                i = Inspect(app=celery_app)
+                revoked = i.revoked()
+                if revoked and task_id in revoked:
+                    logger.info(f"Task {task_id} revoked by user")
+                    coll.update_one(
+                        {"task_id": task_id},
+                        {"$set": {"status": "revoked", "message": "Cancelled by user", "completed_at": datetime.now()}}
+                    )
+                    del trainer
+                    return {"status": "revoked", "message": "Cancelled by user"}
+            except Exception:
+                pass
 
             if current_status in ("completed", "failed", "cancelled"):
                 break
@@ -132,6 +140,3 @@ def run_training(self, config: dict):
             }}
         )
         raise
-
-    finally:
-        trainer.close()
