@@ -99,6 +99,27 @@ interface TopStocksDay {
   created_at: string | null
 }
 
+interface TrainingTask {
+  task_id: string
+  job_id: string
+  status: 'pending' | 'running' | 'success' | 'failed' | 'revoked'
+  progress: number
+  message: string | null
+  config: Record<string, any>
+  result: Record<string, any> | null
+  error_message: string | null
+  created_at: string
+  started_at: string | null
+  completed_at: string | null
+}
+
+interface TrainingTasksResponse {
+  items: TrainingTask[]
+  total: number
+  page: number
+  page_size: number
+}
+
 export const apiQlib = {
   async startTraining(request: TrainingRequest): Promise<{ task_id: string }> {
     const res = await api.post('/qlib/train', request)
@@ -160,7 +181,22 @@ export const apiQlib = {
   async refreshTopStocks(): Promise<{ message: string; date: string; model_id: string; count: number }> {
     const res = await api.post('/qlib/top-stocks/refresh')
     return res.data
+  },
+
+  async getTrainingTasks(page: number = 1, pageSize: number = 20): Promise<TrainingTasksResponse> {
+    const res = await api.get('/qlib/tasks', { params: { page, page_size: pageSize } })
+    return res.data
+  },
+
+  async revokeTrainingTask(taskId: string): Promise<{ ok: boolean }> {
+    const res = await api.post(`/qlib/train/${taskId}/revoke`)
+    return res.data
+  },
+
+  async rerunTrainingTask(taskId: string): Promise<{ task_id: string }> {
+    const res = await api.post(`/qlib/train/${taskId}/rerun`)
+    return res.data
   }
 }
 
-export type { TrainingRequest, TrainingStatus, Model, SelectionRequest, SelectionResult, Instrument, Experiment, ExperimentListResult, BestModel, TopStockItem, TopStocksDay }
+export type { TrainingRequest, TrainingStatus, Model, SelectionRequest, SelectionResult, Instrument, Experiment, ExperimentListResult, BestModel, TopStockItem, TopStocksDay, TrainingTask, TrainingTasksResponse }
