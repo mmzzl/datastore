@@ -605,6 +605,9 @@ async def refresh_top_stocks(
             date=today,
         )
 
+        if not predictions:
+            raise HTTPException(status_code=400, detail=f"Model {model_id} produce no predictions (model file may be missing)")
+
         stocks = [
             {"rank": p.get("rank", i + 1), "code": p.get("code", ""), "name": p.get("name", ""), "score": p.get("score", 0.0)}
             for i, p in enumerate(predictions[:10])
