@@ -810,7 +810,7 @@ class MongoDBAdapter(IDataSource):
                 "total_sell_cost": 0.0,
             }
         try:
-            transactions = self.get_transactions(user_id, code).get("items", [])
+            transactions = self.get_transactions(user_id, code, page=1, page_size=1000).get("items", [])
             total_sell_value = 0.0
             total_sell_cost = 0.0
 
