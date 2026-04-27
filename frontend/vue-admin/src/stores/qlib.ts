@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { reactive } from 'vue'
-import { apiQlib, type Model, type TrainingStatus, type SelectionResult, type Instrument, type Experiment, type ExperimentListResult, type BestModel, type TopStocksDay } from '../services/api_qlib'
+import { apiQlib, type Model, type TrainingStatus, type SelectionResult, type Instrument, type Experiment, type ExperimentListResult, type BestModel, type TopStocksDay, type TrainingTask } from '../services/api_qlib'
 
 export const useQlibStore = defineStore('qlib', () => {
   const state = reactive({
@@ -15,13 +15,12 @@ export const useQlibStore = defineStore('qlib', () => {
   bestModel: null as BestModel | null,
   topStocks: [] as TopStocksDay[],
   refreshingTopStocks: false,
+  trainingTasks: [] as TrainingTask[],
+  trainingTasksTotal: 0,
   loading: false,
     training: false,
     selecting: false,
     error: null as string | null,
-    activeTaskId: null as string | null,
-    activeProgress: 0,
-    activeStatus: '',
   })
 
   async function fetchModels() {
@@ -165,6 +164,38 @@ export const useQlibStore = defineStore('qlib', () => {
     }
   }
 
+  async function fetchTrainingTasks(page: number = 1, pageSize: number = 20) {
+    state.loading = true
+    state.error = null
+    try {
+      const res = await apiQlib.getTrainingTasks(page, pageSize)
+      state.trainingTasks = res.items
+      state.trainingTasksTotal = res.total
+    } catch (e: any) {
+      state.error = e.response?.data?.detail || '获取训练任务列表失败'
+    } finally {
+      state.loading = false
+    }
+  }
+
+  async function revokeTask(taskId: string) {
+    try {
+      await apiQlib.revokeTrainingTask(taskId)
+      await fetchTrainingTasks()
+    } catch (e: any) {
+      state.error = e.response?.data?.detail || '取消任务失败'
+    }
+  }
+
+  async function rerunTask(taskId: string) {
+    try {
+      await apiQlib.rerunTrainingTask(taskId)
+      await fetchTrainingTasks()
+    } catch (e: any) {
+      state.error = e.response?.data?.detail || '重跑任务失败'
+    }
+  }
+
   return {
     state,
     fetchModels,
@@ -179,5 +210,8 @@ export const useQlibStore = defineStore('qlib', () => {
     fetchBestModel,
     fetchTopStocks,
     refreshTopStocks,
+    fetchTrainingTasks,
+    revokeTask,
+    rerunTask,
   }
 })
