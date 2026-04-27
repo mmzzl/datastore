@@ -8,14 +8,14 @@ import QlibTopStocks from './qlib/QlibTopStocks.vue'
 <template>
   <div class="qlib-select-view">
     <NTabs type="line" animated>
-      <NTabPane name="history" tab="训练历史">
-        <QlibTrainHistory />
+      <NTabPane name="top-stocks" tab="Top10推荐">
+        <QlibTopStocks />
       </NTabPane>
       <NTabPane name="best-model" tab="最优模型">
         <QlibBestModel />
       </NTabPane>
-      <NTabPane name="top-stocks" tab="Top10推荐">
-        <QlibTopStocks />
+      <NTabPane name="history" tab="训练历史">
+        <QlibTrainHistory />
       </NTabPane>
     </NTabs>
   </div>
