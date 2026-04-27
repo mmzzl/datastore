@@ -1,10 +1,10 @@
 import api from './api'
 
 interface SchedulerJob {
-  id: string
+  job_id: string
   name: string
-  task_type: string
-  schedule: string
+  job_type: string
+  cron_expression: string
   enabled: boolean
   last_run?: string
   next_run?: string

@@ -36,7 +36,20 @@ async function findTrainJob() {
     if (job) {
       trainJobId.value = job.id
       await fetchExecutions()
+      return
     }
+  } catch {
+    // ignore
+  }
+  try {
+    const created = await apiScheduler.createJob({
+      name: 'Qlib模型训练',
+      task_type: 'qlib_train',
+      schedule: '0 2 * * 0',
+      enabled: true,
+      config: { model_type: 'lgbm', instruments: 'csi300', factor_type: 'alpha158' },
+    })
+    trainJobId.value = (created as any).id || (created as any).job_id
   } catch {
     // ignore
   }
