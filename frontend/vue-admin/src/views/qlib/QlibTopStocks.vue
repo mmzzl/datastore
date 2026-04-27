@@ -40,7 +40,7 @@ async function handleStartTraining() {
     const res = await apiQlib.startTraining({
       model_type: 'lgbm',
     })
-    const taskId = res.id
+    const taskId = res.task_id
     for (let i = 0; i < 60; i++) {
       await new Promise(r => setTimeout(r, 5000))
       const status = await apiQlib.getTrainingStatus(taskId)

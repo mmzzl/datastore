@@ -100,7 +100,7 @@ interface TopStocksDay {
 }
 
 export const apiQlib = {
-  async startTraining(request: TrainingRequest): Promise<{ id: string }> {
+  async startTraining(request: TrainingRequest): Promise<{ task_id: string }> {
     const res = await api.post('/qlib/train', request)
     return res.data
   },
