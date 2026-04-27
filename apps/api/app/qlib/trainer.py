@@ -122,13 +122,22 @@ class QlibTrainer:
         """
         try:
             self._update_status(task_id, TrainingStatus.RUNNING, 0)
-            
+
             qlib_initialized = self._ensure_qlib_initialized()
             if not qlib_initialized:
                 raise RuntimeError("Failed to initialize Qlib")
-            
+
+            self._update_status(task_id, TrainingStatus.RUNNING, 5, progress_message="Syncing Qlib data from MongoDB")
+            try:
+                from .bin_converter import QlibBinConverter
+                converter = QlibBinConverter()
+                summary = converter.incremental_sync()
+                logger.info(f"Data sync before training: {summary}")
+            except Exception as e:
+                logger.warning(f"Data sync failed (training may still proceed): {e}")
+
             self._update_status(task_id, TrainingStatus.RUNNING, 10, progress_message="Loading data")
-            
+
             dataset = self._create_dataset(config)
 
             self._update_status(task_id, TrainingStatus.RUNNING, 30, progress_message="Initializing model")
