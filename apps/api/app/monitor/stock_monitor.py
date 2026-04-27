@@ -425,6 +425,9 @@ class StockMonitor:
             signal_value = notification.type
             reasons = [r for r in notification.signal.reasons] if notification.signal else []
 
+            if self.dedup_filter.check_price_zero(notification.stock.code, 0.0):
+                return
+
             ok, resolved_signal = self.dedup_filter.should_send(
                 notification.stock.code, signal_value, reasons
             )

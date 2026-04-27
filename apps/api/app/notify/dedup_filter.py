@@ -45,7 +45,11 @@ class NotificationDedupFilter:
             logger.info(f"Notification filtered: no stock code (code={code!r})")
             return False, "no_stock_code"
 
-        signal = self._check_delisting(signal, reasons)
+        ok, resolved = self._check_delisting(signal, reasons)
+        if not ok:
+            logger.info(f"Notification filtered: delisting detected for {code}")
+            return False, "delisting_filtered"
+        signal = resolved
 
         if signal == "hold":
             return True, signal
@@ -83,22 +87,26 @@ class NotificationDedupFilter:
         except Exception as e:
             logger.error(f"Failed to record notification: {e}")
 
-    def _check_delisting(self, signal: str, reasons: List[str]) -> str:
-        if signal != "buy":
-            return signal
+    def _check_delisting(self, signal: str, reasons: List[str]) -> Tuple[bool, str]:
         for reason in reasons:
             for keyword in DELISTING_KEYWORDS:
                 if keyword in reason:
                     logger.info(
-                        f"Delisting detected ('{keyword}'), converting buy -> sell"
+                        f"Delisting keyword '{keyword}' detected, suppressing notification"
                     )
-                    return "sell"
-        return signal
+                    return False, "hold"
+        return True, signal
+
+    def check_price_zero(self, code: str, price: float) -> bool:
+        """Return True if stock should be suppressed due to zero price."""
+        if price is not None and price <= 0:
+            logger.info(f"Notification filtered: price is {price} for {code}")
+            return True
+        return False
 
     def _make_dedup_key(self, code: str, signal: str, reasons: List[str]) -> str:
         today = datetime.now().strftime("%Y-%m-%d")
-        reasons_hash = self._make_reasons_hash(reasons)
-        raw = f"{today}|{code}|{signal}|{reasons_hash}"
+        raw = f"{today}|{code}|daily"
         return hashlib.sha256(raw.encode()).hexdigest()
 
     @staticmethod

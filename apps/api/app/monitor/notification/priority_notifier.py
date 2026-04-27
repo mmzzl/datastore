@@ -21,6 +21,9 @@ class PriorityNotifier:
     def send(self, alert_signal: AlertSignal):
         signal_value = alert_signal.signal.value if hasattr(alert_signal.signal, 'value') else str(alert_signal.signal)
 
+        if self.dedup_filter.check_price_zero(alert_signal.code, alert_signal.price):
+            return
+
         ok, resolved_signal = self.dedup_filter.should_send(
             alert_signal.code, signal_value, alert_signal.reasons
         )

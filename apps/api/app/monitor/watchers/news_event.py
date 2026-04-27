@@ -213,6 +213,9 @@ class NewsEventWatcher(BaseWatcher):
 
                     self._last_triggered[key] = now
 
+                    if keyword in ("退市", "终止上市", "摘牌"):
+                        continue
+
                     signal_map = {
                         "政策": ("buy", "medium"),
                         "利好": ("buy", "high"),
