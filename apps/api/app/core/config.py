@@ -92,6 +92,7 @@ class Settings(BaseSettings):
     redis_host: str = "localhost"
     redis_port: int = 6379
     redis_db: int = 0
+    redis_password: str = ""
     celery_broker_url: Optional[str] = None
     celery_result_backend: Optional[str] = None
 

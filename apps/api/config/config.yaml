@@ -72,6 +72,7 @@ monitor:
 
 # Redis配置（用于Celery任务队列）
 redis:
-  host: "localhost"
+  host: "121.37.47.63"
   port: 6379
   db: 0
+  password: "your-redis-password"

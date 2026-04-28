@@ -1,7 +1,12 @@
 from celery import Celery
 from app.core.config import settings
 
-broker = settings.celery_broker_url or f"redis://{settings.redis_host}:{settings.redis_port}/{settings.redis_db}"
+broker = settings.celery_broker_url
+if not broker:
+    if settings.redis_password:
+        broker = f"redis://:{settings.redis_password}@{settings.redis_host}:{settings.redis_port}/{settings.redis_db}"
+    else:
+        broker = f"redis://{settings.redis_host}:{settings.redis_port}/{settings.redis_db}"
 backend = settings.celery_result_backend or (
     f"mongodb://{settings.mongodb_username}:{settings.mongodb_password}"
     f"@{settings.mongodb_host}:{settings.mongodb_port}/{settings.mongodb_database}"
