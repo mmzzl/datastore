@@ -74,8 +74,19 @@ py -3.12 apps/api/stock_kline_scraper.py
 py -3.12 apps/api/scheduler_standalone.py
 
 # Qlib 训练 + 回测（独立脚本）
+py -3.12 apps/api/scripts/train_eval.py
+
+# 指定模型类型、因子、股票池
 py -3.12 apps/api/scripts/train_eval.py --model lgbm --factor alpha158 --instruments csi300
+
+# 自动网格搜索最优参数（默认 2×2×2=8 组参数组合）
+py -3.12 apps/api/scripts/train_eval.py --model lgbm --target-sharpe 2.0
+
+# 自定义参数搜索范围
+py -3.12 apps/api/scripts/train_eval.py --lgbm-n-estimators 500,1000,2000 --lgbm-lr 0.01,0.05 --lgbm-num-leaves 31,63
 ```
+
+脚本会自动完成：数据同步 → 多组参数训练 → 回测评估 → 记录实验 → 输出最优模型。
 
 ## 配置
 
