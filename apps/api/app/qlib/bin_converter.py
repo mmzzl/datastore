@@ -105,21 +105,30 @@ class QlibBinConverter:
         logger.info(f"Built calendar with {len(normalized)} trading dates")
         return normalized
 
-    def _build_instruments(self) -> List[Tuple[str, str, str]]:
-        """For each stock in MongoDB, compute (instrument, start_date, end_date)."""
+    def _build_instruments(self, instruments: Optional[List[str]] = None) -> List[Tuple[str, str, str]]:
+        """For each stock in MongoDB, compute (instrument, start_date, end_date).
+
+        Args:
+            instruments: Optional list of stock codes to filter by (e.g. ["600519", "000001"]).
+                         If not provided, builds for all stocks.
+        """
         storage = self._ensure_storage()
         col = storage.kline_collection
         if col is None:
             storage.connect()
 
-        pipeline = [
+        pipeline: List[Dict[str, Any]] = [
             {"$match": {"frequency": FREQUENCY_DAILY}},
-            {"$group": {
+        ]
+        if instruments:
+            pipeline[0]["$match"]["code"] = {"$in": instruments}
+        pipeline.append({
+            "$group": {
                 "_id": "$code",
                 "min_date": {"$min": "$date"},
                 "max_date": {"$max": "$date"},
-            }},
-        ]
+            },
+        })
         results = list(col.aggregate(pipeline))
 
         instruments = []
@@ -297,8 +306,12 @@ class QlibBinConverter:
     # High-level conversion methods
     # ------------------------------------------------------------------
 
-    def full_convert(self) -> Dict[str, int]:
+    def full_convert(self, instruments: Optional[List[str]] = None) -> Dict[str, int]:
         """Full rebuild: create calendar, instruments, and all feature bins.
+
+        Args:
+            instruments: Optional list of stock codes to convert (e.g. ["600519", "000001"]).
+                         If not provided, converts all stocks.
 
         Returns summary dict with counts.
         """
@@ -309,8 +322,8 @@ class QlibBinConverter:
 
         calendar = self._build_calendar()
         self._write_calendar(calendar)
-        instruments = self._build_instruments()
-        self._write_instruments(instruments)
+        instrument_list = self._build_instruments(instruments)
+        self._write_instruments(instrument_list)
 
         storage = self._ensure_storage()
         col = storage.kline_collection
@@ -322,8 +335,8 @@ class QlibBinConverter:
         cal_index_map = {d: i for i, d in enumerate(cal_list)}
         stocks_written = 0
 
-        total = len(instruments)
-        for idx, (instrument, _start, _end) in enumerate(instruments):
+        total = len(instrument_list)
+        for idx, (instrument, _start, _end) in enumerate(instrument_list):
             raw_code = instrument[2:]
             try:
                 docs = list(col.find(
@@ -385,8 +398,12 @@ class QlibBinConverter:
         logger.info(f"Full conversion complete: {summary}")
         return summary
 
-    def incremental_sync(self) -> Dict[str, int]:
+    def incremental_sync(self, instruments: Optional[List[str]] = None) -> Dict[str, int]:
         """Incremental update: append new dates, update only affected stocks.
+
+        Args:
+            instruments: Optional list of stock codes to sync (e.g. ["600519", "000001"]).
+                         If not provided, syncs all stocks.
 
         Returns summary dict with counts.
         """
@@ -398,11 +415,11 @@ class QlibBinConverter:
         cal_file = self.target_dir / "calendars" / "day.txt"
         if not cal_file.exists():
             logger.info("No existing data found, running full conversion instead")
-            return self.full_convert()
+            return self.full_convert(instruments)
 
         existing_calendar = self._load_calendar()
         if not existing_calendar:
-            return self.full_convert()
+            return self.full_convert(instruments)
 
         last_cal_date = existing_calendar[-1]
         new_calendar = self._build_calendar()
@@ -428,13 +445,15 @@ class QlibBinConverter:
 
         start_date_query = new_dates[0]
 
-        pipeline = [
+        pipeline: List[Dict[str, Any]] = [
             {"$match": {
                 "frequency": FREQUENCY_DAILY,
                 "date": {"$gte": start_date_query},
             }},
-            {"$group": {"_id": "$code"}},
         ]
+        if instruments:
+            pipeline[0]["$match"]["code"] = {"$in": instruments}
+        pipeline.append({"$group": {"_id": "$code"}})
         codes_with_new_data = [r["_id"] for r in col.aggregate(pipeline)]
 
         stocks_updated = 0
@@ -489,8 +508,8 @@ class QlibBinConverter:
                 logger.error(f"Failed to incrementally update {raw_code}: {e}")
                 continue
 
-        instruments = self._build_instruments()
-        self._write_instruments(instruments)
+        instruments_list = self._build_instruments(instruments)
+        self._write_instruments(instruments_list)
 
         elapsed = time.time() - start_time
         summary = {

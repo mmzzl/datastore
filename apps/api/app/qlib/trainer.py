@@ -161,8 +161,12 @@ class QlibTrainer:
             self._update_status(task_id, TrainingStatus.RUNNING, 5, progress_message="Syncing Qlib data from MongoDB")
             try:
                 from .bin_converter import QlibBinConverter
+                instruments_list = config.get("instruments", [])
+                if isinstance(instruments_list, str):
+                    from .config import get_instruments
+                    instruments_list = get_instruments(instruments_list)
                 converter = QlibBinConverter()
-                summary = converter.incremental_sync()
+                summary = converter.incremental_sync(instruments=instruments_list)
                 logger.info(f"Data sync before training: {summary}")
             except Exception as e:
                 logger.warning(f"Data sync failed (training may still proceed): {e}")
