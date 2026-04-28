@@ -1,0 +1,1 @@
+scripts/train_eval.py --factor alpha360 --min-ic 0.0 --target-sharpe 2.0 --lgbm-n-estimators 1000,2000 --lgbm-lr 0.01,0.05,0.1

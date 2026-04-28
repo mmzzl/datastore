@@ -58,8 +58,8 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
                         help="Factor type (default: alpha158)")
     parser.add_argument("--instruments", default="csi300", choices=["csi300", "csi500"],
                         help="Stock pool (default: csi300)")
-    parser.add_argument("--start", default="2015-01-01",
-                        help="Training data start date (default: 2015-01-01)")
+    parser.add_argument("--start", default="2022-01-01",
+                        help="Training data start date (default: 2022-01-01)")
     parser.add_argument("--end", default="2026-01-01",
                         help="Training data end date (default: 2026-01-01)")
     parser.add_argument("--sync-data", action="store_true",
@@ -203,12 +203,12 @@ def build_training_config(
     return config
 
 
-def sync_data() -> Dict[str, Any]:
+def sync_data(instruments: Optional[List[str]] = None) -> Dict[str, Any]:
     logger.info("Step 1: Syncing Qlib data from MongoDB...")
     from app.qlib.bin_converter import QlibBinConverter
 
     converter = QlibBinConverter()
-    summary = converter.incremental_sync()
+    summary = converter.incremental_sync(instruments=instruments)
     logger.info(f"Data sync complete: {summary}")
     return summary
 
@@ -276,7 +276,7 @@ def run_backtest(
             "model_id": model_id,
             "topk": topk,
         },
-        "start_date": "2024-07-01",
+        "start_date": "2025-01-01",
         "end_date": config.get("end_time", "2026-01-01"),
         "initial_capital": 1000000.0,
         "instruments": instruments,
@@ -404,8 +404,11 @@ def print_comparison_table(results: List[ExperimentResult]) -> None:
 
 
 def run_pipeline(args: argparse.Namespace) -> List[ExperimentResult]:
+    from app.qlib.config import get_instruments
+
     if args.sync_data:
-        sync_data()
+        instruments = get_instruments(args.instruments)
+        sync_data(instruments)
 
     param_grid = build_param_grid(args)
     total = len(param_grid)

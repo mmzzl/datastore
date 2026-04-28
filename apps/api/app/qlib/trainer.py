@@ -318,6 +318,7 @@ class QlibTrainer:
         if isinstance(instruments, str):
             instruments = get_instruments(instruments)
 
+        # 缩短训练时间，减少内存使用
         dataset_config = {
             "class": "qlib.data.dataset.DatasetH",
             "module_path": "qlib.data.dataset",
@@ -326,17 +327,17 @@ class QlibTrainer:
                     "class": "qlib.contrib.data.handler.Alpha158",
                     "module_path": "qlib.contrib.data.handler",
                     "kwargs": {
-                        "start_time": config.get("start_time", "2015-01-01"),
-                        "end_time": config.get("end_time", "2026-01-01"),
-                        "fit_start_time": config.get("start_time", "2015-01-01"),
-                        "fit_end_time": config.get("end_time", "2026-01-01"),
+                        "start_time": "2022-01-01",
+                        "end_time": "2026-01-01",
+                        "fit_start_time": "2022-01-01",
+                        "fit_end_time": "2026-01-01",
                         "instruments": instruments,
                     },
                 },
                 "segments": {
-                    "train": (config.get("start_time", "2015-01-01"), "2022-12-31"),
-                    "valid": ("2023-01-01", "2024-06-30"),
-                    "test": ("2024-07-01", config.get("end_time", "2026-01-01")),
+                    "train": ("2022-01-01", "2023-12-31"),
+                    "valid": ("2024-01-01", "2024-12-31"),
+                    "test": ("2025-01-01", "2026-01-01"),
                 },
             },
         }

@@ -73,9 +73,9 @@ DEFAULT_FACTOR_CONFIG: Dict[str, Any] = {
 
 
 TRAINING_TIME_SEGMENTS: Dict[str, tuple] = {
-    "train": ("2015-01-01", "2022-12-31"),
-    "valid": ("2023-01-01", "2024-06-30"),
-    "test": ("2024-07-01", "2026-01-01"),
+    "train": ("2022-01-01", "2023-12-31"),
+    "valid": ("2024-01-01", "2024-12-31"),
+    "test": ("2025-01-01", "2026-01-01"),
 }
 
 
@@ -83,6 +83,39 @@ CRON_SCHEDULES: Dict[str, str] = {
     "weekly_training": "0 2 * * 0",
     "daily_risk_report": "30 15 * * 1-5",
 }
+
+
+@dataclass
+class QlibConfig:
+    """
+    Configuration class for Qlib integration.
+    """
+    provider_uri: str = "./qlib_data/cn_data"
+    region: str = "CN"
+    model_dir: str = "./models"
+    default_model_type: str = "lgbm"
+    default_factor_type: str = "alpha158"
+    default_instruments: str = "csi300"
+    min_sharpe_ratio: float = 1.5
+
+    @property
+    def training_config(self) -> Dict[str, Any]:
+        """Get default training configuration."""
+        return {
+            "model_type": self.default_model_type,
+            "factor_type": self.default_factor_type,
+            "instruments": self.default_instruments,
+            "start_time": "2022-01-01",
+            "end_time": "2026-01-01",
+        }
+
+    @property
+    def prediction_config(self) -> Dict[str, Any]:
+        """Get default prediction configuration."""
+        return {
+            "topk": 50,
+            "n_drop": 0,
+        }
 
 
 def get_model_config(model_type: str) -> Dict[str, Any]:

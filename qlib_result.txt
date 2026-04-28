@@ -1,0 +1,9 @@
+result={'stocks_written': 319, 'calendar_dates': 3767, 'elapsed_seconds': 443.6}
+elapsed=443.6s
+day.txt_total=3760
+day.txt_last5=['2026-04-13\n', '2026-04-14\n', '2026-04-15\n', '2026-04-16\n', '2026-04-17\n']
+csi300.txt_total=334
+csi300.txt_first=SZ000001	2015-12-07	2026-04-28
+
+csi300.txt_600000=SH600000	2015-11-11	2026-04-28
+

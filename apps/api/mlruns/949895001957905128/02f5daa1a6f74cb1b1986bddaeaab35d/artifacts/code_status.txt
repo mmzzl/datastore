@@ -1,0 +1,23 @@
+On branch marketwatch-holdings-admin
+Your branch is up to date with 'origin/marketwatch-holdings-admin'.
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	mlruns/949895001957905128/02f5daa1a6f74cb1b1986bddaeaab35d/
+	mlruns/949895001957905128/11397ffc99bc4593ae880a9432f0fed9/
+	mlruns/949895001957905128/b25a165244bc4003b8f45c2311f526af/
+	models/model_20260428_164919.pkl
+	models/model_20260428_165223.pkl
+	models/model_20260428_165512.pkl
+	models/model_20260428_165813.pkl
+	models/model_20260428_170051.pkl
+	models/model_20260428_170326.pkl
+	models/model_20260428_170604.pkl
+	models/model_20260428_170848.pkl
+	models/model_20260428_173004.pkl
+	models/model_20260428_173329.pkl
+	models/model_20260428_173649.pkl
+	models/model_20260428_174011.pkl
+	models/model_20260428_174339.pkl
+
+nothing added to commit but untracked files present (use "git add" to track)

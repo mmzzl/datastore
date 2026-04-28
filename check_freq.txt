@@ -1,0 +1,21 @@
+distinct_frequencies=[0, 9]
+
+sample_freq_0:
+  code=000001
+  date=2025-10-23 15:00
+  frequency=0
+  close=11.63
+
+sample_freq_9:
+  code=000004
+  date=2025-10-23 15:00
+  frequency=9
+  close=13.8
+
+count_freq_0=938878
+
+count_freq_9=10284804
+
+latest_freq_0=2026-04-28 15:00
+
+latest_freq_9=2026-04-17 15:00

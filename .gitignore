@@ -83,7 +83,6 @@ screenshots/
 dist/
 
 # Data files (large)
-qlib_data/
 
 # Environment
 .env

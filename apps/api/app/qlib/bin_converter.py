@@ -15,13 +15,13 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
+import pandas as pd
 
 from ..storage.mongo_client import MongoStorage
 
 logger = logging.getLogger(__name__)
 
 FEATURE_FIELDS = ["open", "high", "low", "close", "volume", "amount", "factor"]
-FREQUENCY_DAILY = 9
 
 
 class QlibBinConverter:
@@ -99,9 +99,19 @@ class QlibBinConverter:
         col = storage.kline_collection
         if col is None:
             storage.connect()
+            col = storage.kline_collection
 
-        dates = col.distinct("date", {"frequency": FREQUENCY_DAILY})
-        normalized = sorted({self._normalize_date(d) for d in dates if d})
+        date_set: set = set()
+
+        pipeline = [
+            {"$group": {"_id": "$date"}},
+        ]
+        for doc in col.aggregate(pipeline):
+            d = doc.get("_id")
+            if d:
+                date_set.add(self._normalize_date(d))
+
+        normalized = sorted(date_set)
         logger.info(f"Built calendar with {len(normalized)} trading dates")
         return normalized
 
@@ -116,10 +126,10 @@ class QlibBinConverter:
         col = storage.kline_collection
         if col is None:
             storage.connect()
+            col = storage.kline_collection
 
-        pipeline: List[Dict[str, Any]] = [
-            {"$match": {"frequency": FREQUENCY_DAILY}},
-        ]
+        # Build code filter
+        code_filter = {}
         if instruments:
             raw_codes = []
             for c in instruments:
@@ -127,29 +137,29 @@ class QlibBinConverter:
                 if c.startswith(("SH", "SZ", "sh", "sz")):
                     c = c[2:]
                 raw_codes.append(c)
-            pipeline[0]["$match"]["code"] = {"$in": raw_codes}
-        pipeline.append({
-            "$group": {
+            code_filter["code"] = {"$in": raw_codes}
+
+        pipeline: List[Dict[str, Any]] = [
+            {"$match": {**code_filter}},
+            {"$group": {
                 "_id": "$code",
                 "min_date": {"$min": "$date"},
                 "max_date": {"$max": "$date"},
-            },
-        })
+            }},
+        ]
         results = list(col.aggregate(pipeline))
 
-        instruments = []
+        instruments_list = []
         for r in results:
-            raw_code = r["_id"]
-            if not raw_code:
-                continue
-            instrument = self._code_to_qlib_instrument(raw_code)
+            code = r["_id"]
             start = self._normalize_date(r["min_date"])
             end = self._normalize_date(r["max_date"])
-            instruments.append((instrument, start, end))
+            instrument = self._code_to_qlib_instrument(code)
+            instruments_list.append((instrument, start, end))
 
-        instruments.sort(key=lambda x: x[0])
-        logger.info(f"Built instruments list with {len(instruments)} stocks")
-        return instruments
+        instruments_list.sort(key=lambda x: x[0])
+        logger.info(f"Built instruments list with {len(instruments_list)} stocks")
+        return instruments_list
 
     def _write_calendar(self, calendar: List[str]) -> int:
         """Write calendars/day.txt. If file exists, append only new dates.
@@ -366,7 +376,7 @@ class QlibBinConverter:
             raw_code = instrument[2:]
             try:
                 docs = list(col.find(
-                    {"code": raw_code, "frequency": FREQUENCY_DAILY},
+                    {"code": raw_code},
                     {"date": 1, "open": 1, "high": 1, "low": 1, "close": 1,
                      "volume": 1, "amount": 1, "_id": 0},
                 ).sort("date", 1))
@@ -473,7 +483,6 @@ class QlibBinConverter:
 
         pipeline: List[Dict[str, Any]] = [
             {"$match": {
-                "frequency": FREQUENCY_DAILY,
                 "date": {"$gte": start_date_query},
             }},
         ]
@@ -488,7 +497,7 @@ class QlibBinConverter:
                 continue
             try:
                 docs = list(col.find(
-                    {"code": raw_code, "frequency": FREQUENCY_DAILY, "date": {"$gte": start_date_query}},
+                    {"code": raw_code, "date": {"$gte": start_date_query}},
                     {"date": 1, "open": 1, "high": 1, "low": 1, "close": 1,
                      "volume": 1, "amount": 1, "_id": 0},
                 ).sort("date", 1))
