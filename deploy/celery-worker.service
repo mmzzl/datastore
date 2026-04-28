@@ -6,7 +6,7 @@ After=network.target redis-server.service
 Type=simple
 User=fantom
 WorkingDirectory=/home/fantom/datastore/apps/api
-ExecStart=/home/fantom/.pyenv/versions/3.12.0/bin/celery -A app.celery_app worker --loglevel=info --concurrency=1
+ExecStart=/home/fantom/.pyenv/versions/3.12.0/bin/celery -A app.celery_app worker --loglevel=info --concurrency=1 --pool=solo
 Restart=always
 RestartSec=10
 
