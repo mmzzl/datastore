@@ -1,0 +1,14 @@
+On branch marketwatch-holdings-admin
+Your branch is ahead of 'origin/marketwatch-holdings-admin' by 1 commit.
+  (use "git push" to publish your local commits)
+
+Changes not staged for commit:
+  (use "git add/rm <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	deleted:    ../../test_qlib_init.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	mlruns/949895001957905128/452869f625124ac1aab9146b9022d8ea/
+
+no changes added to commit (use "git add" and/or "git commit -a")

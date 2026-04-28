@@ -83,6 +83,7 @@ screenshots/
 dist/
 
 # Data files (large)
+*.bin
 
 # Environment
 .env

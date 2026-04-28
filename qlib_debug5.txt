@@ -1,6 +1,0 @@
-daily_group_elapsed=24.1s
-daily_dates_count=3760
-daily_last=2026-04-17
-5min_group_elapsed=20.4s
-5min_dates_count=852
-5min_last=2026-04-28
