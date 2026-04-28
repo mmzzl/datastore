@@ -1,63 +1,62 @@
-# Datastore 项目
+# Datastore
 
-数据存储和市场监控平台，包含后端 API、前端管理界面和相关工具。
+量化交易系统，提供行情数据采集、技术指标分析、信号监控、Qlib 机器学习选股、风险报告生成和组合管理功能。
 
-## 项目结构
+## 架构
 
 ```
-datastore/
-├── case/                    # 主要后端项目
-│   └── apps/
-│       └── api/            # FastAPI 后端服务
-├── frontend/                # 前端项目
-│   └── vue-admin/          # Vue.js 管理界面
-├── tests/                   # 集成测试
-├── docs/                    # 项目文档
-├── data/                    # 数据文件
-├── scripts/                 # 工具脚本
-├── archives/                # 归档项目（非活跃）
-├── docker-compose.yml       # Docker 部署配置
-├── pytest.ini               # 测试配置
-└── README.md                # 本文件
+┌─────────────────────────────────────────────────────┐
+│                     Frontend                         │
+│              Vue 3 + Naive UI + Vite                │
+├─────────────────────────────────────────────────────┤
+│                     Backend API                      │
+│              FastAPI + MongoDB + Celery              │
+├────────────┬────────────┬────────────┬──────────────┤
+│ 行情数据    │ 策略信号    │ ML 选股    │ 风险报告     │
+│ Akshare    │ 新闻事件    │ Qlib       │ VaR/ES/β    │
+│ Baostock   │ 技术指标    │ LightGBM   │ 压力测试     │
+│ TDX        │ 盘口监控    │ Alpha158   │ 相关性分析   │
+└────────────┴────────────┴────────────┴──────────────┘
 ```
+
+## 功能
+
+| 模块 | 说明 |
+|------|------|
+| **行情数据** | A 股日/周/月 K 线、5 分钟 K 线、实时行情，多数据源（Akshare / Baostock / TDX） |
+| **持仓管理** | 多账户持仓、交易记录、已实现盈亏计算（加权平均成本法） |
+| **组合分析** | 市值、盈亏、收益率、持仓分布 |
+| **信号监控** | 新闻关键词匹配、技术指标信号、自定义监控规则，支持钉钉推送 |
+| **去重过滤** | 24 小时去重窗口、退市关键词过滤、每日每只股票仅推送一次 |
+| **Qlib 选股** | LightGBM/MLP 模型训练（Alpha158/360 因子），CSI300/500 股票池，回测评估，异步 Celery Worker |
+| **风险报告** | VaR(95%/99%)、Expected Shortfall、波动率、最大回撤、夏普比率、Beta、相关性矩阵、压力测试（-10%/-20%/-30% 市场冲击、行业冲击、流动性危机） |
+| **数据看板** | Dashboard 首页展示持仓概况、最新信号、关键指标 |
+| **调度任务** | APScheduler + Celery 混合调度，支持定时任务、立即执行、执行历史查看 |
+| **用户管理** | JWT 认证、角色权限、多用户隔离 |
 
 ## 快速开始
 
-### 1. 环境要求
+### 环境要求
 
 - Python 3.12+
 - Node.js 18+
-- Docker & Docker Compose (可选)
+- MongoDB
+- Redis（Celery 任务队列，可选）
 
-### 2. 使用 Docker 部署（推荐）
-
-```bash
-# 启动所有服务
-docker-compose up -d
-
-# 查看服务状态
-docker-compose ps
-
-# 停止服务
-docker-compose down
-```
-
-服务端口：
-- MongoDB: 27017
-- API: 8000
-- 前端: 80
-
-### 3. 本地开发
-
-#### 启动后端
+### 启动后端
 
 ```bash
-cd case/apps/api
+cd apps/api
 pip install -r requirements.txt
-python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
+
+# 开发模式
+py -3.12 -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
+
+# Celery Worker（Qlib 训练用）
+celery -A app.celery_app worker --loglevel=info --pool=solo --concurrency=1
 ```
 
-#### 启动前端
+### 启动前端
 
 ```bash
 cd frontend/vue-admin
@@ -65,71 +64,61 @@ npm install
 npm run dev
 ```
 
-### 4. 运行测试
+### 数据采集
 
 ```bash
-# 运行所有测试
-pytest tests/
+# 采集日 K 线
+py -3.12 apps/api/stock_kline_scraper.py
 
-# 运行认证测试
-pytest tests/test_auth*.py -v
+# 启动独立调度器（数据同步 + 信号监控 + 风险报告）
+py -3.12 apps/api/scheduler_standalone.py
+
+# Qlib 训练 + 回测（独立脚本）
+py -3.12 apps/api/scripts/train_eval.py --model lgbm --factor alpha158 --instruments csi300
 ```
 
-## API 端点
+## 配置
 
-| 端点 | 方法 | 描述 |
-|------|------|------|
-| `/api/login` | POST | 用户登录 |
-| `/api/health` | GET | 健康检查 |
-| `/api/holdings/{user_id}` | GET/POST | 持仓管理 |
-| `/api/portfolio/{user_id}` | GET | 组合概览 |
-| `/api/settings/{user_id}` | GET/POST | 用户设置 |
-| `/api/signals/latest` | GET | 最新信号 |
+编辑 `apps/api/config/config.yaml`：
 
-## 认证
+```yaml
+mongodb:
+  host: "localhost"
+  port: 27017
+  database: "eastmoney_news"
 
-所有 API 端点（除 `/api/login` 和 `/api/health`）需要 Bearer Token 认证。
-
-```bash
-# 登录获取 token
-curl -X POST http://localhost:8000/api/login \
-  -H "Content-Type: application/json" \
-  -d '{"user_id": "admin", "password": "admin123"}'
-
-# 使用 token 访问受保护的端点
-curl http://localhost:8000/api/holdings/default \
-  -H "Authorization: Bearer <token>"
+redis:
+  host: "localhost"
+  port: 6379
 ```
 
-## 默认账户
-
-- 用户名: `admin`
-- 密码: `admin123`
-
-## 开发
-
-### 代码风格
-
-```bash
-# 格式化代码
-ruff format .
-
-# 检查代码质量
-ruff check .
-```
-
-### 提交规范
+## 项目结构
 
 ```
-feat: 添加新功能
-fix: 修复bug
-docs: 文档更新
-style: 代码格式调整
-refactor: 代码重构
-test: 测试相关
-chore: 构建/工具链更新
+apps/api/                     # FastAPI 后端
+├── main.py                   # 应用入口
+├── app/
+│   ├── api/endpoints/        # API 路由
+│   ├── core/                 # 配置、认证
+│   ├── storage/              # MongoDB 客户端
+│   ├── data_source/          # 数据适配器
+│   ├── monitor/              # 信号监控
+│   ├── notify/               # 钉钉通知
+│   ├── qlib/                 # Qlib ML 引擎
+│   ├── risk/                 # 风险报告
+│   └── scheduler/            # 调度任务
+├── scheduler_standalone.py   # 独立调度器
+├── config/config.yaml        # 配置文件
+└── scripts/train_eval.py     # 训练回测脚本
+
+frontend/vue-admin/           # Vue 3 前端
+├── src/
+│   ├── views/                # 页面组件
+│   ├── stores/               # Pinia 状态
+│   ├── services/             # API 服务
+│   └── router/               # 路由配置
 ```
 
 ## 许可证
 
-MIT License
+MIT
