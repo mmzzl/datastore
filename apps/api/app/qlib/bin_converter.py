@@ -121,7 +121,13 @@ class QlibBinConverter:
             {"$match": {"frequency": FREQUENCY_DAILY}},
         ]
         if instruments:
-            pipeline[0]["$match"]["code"] = {"$in": instruments}
+            raw_codes = []
+            for c in instruments:
+                c = c.strip()
+                if c.startswith(("SH", "SZ", "sh", "sz")):
+                    c = c[2:]
+                raw_codes.append(c)
+            pipeline[0]["$match"]["code"] = {"$in": raw_codes}
         pipeline.append({
             "$group": {
                 "_id": "$code",
