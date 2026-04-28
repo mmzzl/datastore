@@ -21,7 +21,7 @@ def _get_executions_collection():
     return client[settings.mongodb_database]["job_executions"]
 
 
-@celery_app.task(bind=True, max_retries=0)
+@celery_app.task(bind=True, max_retries=3, default_retry_delay=300, autoretry_for=(Exception,))
 def run_training(self, config: dict):
     task_id = self.request.id
     coll = _get_executions_collection()
