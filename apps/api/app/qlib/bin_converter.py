@@ -169,10 +169,6 @@ class QlibBinConverter:
         return len(new_dates)
 
     def _write_instruments(self, instruments: List[Tuple[str, str, str]]) -> int:
-        """Write instruments/all.txt. If file exists, update date ranges.
-
-        Returns number of instruments updated/added.
-        """
         inst_file = self.target_dir / "instruments" / "all.txt"
         inst_file.parent.mkdir(parents=True, exist_ok=True)
 
@@ -203,6 +199,29 @@ class QlibBinConverter:
 
         logger.info(f"Instruments: {updated} updated/added (total {len(existing_map)})")
         return updated
+
+    def _write_pool_files(self, instruments_list: List[Tuple[str, str, str]]):
+        """Generate per-pool instrument files (csi300.txt, csi500.txt) from all.txt.
+
+        Uses the hardcoded stock lists from config.py to filter all.txt entries.
+        """
+        from .config import CSI_300_STOCKS, CSI_500_STOCKS
+        inst_dir = self.target_dir / "instruments"
+        all_instruments = {inst: (s, e) for inst, s, e in instruments_list}
+
+        for pool_name, stock_codes in [("csi300", CSI_300_STOCKS), ("csi500", CSI_500_STOCKS)]:
+            pool_file = inst_dir / f"{pool_name}.txt"
+            entries = []
+            for code in stock_codes:
+                instrument = self._code_to_qlib_instrument(code)
+                if instrument in all_instruments:
+                    s, e = all_instruments[instrument]
+                    entries.append((instrument, s, e))
+            entries.sort(key=lambda x: x[0])
+            with open(pool_file, "w", encoding="utf-8") as f:
+                for inst, s, e in entries:
+                    f.write(f"{inst}\t{s}\t{e}\n")
+            logger.info(f"Written {len(entries)} stocks to instruments/{pool_name}.txt")
 
     # ------------------------------------------------------------------
     # Feature Binary Files
@@ -324,6 +343,7 @@ class QlibBinConverter:
         self._write_calendar(calendar)
         instrument_list = self._build_instruments(instruments)
         self._write_instruments(instrument_list)
+        self._write_pool_files(instrument_list)
 
         storage = self._ensure_storage()
         col = storage.kline_collection
@@ -510,6 +530,7 @@ class QlibBinConverter:
 
         instruments_list = self._build_instruments(instruments)
         self._write_instruments(instruments_list)
+        self._write_pool_files(instruments_list)
 
         elapsed = time.time() - start_time
         summary = {
