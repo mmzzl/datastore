@@ -1,0 +1,14 @@
+artifact_uri: file:D:\datastore\apps\api\mlruns/949895001957905128/d1e552a8b3bc413abfa887bdc8500d7c/artifacts
+end_time: null
+entry_point_name: ''
+experiment_id: '949895001957905128'
+lifecycle_stage: active
+run_id: d1e552a8b3bc413abfa887bdc8500d7c
+run_name: mlflow_recorder
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1777363530723
+status: 1
+tags: []
+user_id: User

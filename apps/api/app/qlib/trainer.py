@@ -86,7 +86,7 @@ class QlibTrainer:
     def _update_execution_record(self, task_id: str, status: str, metrics: Optional[Dict] = None,
                                   model_id: Optional[str] = None, error: Optional[str] = None):
         coll = self._get_executions_collection()
-        if not coll:
+        if coll is None or coll is False:
             return
         try:
             update = {"status": status, "completed_at": datetime.now()}
