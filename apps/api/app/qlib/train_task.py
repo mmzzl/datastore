@@ -21,7 +21,7 @@ def _get_executions_collection():
     return client[settings.mongodb_database]["job_executions"]
 
 
-@celery_app.task(bind=True, max_retries=3, default_retry_delay=300, autoretry_for=(Exception,))
+@celery_app.task(bind=True, max_retries=3, default_retry_delay=300)
 def run_training(self, config: dict):
     task_id = self.request.id
     coll = _get_executions_collection()
@@ -129,12 +129,20 @@ def run_training(self, config: dict):
             raise RuntimeError(error)
 
     except Exception as e:
-        coll.update_one(
-            {"task_id": task_id},
-            {"$set": {
-                "status": "failed",
-                "error_message": str(e),
-                "completed_at": datetime.now(),
-            }}
-        )
+        is_mongo_error = "ServerSelectionTimeoutError" in str(e) or "Connection refused" in str(e) or "AutoReconnect" in str(e)
+        if is_mongo_error and self.request.retries < self.max_retries:
+            logger.warning(f"MongoDB unavailable, will retry ({self.request.retries + 1}/{self.max_retries}): {e}")
+            raise self.retry(exc=e)
+        coll_none = _get_executions_collection()
+        try:
+            coll_none.update_one(
+                {"task_id": task_id},
+                {"$set": {
+                    "status": "failed",
+                    "error_message": str(e),
+                    "completed_at": datetime.now(),
+                }}
+            )
+        except Exception:
+            pass
         raise
