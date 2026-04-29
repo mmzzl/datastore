@@ -48,6 +48,7 @@ class AlertOrchestrator:
         self.aggregator = AlertAggregator(strategy_type=strategy_type)
 
         self.signals_log: List[Dict[str, Any]] = []
+        self._sent_keys: Dict[str, date] = {}  # 去重: key -> 最后推送日期
 
     def _default_watchlist(self) -> List[Dict[str, Any]]:
         return [
@@ -168,6 +169,13 @@ class AlertOrchestrator:
 
     def _emit_signal(self, alert_signal: AlertSignal):
         sig_dict = alert_signal.to_dict()
+
+        # 当天去重: 同一 code + signal + alert_type 不重复推送
+        today = date.today()
+        dedup_key = f"{alert_signal.code}:{alert_signal.signal.value}:{alert_signal.alert_type}"
+        if self._sent_keys.get(dedup_key) == today:
+            return
+        self._sent_keys[dedup_key] = today
 
         try:
             add_signal(sig_dict)

@@ -810,11 +810,9 @@ class MongoDBAdapter(IDataSource):
                 "total_sell_cost": 0.0,
             }
         try:
-            transactions = self.get_transactions(user_id, code).get("items", [])
+            transactions = self.get_transactions(user_id, code, page=1, page_size=99999).get("items", [])
             total_sell_value = 0.0
             total_sell_cost = 0.0
-
-            # 按时间顺序计算移动平均成本
             running_qty = 0
             running_cost = 0.0
 

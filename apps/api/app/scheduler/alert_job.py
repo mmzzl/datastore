@@ -82,13 +82,13 @@ class AlertOrchestratorJob:
             low_count = sum(1 for s in signals if s.get("priority") == "low")
 
             for sig_dict in signals:
-                from app.monitor.models.alert_signal import AlertSignal
+                from app.monitor.models.alert_signal import AlertSignal, SignalType
 
                 sig = AlertSignal(
                     timestamp=datetime.now(),
                     code=sig_dict.get("code", ""),
                     name=sig_dict.get("name", ""),
-                    signal=sig_dict.get("signal", "hold"),
+                    signal=SignalType(sig_dict.get("signal", "hold")),
                     confidence=sig_dict.get("confidence", 0.5),
                     priority=sig_dict.get("priority", "medium"),
                     reasons=sig_dict.get("reasons", []),

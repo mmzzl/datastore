@@ -427,55 +427,5 @@ class AkshareAdapter(IDataSource):
     def get_minute_kline(
         self, code: str, frequency: str = "5", days: int = 5
     ) -> List[StockKLine]:
-        """获取分钟K线数据"""
-        try:
-            import akshare as ak
-            from datetime import datetime, timedelta
-
-            if not code.startswith(("SH", "SZ")):
-                if code.startswith("6"):
-                    code = f"SH{code}"
-                else:
-                    code = f"SZ{code}"
-
-            freq_map = {"1": "1", "5": "5", "15": "15", "30": "30", "60": "60"}
-            freq = freq_map.get(frequency, "5")
-
-            end_date = datetime.now().strftime("%Y%m%d %H:%M:%S")
-            start_date = (datetime.now() - timedelta(days=days)).strftime(
-                "%Y%m%d %H:%M:%S"
-            )
-
-            df = ak.stock_zh_a_hist_min_em(
-                symbol=code,
-                period=freq,
-                start_date=start_date,
-                end_date=end_date,
-                adjust="qfq",
-            )
-
-            if df is None or df.empty:
-                return []
-
-            result = []
-            for _, row in df.iterrows():
-                try:
-                    result.append(
-                        StockKLine(
-                            code=code,
-                            date=str(row["时间"]),
-                            open=float(row["开盘"]),
-                            high=float(row["最高"]),
-                            low=float(row["最低"]),
-                            close=float(row["收盘"]),
-                            volume=int(row["成交量"]),
-                            amount=float(row.get("成交额", 0)),
-                            change_pct=float(row.get("涨跌幅", 0)),
-                        )
-                    )
-                except Exception:
-                    continue
-            return result
-        except Exception as e:
-            logger.warning(f"get_minute_kline({code}, {frequency}) failed: {e}")
-            return []
+        """akshare不提供分钟K线（依赖东方财富），由TDX adapter处理"""
+        return []

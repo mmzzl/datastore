@@ -44,6 +44,8 @@ class MongoStorage:
         self.strategy_plugins_collection = None
         self.users_collection = None
         self.roles_collection = None
+        self.watch_list_collection = None
+        self.market_signals_collection = None
 
     def connect(self):
         try:
