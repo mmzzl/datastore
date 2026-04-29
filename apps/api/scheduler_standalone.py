@@ -135,9 +135,16 @@ def run_daily_scanner_job():
         logging.error(f"Daily signal scanner failed: {e}")
         logging.error(traceback.format_exc())
 
+def _is_trading_time():
+    """判断当前是否在A股交易时间内（9:30-11:30, 13:00-15:00）"""
+    now = datetime.now()
+    if now.weekday() >= 5:
+        return False
+    t = now.hour * 100 + now.minute  # 如 930 表示 9:30
+    return (930 <= t <= 1130) or (1300 <= t <= 1500)
+
 def run_5min_kline_job():
-    if datetime.now().weekday() >= 5:
-        logging.info("Skipping 5min kline job: weekend")
+    if not _is_trading_time():
         return
     try:
         from stock_kline_scraper import StockKlineScraper

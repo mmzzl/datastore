@@ -1,4 +1,5 @@
 import logging
+import re
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 import pandas as pd
@@ -59,6 +60,8 @@ class TDXAdapter(IDataSource):
         try:
             # 转换代码格式 sh.600000 -> 600000, sz.000001 -> 000001
             stock_code = code.split(".")[-1] if "." in code else code
+            # 兼容 SH600619 格式，去掉前缀字母
+            stock_code = re.sub(r'^[A-Za-z]+', '', stock_code)
             client = self._get_client()
             if client is None:
                 return []
@@ -119,6 +122,8 @@ class TDXAdapter(IDataSource):
         try:
             # 转换代码格式
             stock_code = code.split(".")[-1] if "." in code else code
+            # 兼容 SH600619 格式，去掉前缀字母
+            stock_code = re.sub(r'^[A-Za-z]+', '', stock_code)
 
                 # 判断市场代码
             if stock_code.startswith("6") or stock_code.startswith("9"):
@@ -163,6 +168,8 @@ class TDXAdapter(IDataSource):
         try:
             # 转换代码格式
             stock_code = code.split(".")[-1] if "." in code else code
+            # 兼容 SH600619 格式，去掉前缀字母
+            stock_code = re.sub(r'^[A-Za-z]+', '', stock_code)
 
             # 判断市场代码
             if stock_code.startswith("6") or stock_code.startswith("9"):
