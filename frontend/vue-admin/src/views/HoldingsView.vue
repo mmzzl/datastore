@@ -203,6 +203,7 @@
             <th>数量</th>
             <th>成本价</th>
             <th>成本总额</th>
+            <th>卖出规则</th>
             <th>操作</th>
           </tr>
         </thead>
@@ -213,6 +214,22 @@
             <td class="number-cell">{{ h.quantity }}</td>
             <td class="number-cell">¥{{ h.average_cost?.toFixed(2) }}</td>
             <td class="number-cell">¥{{ (h.quantity * h.average_cost).toFixed(2) }}</td>
+            <td class="exit-rule-cell">
+              <div v-if="exitRules[h.code]" class="exit-rule-info">
+                <span class="strategy-tag" :class="'strategy-' + exitRules[h.code].exit_strategy">
+                  {{ strategyLabel(exitRules[h.code].exit_strategy) }}
+                </span>
+                <span class="profit-indicator" :class="exitRules[h.code].profit_pct >= 0 ? 'profit' : 'loss'">
+                  {{ exitRules[h.code].profit_pct >= 0 ? '+' : '' }}{{ exitRules[h.code].profit_pct.toFixed(1) }}%
+                </span>
+                <div class="next-trigger" v-if="getNextTrigger(exitRules[h.code])">
+                  {{ getNextTrigger(exitRules[h.code]) }}
+                </div>
+              </div>
+              <button @click="openExitRuleModal(h)" class="btn btn-secondary btn-sm">
+                {{ exitRules[h.code] ? '修改规则' : '设置规则' }}
+              </button>
+            </td>
             <td>
               <button @click="showKline(h.code, h.name)" class="btn btn-primary btn-sm">
                 K线
@@ -283,10 +300,91 @@
         </div>
     </div>
   </div>
+  <div class="exit-rule-modal" v-if="showExitRuleModal" @click.self="closeExitRuleModal">
+    <div class="exit-rule-modal-content">
+      <div class="exit-rule-modal-header">
+        <h3>卖出规则 - {{ exitRuleForm.code }} {{ exitRuleForm.name }}</h3>
+        <button @click="closeExitRuleModal" class="btn btn-secondary btn-sm">关闭</button>
+      </div>
+      <div class="exit-rule-modal-body">
+        <div class="rule-section">
+          <label>止损比例 (%)</label>
+          <input v-model.number="exitRuleForm.stop_loss_pct" type="number" min="1" max="30" step="1" />
+          <span class="hint">亏损达到此比例时全部卖出</span>
+        </div>
+
+        <div class="rule-section">
+          <label>策略类型</label>
+          <div class="strategy-options">
+            <label v-for="s in strategyOptions" :key="s.value" class="strategy-option">
+              <input type="radio" v-model="exitRuleForm.exit_strategy" :value="s.value" />
+              <span class="option-label">{{ s.label }}</span>
+              <span class="option-desc">{{ s.desc }}</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="rule-section" v-if="exitRuleForm.exit_strategy === 'tiered'">
+          <label>阶梯止盈配置</label>
+          <table class="tier-table">
+            <thead>
+              <tr><th>阶梯</th><th>盈利触发点 (%)</th><th>卖出比例 (%)</th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="(tier, i) in exitRuleForm.tiers" :key="i">
+                <td>第{{ i+1 }}档</td>
+                <td><input v-model.number="tier.profit_pct" type="number" min="1" max="50" step="1" /></td>
+                <td><input v-model.number="tier.sell_pct" type="number" min="5" max="100" step="5" /></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="rule-section" v-if="exitRuleForm.exit_strategy === 'trailing'">
+          <label>追踪止损回撤比例 (%)</label>
+          <input v-model.number="exitRuleForm.trailing_stop_pct" type="number" min="1" max="15" step="0.5" />
+          <span class="hint">从最高价回撤此比例时全部卖出</span>
+        </div>
+
+        <div class="rule-section" v-if="exitRuleForm.exit_strategy === 'fixed'">
+          <label>止盈目标 (%)</label>
+          <input v-model.number="exitRuleForm.profit_target_pct" type="number" min="1" max="50" step="1" />
+          <span class="hint">盈利达到此比例时全部卖出</span>
+        </div>
+
+        <div class="rule-preview">
+          <h4>规则预览</h4>
+          <ul>
+            <li v-for="(text, i) in exitRulePreview" :key="i">{{ text }}</li>
+          </ul>
+        </div>
+
+        <div class="rule-actions">
+          <button @click="saveExitRule" :disabled="savingExitRule" class="btn btn-success">
+            {{ savingExitRule ? '保存中...' : '保存规则' }}
+          </button>
+          <button @click="closeExitRuleModal" class="btn btn-secondary">取消</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sell-confirm-modal" v-if="showSellConfirm" @click.self="showSellConfirm = false">
+    <div class="sell-confirm-content">
+      <h3>卖出确认</h3>
+      <div class="sell-confirm-warning">
+        <p class="warning-text">{{ sellConfirmMessage }}</p>
+      </div>
+      <div class="sell-confirm-actions">
+        <button @click="confirmSellAnyway" class="btn btn-warning">确认卖出</button>
+        <button @click="showSellConfirm = false" class="btn btn-secondary">取消</button>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, onMounted, nextTick, computed } from 'vue'
 import { useHoldingsStore } from '../stores/holdings'
 import { authService, apiHoldings, apiSignals, apiStocks } from '../services/api'
 import * as echarts from 'echarts'
@@ -313,6 +411,34 @@ const txCurrentPage = ref(1)
 const txTotalPages = ref(0)
 const txTotalCount = ref(0)
 const txPageSize = 10
+
+const exitRules = ref<Record<string, any>>({})
+const showExitRuleModal = ref(false)
+const savingExitRule = ref(false)
+const exitRuleForm = ref({
+  code: '',
+  name: '',
+  exit_strategy: 'tiered',
+  stop_loss_pct: 5,
+  profit_target_pct: 10,
+  trailing_stop_pct: 3,
+  tiers: [
+    { profit_pct: 3, sell_pct: 25 },
+    { profit_pct: 5, sell_pct: 25 },
+    { profit_pct: 8, sell_pct: 25 },
+    { profit_pct: 10, sell_pct: 25 },
+  ]
+})
+
+const strategyOptions = [
+  { value: 'tiered', label: '阶梯止盈', desc: '分多档盈利触发，逐步卖出' },
+  { value: 'trailing', label: '追踪止损', desc: '达到目标后启用回撤止损' },
+  { value: 'fixed', label: '固定止盈', desc: '达到目标一次性全部卖出' },
+]
+
+const showSellConfirm = ref(false)
+const sellConfirmMessage = ref('')
+const pendingSellAction = ref<(() => void) | null>(null)
 
 async function showKline(code: string, name: string) {
   klineCode.value = code
@@ -638,17 +764,6 @@ async function onAddHolding() {
   }
 }
 
-function openSellForm(holding: any) {
-  sellHolding.value = {
-    code: holding.code,
-    name: holding.name || holding.code,
-    availableQty: holding.quantity,
-    quantity: holding.quantity,
-    price: holding.average_cost
-  }
-  showSellForm.value = true
-}
-
 async function onSellHolding() {
   // 校验数量（A股最低100股，且必须是100的整数倍）
   if (sellHolding.value.quantity < 100) {
@@ -697,10 +812,152 @@ function formatDate(dateStr: string) {
   return d.toLocaleString('zh-CN')
 }
 
+function strategyLabel(strategy: string) {
+  const map: Record<string, string> = { tiered: '阶梯止盈', trailing: '追踪止损', fixed: '固定止盈' }
+  return map[strategy] || strategy
+}
+
+function getNextTrigger(rule: any) {
+  if (!rule) return ''
+  if (rule.exit_strategy === 'tiered' && rule.tier_rules) {
+    const next = rule.tier_rules.find((t: any) => !t.triggered)
+    if (next) return `盈利 ≥${next.profit_pct}% 卖出${next.sell_pct}%`
+    return '全部触发'
+  }
+  if (rule.exit_strategy === 'trailing') {
+    return `盈利 ≥${(rule.profit_target * 100).toFixed(0)}% 启用追踪`
+  }
+  if (rule.exit_strategy === 'fixed') {
+    return `盈利 ≥${(rule.profit_target * 100).toFixed(0)}% 全部卖出`
+  }
+  return ''
+}
+
+const exitRulePreview = computed(() => {
+  const form = exitRuleForm.value
+  const lines: string[] = [`${(form.stop_loss_pct / 100 * 100).toFixed(0) ? '亏损 ≥' + form.stop_loss_pct + '%' : ''} → 止损卖出全部`]
+  if (form.exit_strategy === 'tiered') {
+    for (const t of form.tiers) {
+      lines.push(`盈利 ≥${t.profit_pct}% → 卖出 ${t.sell_pct}%`)
+    }
+    lines.push(`全部触发后启用 ${form.trailing_stop_pct}% 回撤追踪止损`)
+  } else if (form.exit_strategy === 'trailing') {
+    lines.push(`盈利 ≥${form.profit_target_pct}% → 启用 ${form.trailing_stop_pct}% 回撤追踪止损`)
+  } else {
+    lines.push(`盈利 ≥${form.profit_target_pct}% → 卖出全部`)
+  }
+  return lines
+})
+
+async function loadExitRules() {
+  const uid = userId.value
+  for (const h of store.state.holdings) {
+    try {
+      const rule = await apiHoldings.getExitRule(uid, h.code)
+      exitRules.value[h.code] = rule
+    } catch {
+      // no rule set yet
+    }
+  }
+}
+
+function openExitRuleModal(holding: any) {
+  const existing = exitRules.value[holding.code]
+  exitRuleForm.value = {
+    code: holding.code,
+    name: holding.name || holding.code,
+    exit_strategy: existing?.exit_strategy || 'tiered',
+    stop_loss_pct: (existing?.stop_loss || 0.05) * 100,
+    profit_target_pct: (existing?.profit_target || 0.10) * 100,
+    trailing_stop_pct: (existing?.trailing_stop_pct || 0.03) * 100,
+    tiers: existing?.tier_rules
+      ? existing.tier_rules.map((t: any) => ({ profit_pct: t.profit_pct, sell_pct: t.sell_pct }))
+      : [
+          { profit_pct: 3, sell_pct: 25 },
+          { profit_pct: 5, sell_pct: 25 },
+          { profit_pct: 8, sell_pct: 25 },
+          { profit_pct: 10, sell_pct: 25 },
+        ]
+  }
+  showExitRuleModal.value = true
+}
+
+function closeExitRuleModal() {
+  showExitRuleModal.value = false
+}
+
+async function saveExitRule() {
+  const form = exitRuleForm.value
+  savingExitRule.value = true
+  try {
+    await apiHoldings.setExitRule(userId.value, form.code, {
+      exit_strategy: form.exit_strategy,
+      stop_loss: form.stop_loss_pct / 100,
+      profit_target: form.profit_target_pct / 100,
+      trailing_stop_pct: form.trailing_stop_pct / 100,
+      tier_profits: form.exit_strategy === 'tiered' ? form.tiers.map(t => t.profit_pct / 100) : undefined,
+      tier_sell_pcts: form.exit_strategy === 'tiered' ? form.tiers.map(t => t.sell_pct / 100) : undefined,
+    })
+    alert('规则保存成功')
+    const rule = await apiHoldings.getExitRule(userId.value, form.code)
+    exitRules.value[form.code] = rule
+    showExitRuleModal.value = false
+  } catch (e: any) {
+    alert(e.response?.data?.detail || '保存失败')
+  } finally {
+    savingExitRule.value = false
+  }
+}
+
+function openSellForm(holding: any) {
+  const rule = exitRules.value[holding.code]
+  if (rule && rule.current_price) {
+    const triggered = isAnyRuleTriggered(rule)
+    if (!triggered) {
+      sellConfirmMessage.value = `当前 ${holding.code} 盈亏 ${rule.profit_pct >= 0 ? '+' : ''}${rule.profit_pct.toFixed(1)}%，未触发任何卖出规则。确定要手动卖出吗？`
+      pendingSellAction.value = () => doOpenSellForm(holding)
+      showSellConfirm.value = true
+      return
+    }
+  }
+  doOpenSellForm(holding)
+}
+
+function doOpenSellForm(holding: any) {
+  sellHolding.value = {
+    code: holding.code,
+    name: holding.name || holding.code,
+    availableQty: holding.quantity,
+    quantity: holding.quantity,
+    price: holding.average_cost
+  }
+  showSellForm.value = true
+}
+
+function isAnyRuleTriggered(rule: any) {
+  if (!rule) return false
+  if (rule.exit_strategy === 'tiered' && rule.tier_rules) {
+    return rule.tier_rules.some((t: any) => t.triggered)
+  }
+  if (rule.stop_loss_price && rule.current_price <= rule.stop_loss_price) return true
+  if (rule.trailing_stop_price && rule.current_price <= rule.trailing_stop_price) return true
+  if (rule.profit_pct >= (rule.profit_target || 0.1) * 100) return true
+  return false
+}
+
+function confirmSellAnyway() {
+  showSellConfirm.value = false
+  if (pendingSellAction.value) {
+    pendingSellAction.value()
+    pendingSellAction.value = null
+  }
+}
+
 onMounted(() => {
   portfolio.value = true
   fetchHoldings()
   fetchPortfolio()
+  loadExitRules()
 })
 </script>
 
@@ -1074,5 +1331,171 @@ onMounted(() => {
 .kline-chart {
   width: 100%;
   height: 100%;
+}
+.exit-rule-cell {
+  min-width: 180px;
+}
+.exit-rule-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.strategy-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  width: fit-content;
+}
+.strategy-tiered { background: #dbeafe; color: #1d4ed8; }
+.strategy-trailing { background: #fef3c7; color: #92400e; }
+.strategy-fixed { background: #e0e7ff; color: #4338ca; }
+.profit-indicator {
+  font-size: 14px;
+  font-weight: 600;
+}
+.profit-indicator.profit { color: #059669; }
+.profit-indicator.loss { color: #dc2626; }
+.next-trigger {
+  font-size: 12px;
+  color: #64748b;
+}
+.exit-rule-modal, .sell-confirm-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.exit-rule-modal-content {
+  background: white;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 560px;
+  max-height: 85vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.exit-rule-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e5e7eb;
+}
+.exit-rule-modal-header h3 { margin: 0; font-size: 18px; color: #1e293b; }
+.exit-rule-modal-body {
+  padding: 20px;
+  overflow-y: auto;
+}
+.rule-section {
+  margin-bottom: 20px;
+}
+.rule-section label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e293b;
+  margin-bottom: 8px;
+}
+.rule-section input[type="number"] {
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  width: 100px;
+}
+.rule-section .hint {
+  display: block;
+  font-size: 12px;
+  color: #94a3b8;
+  margin-top: 4px;
+}
+.strategy-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.strategy-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+.strategy-option:hover { border-color: #3b82f6; }
+.strategy-option input[type="radio"] { margin: 0; }
+.option-label { font-weight: 600; font-size: 14px; color: #1e293b; }
+.option-desc { font-size: 12px; color: #64748b; margin-left: auto; }
+.tier-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+}
+.tier-table th, .tier-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #e5e7eb;
+  text-align: left;
+}
+.tier-table th {
+  background: #f8fafc;
+  font-size: 12px;
+  color: #64748b;
+}
+.tier-table input {
+  width: 80px;
+  padding: 6px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  font-size: 13px;
+}
+.rule-preview {
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 14px 18px;
+  margin-bottom: 20px;
+}
+.rule-preview h4 { margin: 0 0 8px 0; font-size: 13px; color: #475569; }
+.rule-preview ul { margin: 0; padding-left: 20px; }
+.rule-preview li { font-size: 13px; color: #475569; margin-bottom: 4px; }
+.rule-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+.sell-confirm-content {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 420px;
+  width: 90%;
+}
+.sell-confirm-content h3 { margin: 0 0 16px 0; font-size: 18px; color: #1e293b; }
+.sell-confirm-warning {
+  margin-bottom: 20px;
+}
+.warning-text {
+  font-size: 15px;
+  color: #92400e;
+  background: #fef3c7;
+  padding: 14px;
+  border-radius: 8px;
+  margin: 0;
+}
+.sell-confirm-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
 }
 </style>

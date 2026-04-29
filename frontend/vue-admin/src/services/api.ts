@@ -115,6 +115,21 @@ export const apiHoldings = {
     const params = code ? { params: { code } } : {}
     const res = await api.get(`/pnl/${userId}`, params)
     return res.data
+  },
+  async getExitRule(userId: string, code: string) {
+    const res = await api.get(`/holdings/${userId}/${code}/exit-rule`)
+    return res.data
+  },
+  async setExitRule(userId: string, code: string, rule: {
+    exit_strategy: string
+    stop_loss?: number
+    profit_target?: number
+    trailing_stop_pct?: number
+    tier_profits?: number[]
+    tier_sell_pcts?: number[]
+  }) {
+    const res = await api.put(`/holdings/${userId}/${code}/exit-rule`, rule)
+    return res.data
   }
 }
 

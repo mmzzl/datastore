@@ -44,6 +44,15 @@ class HoldingInput(BaseModel):
     average_cost: float
 
 
+class ExitRuleInput(BaseModel):
+    exit_strategy: str = "tiered"
+    stop_loss: float = 0.05
+    profit_target: float = 0.10
+    trailing_stop_pct: float = 0.03
+    tier_profits: Optional[List[float]] = None
+    tier_sell_pcts: Optional[List[float]] = None
+
+
 @router.get("/holdings/{user_id}")
 def get_holdings(
     user_id: str,
@@ -205,6 +214,160 @@ def delete_transaction(
     except Exception as e:
         logger.error(f"删除交易记录失败: {e}")
         raise HTTPException(status_code=500, detail="删除失败")
+
+
+DEFAULT_TIER_PROFITS = [0.03, 0.05, 0.08, 0.10]
+DEFAULT_TIER_SELL_PCTS = [0.25, 0.25, 0.25, 0.25]
+
+
+def _build_exit_rules_text(exit_rule: dict) -> list:
+    strategy = exit_rule.get("exit_strategy", "fixed")
+    stop_loss = exit_rule.get("stop_loss", 0.05)
+    trailing_pct = exit_rule.get("trailing_stop_pct", 0.03)
+    lines = [f"亏损 ≥{stop_loss*100:.0f}% → 止损卖出全部"]
+
+    if strategy == "tiered":
+        profits = exit_rule.get("tier_profits", DEFAULT_TIER_PROFITS)
+        sell_pcts = exit_rule.get("tier_sell_pcts", DEFAULT_TIER_SELL_PCTS)
+        for i, p in enumerate(profits):
+            pct = sell_pcts[i] if i < len(sell_pcts) else 25
+            lines.append(f"盈利 ≥{p*100:.0f}% → 卖出 {pct*100:.0f}%")
+        lines.append(f"全部触发后启用 {trailing_pct*100:.0f}% 回撤追踪止损")
+    elif strategy == "trailing":
+        profit_target = exit_rule.get("profit_target", 0.10)
+        lines.append(f"盈利 ≥{profit_target*100:.0f}% → 启用 {trailing_pct*100:.0f}% 回撤追踪止损")
+    else:
+        profit_target = exit_rule.get("profit_target", 0.10)
+        lines.append(f"盈利 ≥{profit_target*100:.0f}% → 卖出全部")
+
+    return lines
+
+
+@router.get("/holdings/{user_id}/{code}/exit-rule")
+def get_exit_rule(
+    user_id: str,
+    code: str,
+    current_user: AuthenticatedUser = Depends(require_permission("holdings:view")),
+):
+    if current_user.user_id != user_id and not current_user.is_superuser:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权限访问")
+
+    adapter = _get_data_manager().get_adapter("mongodb")
+    if not adapter or not adapter.storage:
+        raise HTTPException(status_code=500, detail="MongoDB adapter not available")
+
+    coll = adapter.storage.db.get_collection("holdings")
+    holding = coll.find_one({"user_id": user_id, "code": code, "quantity": {"$gt": 0}})
+    if not holding:
+        raise HTTPException(status_code=404, detail="未找到该持仓")
+
+    cost_price = holding.get("average_cost", 0)
+    exit_rule = holding.get("exit_rule", {
+        "exit_strategy": "tiered",
+        "stop_loss": 0.05,
+        "profit_target": 0.10,
+        "trailing_stop_pct": 0.03,
+        "tier_profits": DEFAULT_TIER_PROFITS,
+        "tier_sell_pcts": DEFAULT_TIER_SELL_PCTS,
+    })
+    highest_price = holding.get("highest_price", cost_price)
+
+    dm = _get_data_manager()
+    current_price = cost_price
+    try:
+        rt = dm.get_realtime_data(code)
+        if isinstance(rt, dict):
+            current_price = float(rt.get("price") or rt.get("close") or cost_price)
+    except Exception:
+        pass
+
+    if current_price > highest_price:
+        highest_price = current_price
+        coll.update_one(
+            {"_id": holding["_id"]},
+            {"$set": {"highest_price": highest_price}},
+        )
+
+    profit_pct = ((current_price - cost_price) / cost_price * 100) if cost_price > 0 else 0
+    stop_loss_price = cost_price * (1 - exit_rule.get("stop_loss", 0.05))
+    trailing_stop_price = highest_price * (1 - exit_rule.get("trailing_stop_pct", 0.03))
+
+    # Build tier rules with triggered status
+    tier_rules = []
+    if exit_rule.get("exit_strategy") == "tiered":
+        profits = exit_rule.get("tier_profits", DEFAULT_TIER_PROFITS)
+        sell_pcts = exit_rule.get("tier_sell_pcts", DEFAULT_TIER_SELL_PCTS)
+        tier_triggered = holding.get("tier_triggered", [])
+        for i, p in enumerate(profits):
+            pct = sell_pcts[i] if i < len(sell_pcts) else 0.25
+            triggered = i < len(tier_triggered) and bool(tier_triggered[i])
+            tier_rules.append({
+                "profit_pct": p * 100,
+                "sell_pct": pct * 100,
+                "triggered": triggered,
+            })
+
+    return {
+        "code": code,
+        "name": holding.get("name", code),
+        "cost_price": cost_price,
+        "current_price": current_price,
+        "profit_pct": round(profit_pct, 2),
+        "highest_price": highest_price,
+        "exit_strategy": exit_rule.get("exit_strategy", "tiered"),
+        "stop_loss": exit_rule.get("stop_loss", 0.05),
+        "profit_target": exit_rule.get("profit_target", 0.10),
+        "trailing_stop_pct": exit_rule.get("trailing_stop_pct", 0.03),
+        "tier_profits": exit_rule.get("tier_profits", DEFAULT_TIER_PROFITS),
+        "tier_sell_pcts": exit_rule.get("tier_sell_pcts", DEFAULT_TIER_SELL_PCTS),
+        "stop_loss_price": round(stop_loss_price, 3),
+        "trailing_stop_price": round(trailing_stop_price, 3),
+        "tier_rules": tier_rules,
+        "exit_rules_text": _build_exit_rules_text(exit_rule),
+    }
+
+
+@router.put("/holdings/{user_id}/{code}/exit-rule")
+def set_exit_rule(
+    user_id: str,
+    code: str,
+    body: ExitRuleInput,
+    current_user: AuthenticatedUser = Depends(require_permission("holdings:edit")),
+):
+    if current_user.user_id != user_id and not current_user.is_superuser:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权限访问")
+
+    adapter = _get_data_manager().get_adapter("mongodb")
+    if not adapter or not adapter.storage:
+        raise HTTPException(status_code=500, detail="MongoDB adapter not available")
+
+    coll = adapter.storage.db.get_collection("holdings")
+    holding = coll.find_one({"user_id": user_id, "code": code, "quantity": {"$gt": 0}})
+    if not holding:
+        raise HTTPException(status_code=404, detail="未找到该持仓")
+
+    tier_profits = body.tier_profits or DEFAULT_TIER_PROFITS
+    tier_sell_pcts = body.tier_sell_pcts or DEFAULT_TIER_SELL_PCTS
+
+    exit_rule = {
+        "exit_strategy": body.exit_strategy,
+        "stop_loss": body.stop_loss,
+        "profit_target": body.profit_target,
+        "trailing_stop_pct": body.trailing_stop_pct,
+        "tier_profits": tier_profits,
+        "tier_sell_pcts": tier_sell_pcts,
+    }
+
+    cost_price = holding.get("average_cost", 0)
+    highest_price = holding.get("highest_price", cost_price)
+
+    update = {"$set": {"exit_rule": exit_rule}}
+    if not holding.get("highest_price"):
+        update["$set"]["highest_price"] = cost_price
+
+    coll.update_one({"_id": holding["_id"]}, update)
+
+    return {"success": True, "exit_rule": exit_rule}
 
 
 class PortfolioRequest(BaseModel):

@@ -53,6 +53,62 @@ class StockAlertWatcher(BaseWatcher):
                 return signals
 
             profit_pct = (current_price - cost_price) / cost_price
+            exit_strategy = stock_config.get("exit_strategy", "fixed")
+            highest_price = stock_config.get("highest_price", current_price)
+
+            # 阶梯止盈
+            if exit_strategy == "tiered":
+                tier_profits = stock_config.get("tier_profits", [0.03, 0.05, 0.08, 0.10])
+                tier_sell_pcts = stock_config.get("tier_sell_pcts", [0.25, 0.25, 0.25, 0.25])
+                for i, threshold in enumerate(tier_profits):
+                    if profit_pct >= threshold:
+                        sell_pct = tier_sell_pcts[i] if i < len(tier_sell_pcts) else 0.25
+                        signals.append(
+                            {
+                                "code": code,
+                                "name": name,
+                                "signal": "sell",
+                                "confidence": 0.9,
+                                "priority": "high",
+                                "reasons": [
+                                    f"阶梯止盈：盈利{profit_pct*100:.1f}% ≥ {threshold*100:.0f}%，卖出{sell_pct*100:.0f}%"
+                                ],
+                                "alert_type": "price",
+                                "strategy_type": "tiered",
+                                "price": current_price,
+                                "sell_pct": sell_pct,
+                                "tier_index": i,
+                                "volume_ratio": volume_ratio,
+                                "technical_data": technical_data,
+                            }
+                        )
+                        return signals
+
+            # 追踪止损
+            if exit_strategy == "trailing" and highest_price > cost_price:
+                trailing_stop_pct = stock_config.get("trailing_stop_pct", 0.03)
+                trailing_stop_price = highest_price * (1 - trailing_stop_pct)
+                if current_price <= trailing_stop_price:
+                    signals.append(
+                        {
+                            "code": code,
+                            "name": name,
+                            "signal": "sell",
+                            "confidence": 0.92,
+                            "priority": "critical",
+                            "reasons": [
+                                f"追踪止损：从最高价{highest_price:.2f}回撤超过{trailing_stop_pct*100:.0f}%"
+                            ],
+                            "alert_type": "price",
+                            "strategy_type": "trailing",
+                            "price": current_price,
+                            "volume_ratio": volume_ratio,
+                            "technical_data": technical_data,
+                        }
+                    )
+                    return signals
+
+            # 固定止盈（兜底）
             if profit_pct >= profit_target:
                 signals.append(
                     {
