@@ -312,17 +312,29 @@ class QlibPredictor:
             return None
     
     def _get_stock_name(self, code: str) -> str:
-        """Get stock name from code."""
-        stock_names = {
-            "SH600000": "浦发银行",
-            "SH600519": "贵州茅台",
-            "SH600036": "招商银行",
-            "SH601318": "中国平安",
-            "SZ000001": "平安银行",
-            "SZ000002": "万科A",
-            "SZ000858": "五粮液",
-        }
-        return stock_names.get(code, code)
+        """从 all_stock.csv 查询股票名称"""
+        if not code:
+            return ""
+        # 缓存避免重复读 CSV
+        if not hasattr(self, "_name_cache"):
+            self._name_cache = {}
+            try:
+                import os
+                csv_path = os.path.join(os.path.dirname(__file__), "..", "data", "all_stock.csv")
+                csv_path = os.path.normpath(csv_path)
+                import pandas as pd
+                df = pd.read_csv(csv_path, usecols=["code", "code_name"])
+                for _, row in df.iterrows():
+                    raw = str(row["code"]).strip()
+                    name = str(row["code_name"]).strip()
+                    pure = raw.split(".")[-1] if "." in raw else raw
+                    market = raw.split(".")[0].upper() if "." in raw else ""
+                    key = f"{market}{pure}" if market else pure
+                    self._name_cache[key] = name
+                    self._name_cache[pure] = name
+            except Exception as e:
+                logger.warning(f"Failed to load stock names: {e}")
+        return self._name_cache.get(code, "")
     
     def _get_cached(self, cache_key: str) -> Optional[Dict[str, Any]]:
         """Get cached prediction result."""

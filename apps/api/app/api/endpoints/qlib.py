@@ -681,8 +681,15 @@ async def refresh_top_stocks(
             raise HTTPException(status_code=400, detail="Best experiment has no model_id")
 
         from app.scheduler.top_stocks_task import refresh_top_stocks as celery_refresh
-        task = celery_refresh.delay({})
-        return {"message": "Task dispatched", "task_id": task.id, "model_id": model_id}
+        try:
+            task = celery_refresh.delay({})
+            return {"message": "Task dispatched", "task_id": task.id, "model_id": model_id}
+        except Exception as celery_err:
+            logger.error(f"Celery dispatch failed: {celery_err}")
+            raise HTTPException(
+                status_code=503,
+                detail=f"Celery 服务不可用，请检查 Redis 连接配置: {celery_err}",
+            )
     except HTTPException:
         raise
     except Exception as e:

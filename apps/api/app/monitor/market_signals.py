@@ -13,6 +13,40 @@ router = APIRouter()
 
 DEDUP_WINDOW_HOURS = 24
 
+_stock_name_cache: Dict[str, str] = {}
+
+
+def get_stock_name(code: str) -> str:
+    """从 all_stock.csv 查询股票名称，支持 SH600519 / 600519 等格式"""
+    if not code:
+        return ""
+    if code in _stock_name_cache:
+        return _stock_name_cache[code]
+
+    import os
+    csv_path = os.path.join(os.path.dirname(__file__), "..", "..", "data", "all_stock.csv")
+    csv_path = os.path.normpath(csv_path)
+
+    try:
+        import pandas as pd
+        df = pd.read_csv(csv_path, usecols=["code", "code_name"])
+        for _, row in df.iterrows():
+            raw = str(row["code"]).strip()
+            name = str(row["code_name"]).strip()
+            pure = raw.split(".")[-1] if "." in raw else raw
+            market = raw.split(".")[0].upper() if "." in raw else ""
+            key = f"{market}{pure}" if market else pure
+            _stock_name_cache[key] = name
+            _stock_name_cache[pure] = name
+    except Exception as e:
+        logger.warning(f"Failed to load stock names: {e}")
+
+    # SECTOR_xxx 格式
+    if code.startswith("SECTOR_"):
+        return code.replace("SECTOR_", "板块: ")
+
+    return _stock_name_cache.get(code, "")
+
 
 def _make_dedup_key(signal: Dict[str, Any]) -> str:
     code = signal.get("code", "") or signal.get("symbol", "")
@@ -25,6 +59,10 @@ def _make_dedup_key(signal: Dict[str, Any]) -> str:
 def add_signal(signal: Dict[str, Any]):
     try:
         storage = get_storage()
+        collection = storage.market_signals_collection
+        if collection is None:
+            logger.warning("market_signals_collection is None, skipping signal save")
+            return None
         ts = signal.get("timestamp")
         if not ts:
             signal["timestamp"] = datetime.now()
@@ -37,12 +75,13 @@ def add_signal(signal: Dict[str, Any]):
             signal["code"] = signal["symbol"]
         if not signal.get("symbol") and signal.get("code"):
             signal["symbol"] = signal["code"]
+        if not signal.get("name") and signal.get("code"):
+            signal["name"] = get_stock_name(signal["code"])
         if not signal.get("message") and signal.get("reasons"):
             signal["message"] = "; ".join(signal["reasons"][:2])
         dedup_key = _make_dedup_key(signal)
         signal["dedup_key"] = dedup_key
         cutoff = datetime.now() - timedelta(hours=DEDUP_WINDOW_HOURS)
-        collection = storage.market_signals_collection
         existing = collection.find_one({"dedup_key": dedup_key, "timestamp": {"$gte": cutoff}})
         if existing:
             logger.info(f"Signal deduped: {dedup_key}")
@@ -65,6 +104,8 @@ def latest_signals(
     try:
         storage = get_storage()
         collection = storage.market_signals_collection
+        if collection is None:
+            return {"items": [], "total": 0, "page": page, "page_size": page_size}
         query: Dict[str, Any] = {}
         if signal_type:
             query["signal"] = signal_type

@@ -89,7 +89,7 @@ class Settings(BaseSettings):
     qlib_training_cron: str = "0 2 * * 0"
     qlib_risk_report_cron: str = "30 15 * * 1-5"
     qlib_provider_uri: str = "~/.qlib/qlib_data/cn_data"
-    redis_host: str = "localhost"
+    redis_host: str = "127.0.0.1"
     redis_port: int = 6379
     redis_db: int = 0
     redis_password: str = ""
@@ -171,6 +171,10 @@ def load_config() -> Settings:
         alert_dingtalk_webhook=config_data.get("alert", {}).get("dingtalk_webhook", ""),
         alert_dingtalk_secret=config_data.get("alert", {}).get("dingtalk_secret", ""),
         alert_email_recipients=config_data.get("alert", {}).get("email_recipients", ""),
+        redis_host=config_data.get("redis", {}).get("host", ""),
+        redis_port=config_data.get("redis", {}).get("port", 6379),
+        redis_db=config_data.get("redis", {}).get("db", 0),
+        redis_password=config_data.get("redis", {}).get("password", ""),
     )
     else:
         settings = Settings()
