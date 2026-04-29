@@ -1,0 +1,1020 @@
+{
+  "nodes": [
+    {
+      "id": "logger_setup_logger",
+      "label": "setup_logger",
+      "file_type": "code",
+      "source_file": "apps/api/app/utils/logger.py",
+      "source_location": null
+    },
+    {
+      "id": "logger_log_api_call",
+      "label": "log_api_call decorator",
+      "file_type": "code",
+      "source_file": "apps/api/app/utils/logger.py",
+      "source_location": null
+    },
+    {
+      "id": "auto_optimize_main",
+      "label": "Auto Optimize Script",
+      "file_type": "code",
+      "source_file": "apps/api/scripts/auto_optimize.py",
+      "source_location": null
+    },
+    {
+      "id": "check_experiments_main",
+      "label": "Check Experiments Script",
+      "file_type": "code",
+      "source_file": "apps/api/scripts/check_experiments.py",
+      "source_location": null
+    },
+    {
+      "id": "compare_all_main",
+      "label": "Compare All Experiments Script",
+      "file_type": "code",
+      "source_file": "apps/api/scripts/compare_all.py",
+      "source_location": null
+    },
+    {
+      "id": "optimize_simple_main",
+      "label": "Simple Optimize Script",
+      "file_type": "code",
+      "source_file": "apps/api/scripts/optimize_simple.py",
+      "source_location": null
+    },
+    {
+      "id": "show_best_main",
+      "label": "Show Best Experiment Script",
+      "file_type": "code",
+      "source_file": "apps/api/scripts/show_best.py",
+      "source_location": null
+    },
+    {
+      "id": "train_eval_run_pipeline",
+      "label": "Train-Eval Pipeline",
+      "file_type": "code",
+      "source_file": "apps/api/scripts/train_eval.py",
+      "source_location": null
+    },
+    {
+      "id": "train_eval_ExperimentResult",
+      "label": "ExperimentResult dataclass",
+      "file_type": "code",
+      "source_file": "apps/api/scripts/train_eval.py",
+      "source_location": null
+    },
+    {
+      "id": "train_eval_build_param_grid",
+      "label": "build_param_grid",
+      "file_type": "code",
+      "source_file": "apps/api/scripts/train_eval.py",
+      "source_location": null
+    },
+    {
+      "id": "train_eval_print_comparison_table",
+      "label": "print_comparison_table",
+      "file_type": "code",
+      "source_file": "apps/api/scripts/train_eval.py",
+      "source_location": null
+    },
+    {
+      "id": "train_eval_evaluate_model",
+      "label": "evaluate_model (min_ic gate)",
+      "file_type": "code",
+      "source_file": "apps/api/scripts/train_eval.py",
+      "source_location": null
+    },
+    {
+      "id": "qlib_bin_converter_QlibBinConverter",
+      "label": "QlibBinConverter",
+      "file_type": "code",
+      "source_file": "apps/api/app/qlib/bin_converter.py",
+      "source_location": null
+    },
+    {
+      "id": "qlib_trainer_QlibTrainer",
+      "label": "QlibTrainer",
+      "file_type": "code",
+      "source_file": "apps/api/app/qlib/trainer.py",
+      "source_location": null
+    },
+    {
+      "id": "backtest_async_engine_AsyncBacktestEngine",
+      "label": "AsyncBacktestEngine",
+      "file_type": "code",
+      "source_file": "apps/api/app/backtest/async_engine.py",
+      "source_location": null
+    },
+    {
+      "id": "experiment_tracker_ExperimentTracker",
+      "label": "ExperimentTracker",
+      "file_type": "code",
+      "source_file": "apps/api/app/experiment/tracker.py",
+      "source_location": null
+    },
+    {
+      "id": "backtest_risk_metrics_RiskMetricsCalculator",
+      "label": "RiskMetricsCalculator",
+      "file_type": "code",
+      "source_file": "apps/api/app/backtest/risk_metrics.py",
+      "source_location": null
+    },
+    {
+      "id": "qlib_config_get_instruments",
+      "label": "get_instruments",
+      "file_type": "code",
+      "source_file": "apps/api/app/qlib/config.py",
+      "source_location": null
+    },
+    {
+      "id": "conftest_fixtures",
+      "label": "Shared Test Fixtures",
+      "file_type": "code",
+      "source_file": "apps/api/tests/conftest.py",
+      "source_location": null
+    },
+    {
+      "id": "test_aggregator_AlertAggregator",
+      "label": "AlertAggregator Tests",
+      "file_type": "code",
+      "source_file": "apps/api/tests/test_aggregator.py",
+      "source_location": null
+    },
+    {
+      "id": "monitor_aggregator_AlertAggregator",
+      "label": "AlertAggregator",
+      "file_type": "code",
+      "source_file": "apps/api/app/monitor/analysis/aggregator.py",
+      "source_location": null
+    },
+    {
+      "id": "monitor_alert_signal_SignalType",
+      "label": "SignalType enum",
+      "file_type": "code",
+      "source_file": "apps/api/app/monitor/models/alert_signal.py",
+      "source_location": null
+    },
+    {
+      "id": "test_alert_models_AlertRule",
+      "label": "AlertRule Model Tests",
+      "file_type": "code",
+      "source_file": "apps/api/tests/test_alert_models.py",
+      "source_location": null
+    },
+    {
+      "id": "monitor_alert_rule_AlertRule",
+      "label": "AlertRule",
+      "file_type": "code",
+      "source_file": "apps/api/app/monitor/models/alert_rule.py",
+      "source_location": null
+    },
+    {
+      "id": "monitor_notification_config_NotificationPayload",
+      "label": "NotificationPayload",
+      "file_type": "code",
+      "source_file": "apps/api/app/monitor/models/notification_config.py",
+      "source_location": null
+    },
+    {
+      "id": "test_auth_login",
+      "label": "Auth Login Tests",
+      "file_type": "code",
+      "source_file": "apps/api/tests/test_auth.py",
+      "source_location": null
+    },
+    {
+      "id": "core_security",
+      "label": "Security Module",
+      "file_type": "code",
+      "source_file": "apps/api/app/core/security.py",
+      "source_location": null
+    },
+    {
+      "id": "test_baostock_full_flow",
+      "label": "Baostock Full Flow Tests",
+      "file_type": "code",
+      "source_file": "apps/api/tests/test_baostock.py",
+      "source_location": null
+    },
+    {
+      "id": "collector_baostock_kline_fetcher",
+      "label": "BaostockKlineFetcher",
+      "file_type": "code",
+      "source_file": "apps/api/app/collector/baostock_kline_fetcher.py",
+      "source_location": null
+    },
+    {
+      "id": "collector_stock_analyzer",
+      "label": "StockAnalyzer",
+      "file_type": "code",
+      "source_file": "apps/api/app/collector/stock_analyzer.py",
+      "source_location": null
+    },
+    {
+      "id": "collector_technical_indicators",
+      "label": "TechnicalIndicators",
+      "file_type": "code",
+      "source_file": "apps/api/app/collector/technical_indicators.py",
+      "source_location": null
+    },
+    {
+      "id": "test_complete_system_logic",
+      "label": "Complete System Logic Tests",
+      "file_type": "code",
+      "source_file": "apps/api/tests/test_complete_system.py",
+      "source_location": null
+    },
+    {
+      "id": "test_data_source_enhancement",
+      "label": "DataSource Enhancement Tests",
+      "file_type": "code",
+      "source_file": "apps/api/tests/test_data_source_enhancement.py",
+      "source_location": null
+    },
+    {
+      "id": "data_source_manager_DataSourceManager",
+      "label": "DataSourceManager",
+      "file_type": "code",
+      "source_file": "apps/api/app/data_source/manager.py",
+      "source_location": null
+    },
+    {
+      "id": "data_source_models_MarketBreadth",
+      "label": "MarketBreadth model",
+      "file_type": "code",
+      "source_file": "apps/api/app/data_source/models.py",
+      "source_location": null
+    },
+    {
+      "id": "test_data_validation_config",
+      "label": "Data Validation Config Tests",
+      "file_type": "code",
+      "source_file": "apps/api/tests/test_data_validation.py",
+      "source_location": null
+    },
+    {
+      "id": "test_end_to_end_orchestrator",
+      "label": "End-to-End Orchestrator Tests",
+      "file_type": "code",
+      "source_file": "apps/api/tests/test_end_to_end.py",
+      "source_location": null
+    },
+    {
+      "id": "monitor_alert_orchestrator_AlertOrchestrator",
+      "label": "AlertOrchestrator",
+      "file_type": "code",
+      "source_file": "apps/api/app/monitor/alert_orchestrator.py",
+      "source_location": null
+    },
+    {
+      "id": "test_full_system_pytest",
+      "label": "Full System Pytest Tests",
+      "file_type": "code",
+      "source_file": "apps/api/tests/test_full_system.py",
+      "source_location": null
+    },
+    {
+      "id": "monitor_stock_monitor_StockMonitor",
+      "label": "StockMonitor",
+      "file_type": "code",
+      "source_file": "apps/api/app/monitor/stock_monitor.py",
+      "source_location": null
+    },
+    {
+      "id": "monitor_config_MonitorConfig",
+      "label": "MonitorConfig",
+      "file_type": "code",
+      "source_file": "apps/api/app/monitor/config.py",
+      "source_location": null
+    },
+    {
+      "id": "monitor_data_source_MultiDataSourceManager",
+      "label": "MultiDataSourceManager",
+      "file_type": "code",
+      "source_file": "apps/api/app/monitor/data_source.py",
+      "source_location": null
+    },
+    {
+      "id": "scheduler_monitor_job_MonitorJob",
+      "label": "MonitorJob",
+      "file_type": "code",
+      "source_file": "apps/api/app/scheduler/monitor_job.py",
+      "source_location": null
+    },
+    {
+      "id": "storage_mongo_client_MongoStorage",
+      "label": "MongoStorage",
+      "file_type": "code",
+      "source_file": "apps/api/app/storage/mongo_client.py",
+      "source_location": null
+    },
+    {
+      "id": "test_holdings_tdd_api",
+      "label": "Holdings TDD API Tests",
+      "file_type": "code",
+      "source_file": "apps/api/tests/test_holdings_tdd.py",
+      "source_location": null
+    },
+    {
+      "id": "test_monitor_stock_monitor",
+      "label": "Stock Monitor Tests",
+      "file_type": "code",
+      "source_file": "apps/api/tests/test_monitor.py",
+      "source_location": null
+    },
+    {
+      "id": "monitor_analysis_technical_TechnicalAnalyzer",
+      "label": "TechnicalAnalyzer",
+      "file_type": "code",
+      "source_file": "apps/api/app/monitor/analysis/technical.py",
+      "source_location": null
+    },
+    {
+      "id": "monitor_analysis_signal_SignalGenerator",
+      "label": "SignalGenerator (monitor)",
+      "file_type": "code",
+      "source_file": "apps/api/app/monitor/analysis/signal.py",
+      "source_location": null
+    },
+    {
+      "id": "test_monitor_basic",
+      "label": "Basic Monitor Tests",
+      "file_type": "code",
+      "source_file": "apps/api/tests/test_monitor_basic.py",
+      "source_location": null
+    },
+    {
+      "id": "test_monitor_config",
+      "label": "Monitor Config Tests",
+      "file_type": "code",
+      "source_file": "apps/api/tests/test_monitor_config.py",
+      "source_location": null
+    },
+    {
+      "id": "test_monitor_simple",
+      "label": "Simple Monitor Tests",
+      "file_type": "code",
+      "source_file": "apps/api/tests/test_monitor_simple.py",
+      "source_location": null
+    },
+    {
+      "id": "core_config_settings",
+      "label": "App Settings (config)",
+      "file_type": "code",
+      "source_file": "apps/api/app/core/config.py",
+      "source_location": null
+    },
+    {
+      "id": "main_app",
+      "label": "FastAPI Main App",
+      "file_type": "code",
+      "source_file": "apps/api/main.py",
+      "source_location": null
+    },
+    {
+      "id": "train_eval_pipeline_pattern",
+      "label": "ML Train-Eval-Backtest Pipeline Pattern",
+      "file_type": "document",
+      "source_file": "apps/api/scripts/train_eval.py",
+      "source_location": null
+    },
+    {
+      "id": "monitor_signal_flow_pattern",
+      "label": "Monitor Signal Flow Pattern",
+      "file_type": "document",
+      "source_file": "apps/api/tests/test_end_to_end.py",
+      "source_location": null
+    },
+    {
+      "id": "hyperparameter_search_strategy",
+      "label": "Hyperparameter Search Strategy",
+      "file_type": "document",
+      "source_file": "apps/api/scripts/train_eval.py",
+      "source_location": null
+    }
+  ],
+  "edges": [
+    {
+      "source": "auto_optimize_main",
+      "target": "train_eval_run_pipeline",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/scripts/auto_optimize.py"
+    },
+    {
+      "source": "optimize_simple_main",
+      "target": "train_eval_run_pipeline",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/scripts/optimize_simple.py"
+    },
+    {
+      "source": "check_experiments_main",
+      "target": "experiment_tracker_ExperimentTracker",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/scripts/check_experiments.py"
+    },
+    {
+      "source": "compare_all_main",
+      "target": "experiment_tracker_ExperimentTracker",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/scripts/compare_all.py"
+    },
+    {
+      "source": "show_best_main",
+      "target": "experiment_tracker_ExperimentTracker",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/scripts/show_best.py"
+    },
+    {
+      "source": "train_eval_run_pipeline",
+      "target": "train_eval_build_param_grid",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/scripts/train_eval.py"
+    },
+    {
+      "source": "train_eval_run_pipeline",
+      "target": "train_eval_print_comparison_table",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/scripts/train_eval.py"
+    },
+    {
+      "source": "train_eval_run_pipeline",
+      "target": "train_eval_evaluate_model",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/scripts/train_eval.py"
+    },
+    {
+      "source": "train_eval_run_pipeline",
+      "target": "qlib_config_get_instruments",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/scripts/train_eval.py"
+    },
+    {
+      "source": "train_eval_run_pipeline",
+      "target": "experiment_tracker_ExperimentTracker",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/scripts/train_eval.py"
+    },
+    {
+      "source": "train_eval_run_pipeline",
+      "target": "qlib_bin_converter_QlibBinConverter",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/scripts/train_eval.py"
+    },
+    {
+      "source": "train_eval_run_pipeline",
+      "target": "qlib_trainer_QlibTrainer",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/scripts/train_eval.py"
+    },
+    {
+      "source": "train_eval_run_pipeline",
+      "target": "backtest_async_engine_AsyncBacktestEngine",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/scripts/train_eval.py"
+    },
+    {
+      "source": "train_eval_run_pipeline",
+      "target": "backtest_risk_metrics_RiskMetricsCalculator",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/scripts/train_eval.py"
+    },
+    {
+      "source": "test_aggregator_AlertAggregator",
+      "target": "monitor_aggregator_AlertAggregator",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/tests/test_aggregator.py"
+    },
+    {
+      "source": "test_aggregator_AlertAggregator",
+      "target": "monitor_alert_signal_SignalType",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/tests/test_aggregator.py"
+    },
+    {
+      "source": "test_alert_models_AlertRule",
+      "target": "monitor_alert_rule_AlertRule",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/tests/test_alert_models.py"
+    },
+    {
+      "source": "test_alert_models_AlertRule",
+      "target": "monitor_alert_signal_SignalType",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/tests/test_alert_models.py"
+    },
+    {
+      "source": "test_alert_models_AlertRule",
+      "target": "monitor_notification_config_NotificationPayload",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/tests/test_alert_models.py"
+    },
+    {
+      "source": "test_auth_login",
+      "target": "core_security",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/tests/test_auth.py"
+    },
+    {
+      "source": "test_auth_login",
+      "target": "main_app",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/tests/test_auth.py"
+    },
+    {
+      "source": "test_baostock_full_flow",
+      "target": "collector_baostock_kline_fetcher",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/tests/test_baostock.py"
+    },
+    {
+      "source": "test_baostock_full_flow",
+      "target": "collector_stock_analyzer",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/tests/test_baostock.py"
+    },
+    {
+      "source": "test_baostock_full_flow",
+      "target": "collector_technical_indicators",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/tests/test_baostock.py"
+    },
+    {
+      "source": "test_baostock_full_flow",
+      "target": "core_config_settings",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/tests/test_baostock.py"
+    },
+    {
+      "source": "test_data_source_enhancement",
+      "target": "data_source_manager_DataSourceManager",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/tests/test_data_source_enhancement.py"
+    },
+    {
+      "source": "test_data_source_enhancement",
+      "target": "data_source_models_MarketBreadth",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/tests/test_data_source_enhancement.py"
+    },
+    {
+      "source": "test_end_to_end_orchestrator",
+      "target": "monitor_alert_orchestrator_AlertOrchestrator",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/tests/test_end_to_end.py"
+    },
+    {
+      "source": "test_end_to_end_orchestrator",
+      "target": "monitor_aggregator_AlertAggregator",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/tests/test_end_to_end.py"
+    },
+    {
+      "source": "test_end_to_end_orchestrator",
+      "target": "monitor_alert_signal_SignalType",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/tests/test_end_to_end.py"
+    },
+    {
+      "source": "test_full_system_pytest",
+      "target": "monitor_stock_monitor_StockMonitor",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/tests/test_full_system.py"
+    },
+    {
+      "source": "test_full_system_pytest",
+      "target": "monitor_config_MonitorConfig",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/tests/test_full_system.py"
+    },
+    {
+      "source": "test_full_system_pytest",
+      "target": "monitor_data_source_MultiDataSourceManager",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/tests/test_full_system.py"
+    },
+    {
+      "source": "test_full_system_pytest",
+      "target": "scheduler_monitor_job_MonitorJob",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/tests/test_full_system.py"
+    },
+    {
+      "source": "test_full_system_pytest",
+      "target": "storage_mongo_client_MongoStorage",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/tests/test_full_system.py"
+    },
+    {
+      "source": "test_full_system_pytest",
+      "target": "main_app",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/tests/test_full_system.py"
+    },
+    {
+      "source": "test_full_system_pytest",
+      "target": "core_config_settings",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/tests/test_full_system.py"
+    },
+    {
+      "source": "test_holdings_tdd_api",
+      "target": "main_app",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/tests/test_holdings_tdd.py"
+    },
+    {
+      "source": "test_monitor_stock_monitor",
+      "target": "monitor_stock_monitor_StockMonitor",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/tests/test_monitor.py"
+    },
+    {
+      "source": "test_monitor_stock_monitor",
+      "target": "monitor_analysis_technical_TechnicalAnalyzer",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/tests/test_monitor.py"
+    },
+    {
+      "source": "test_monitor_stock_monitor",
+      "target": "monitor_analysis_signal_SignalGenerator",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/tests/test_monitor.py"
+    },
+    {
+      "source": "test_monitor_stock_monitor",
+      "target": "monitor_config_MonitorConfig",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/tests/test_monitor.py"
+    },
+    {
+      "source": "test_monitor_stock_monitor",
+      "target": "core_config_settings",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/tests/test_monitor.py"
+    },
+    {
+      "source": "test_monitor_config",
+      "target": "scheduler_monitor_job_MonitorJob",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/tests/test_monitor_config.py"
+    },
+    {
+      "source": "test_monitor_config",
+      "target": "core_config_settings",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/tests/test_monitor_config.py"
+    },
+    {
+      "source": "test_monitor_simple",
+      "target": "monitor_config_MonitorConfig",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/tests/test_monitor_simple.py"
+    },
+    {
+      "source": "test_monitor_simple",
+      "target": "scheduler_monitor_job_MonitorJob",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/tests/test_monitor_simple.py"
+    },
+    {
+      "source": "test_monitor_simple",
+      "target": "core_config_settings",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/tests/test_monitor_simple.py"
+    },
+    {
+      "source": "test_monitor_basic",
+      "target": "core_config_settings",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/tests/test_monitor_basic.py"
+    },
+    {
+      "source": "test_data_validation_config",
+      "target": "core_config_settings",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/tests/test_data_validation.py"
+    },
+    {
+      "source": "conftest_fixtures",
+      "target": "core_config_settings",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/tests/conftest.py"
+    },
+    {
+      "source": "conftest_fixtures",
+      "target": "main_app",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/tests/conftest.py"
+    },
+    {
+      "source": "check_experiments_main",
+      "target": "compare_all_main",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "apps/api/scripts/check_experiments.py"
+    },
+    {
+      "source": "show_best_main",
+      "target": "compare_all_main",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "apps/api/scripts/show_best.py"
+    },
+    {
+      "source": "auto_optimize_main",
+      "target": "optimize_simple_main",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "apps/api/scripts/auto_optimize.py"
+    },
+    {
+      "source": "test_monitor_basic",
+      "target": "test_monitor_config",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "apps/api/tests/test_monitor_basic.py"
+    },
+    {
+      "source": "test_monitor_simple",
+      "target": "test_monitor_config",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "apps/api/tests/test_monitor_simple.py"
+    },
+    {
+      "source": "test_monitor_basic",
+      "target": "test_monitor_simple",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "apps/api/tests/test_monitor_basic.py"
+    },
+    {
+      "source": "test_complete_system_logic",
+      "target": "test_monitor_basic",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.7,
+      "source_file": "apps/api/tests/test_complete_system.py"
+    },
+    {
+      "source": "test_data_validation_config",
+      "target": "test_monitor_basic",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.7,
+      "source_file": "apps/api/tests/test_data_validation.py"
+    },
+    {
+      "source": "train_eval_run_pipeline",
+      "target": "train_eval_pipeline_pattern",
+      "relation": "implements",
+      "confidence": "INFERRED",
+      "confidence_score": 0.9,
+      "source_file": "apps/api/scripts/train_eval.py"
+    },
+    {
+      "source": "test_end_to_end_orchestrator",
+      "target": "monitor_signal_flow_pattern",
+      "relation": "implements",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "apps/api/tests/test_end_to_end.py"
+    },
+    {
+      "source": "train_eval_build_param_grid",
+      "target": "hyperparameter_search_strategy",
+      "relation": "implements",
+      "confidence": "INFERRED",
+      "confidence_score": 0.9,
+      "source_file": "apps/api/scripts/train_eval.py"
+    },
+    {
+      "source": "auto_optimize_main",
+      "target": "hyperparameter_search_strategy",
+      "relation": "implements",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "apps/api/scripts/auto_optimize.py"
+    },
+    {
+      "source": "optimize_simple_main",
+      "target": "hyperparameter_search_strategy",
+      "relation": "implements",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "apps/api/scripts/optimize_simple.py"
+    },
+    {
+      "source": "monitor_alert_orchestrator_AlertOrchestrator",
+      "target": "monitor_aggregator_AlertAggregator",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "apps/api/tests/test_end_to_end.py"
+    },
+    {
+      "source": "monitor_stock_monitor_StockMonitor",
+      "target": "monitor_config_MonitorConfig",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.9,
+      "source_file": "apps/api/tests/test_monitor.py"
+    },
+    {
+      "source": "monitor_stock_monitor_StockMonitor",
+      "target": "monitor_analysis_technical_TechnicalAnalyzer",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.9,
+      "source_file": "apps/api/tests/test_monitor.py"
+    },
+    {
+      "source": "monitor_stock_monitor_StockMonitor",
+      "target": "monitor_analysis_signal_SignalGenerator",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.9,
+      "source_file": "apps/api/tests/test_monitor.py"
+    },
+    {
+      "source": "collector_baostock_kline_fetcher",
+      "target": "collector_technical_indicators",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "apps/api/tests/test_baostock.py"
+    },
+    {
+      "source": "collector_stock_analyzer",
+      "target": "collector_baostock_kline_fetcher",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "apps/api/tests/test_baostock.py"
+    },
+    {
+      "source": "train_eval_ExperimentResult",
+      "target": "experiment_tracker_ExperimentTracker",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.9,
+      "source_file": "apps/api/scripts/train_eval.py"
+    }
+  ],
+  "hyperedges": [
+    {
+      "id": "ml_pipeline_orchestration",
+      "label": "ML Pipeline Orchestration",
+      "nodes": [
+        "train_eval_run_pipeline",
+        "qlib_bin_converter_QlibBinConverter",
+        "qlib_trainer_QlibTrainer",
+        "backtest_async_engine_AsyncBacktestEngine",
+        "experiment_tracker_ExperimentTracker"
+      ],
+      "relation": "participate_in",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/scripts/train_eval.py"
+    },
+    {
+      "id": "monitor_signal_generation",
+      "label": "Monitor Signal Generation Flow",
+      "nodes": [
+        "monitor_stock_monitor_StockMonitor",
+        "monitor_analysis_technical_TechnicalAnalyzer",
+        "monitor_analysis_signal_SignalGenerator",
+        "monitor_config_MonitorConfig"
+      ],
+      "relation": "participate_in",
+      "confidence": "INFERRED",
+      "confidence_score": 0.9,
+      "source_file": "apps/api/tests/test_monitor.py"
+    },
+    {
+      "id": "alert_aggregation_pipeline",
+      "label": "Alert Aggregation Pipeline",
+      "nodes": [
+        "monitor_alert_orchestrator_AlertOrchestrator",
+        "monitor_aggregator_AlertAggregator",
+        "monitor_alert_signal_SignalType"
+      ],
+      "relation": "participate_in",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/tests/test_end_to_end.py"
+    }
+  ],
+  "input_tokens": 0,
+  "output_tokens": 0
+}

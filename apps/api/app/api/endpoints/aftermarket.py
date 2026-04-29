@@ -3,27 +3,13 @@ from typing import Optional
 import logging
 
 from ...storage import MongoStorage
+from ...storage.mongo_client import get_storage
 from ...scheduler import AfterMarketJob
 from ...core.config import settings
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/after-market", tags=["盘后信息"])
-
-
-def get_storage() -> MongoStorage:
-    storage = MongoStorage(
-        settings.mongodb_host,
-        settings.mongodb_port,
-        settings.mongodb_database,
-        settings.mongodb_username,
-        settings.mongodb_password
-    )
-    storage.connect()
-    try:
-        yield storage
-    finally:
-        storage.close()
 
 
 @router.get("")

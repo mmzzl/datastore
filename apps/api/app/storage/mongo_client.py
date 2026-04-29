@@ -47,12 +47,19 @@ class MongoStorage:
 
     def connect(self):
         try:
+            pool_opts = {
+                "maxPoolSize": 20,
+                "minPoolSize": 2,
+                "maxIdleTimeMS": 60000,
+                "connectTimeoutMS": 5000,
+                "serverSelectionTimeoutMS": 5000,
+            }
             if self.username and self.password:
                 encoded_password = quote_plus(self.password)
                 connection_string = f"mongodb://{self.username}:{encoded_password}@{self.host}:{self.port}"
-                self.client = MongoClient(connection_string)
+                self.client = MongoClient(connection_string, **pool_opts)
             else:
-                self.client = MongoClient(self.host, self.port)
+                self.client = MongoClient(self.host, self.port, **pool_opts)
             self.db = self.client[self.db_name]
             self.collection = self.db["after_market"]
             self.kline_collection = self.db["stock_kline"]
@@ -78,6 +85,20 @@ class MongoStorage:
     def close(self):
         if self.client:
             self.client.close()
+            self.client = None
+            self.db = None
+            self.collection = None
+            self.kline_collection = None
+            self.capital_flow_collection = None
+            self.news_stocks_collection = None
+            self.monitor_stocks_collection = None
+            self.holdings_collection = None
+            self.settings_collection = None
+            self.strategy_plugins_collection = None
+            self.users_collection = None
+            self.roles_collection = None
+            self.watch_list_collection = None
+            self.market_signals_collection = None
             logger.info("MongoDB connection closed")
 
     def save(self, data: Any) -> Optional[str]:
@@ -684,4 +705,25 @@ class MongoStorage:
             doc["timestamp"] = _serialize_datetime(doc.get("timestamp"))
             results.append(doc)
         return results
+
+
+# --- 全局共享连接单例 ---
+
+_shared_storage: Optional[MongoStorage] = None
+
+
+def get_storage() -> MongoStorage:
+    """获取全局共享的 MongoStorage 单例，所有 API 端点应使用此函数"""
+    global _shared_storage
+    if _shared_storage is None:
+        from app.core.config import settings
+        _shared_storage = MongoStorage(
+            host=settings.mongodb_host,
+            port=settings.mongodb_port,
+            db_name=settings.mongodb_database,
+            username=settings.mongodb_username,
+            password=settings.mongodb_password,
+        )
+        _shared_storage.connect()
+    return _shared_storage
 

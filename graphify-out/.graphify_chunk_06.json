@@ -1,0 +1,506 @@
+{
+  "nodes": [
+    {
+      "id": "bin_converter_QlibBinConverter",
+      "label": "QlibBinConverter",
+      "file_type": "code",
+      "source_file": "apps/api/app/qlib/bin_converter.py",
+      "source_location": null
+    },
+    {
+      "id": "config_QlibConfig",
+      "label": "QlibConfig",
+      "file_type": "code",
+      "source_file": "apps/api/app/qlib/config.py",
+      "source_location": null
+    },
+    {
+      "id": "config_CSI_STOCKS",
+      "label": "CSI 300/500 Stock Lists",
+      "file_type": "code",
+      "source_file": "apps/api/app/qlib/config.py",
+      "source_location": null
+    },
+    {
+      "id": "data_provider_MongoDataProvider",
+      "label": "MongoDataProvider",
+      "file_type": "code",
+      "source_file": "apps/api/app/qlib/data_provider.py",
+      "source_location": null
+    },
+    {
+      "id": "model_manager_ModelManager",
+      "label": "ModelManager",
+      "file_type": "code",
+      "source_file": "apps/api/app/qlib/model_manager.py",
+      "source_location": null
+    },
+    {
+      "id": "predictor_QlibPredictor",
+      "label": "QlibPredictor",
+      "file_type": "code",
+      "source_file": "apps/api/app/qlib/predictor.py",
+      "source_location": null
+    },
+    {
+      "id": "top_stocks_manager_TopStocksManager",
+      "label": "TopStocksManager",
+      "file_type": "code",
+      "source_file": "apps/api/app/qlib/top_stocks_manager.py",
+      "source_location": null
+    },
+    {
+      "id": "trainer_QlibTrainer",
+      "label": "QlibTrainer",
+      "file_type": "code",
+      "source_file": "apps/api/app/qlib/trainer.py",
+      "source_location": null
+    },
+    {
+      "id": "trainer_TrainingStatus",
+      "label": "TrainingStatus",
+      "file_type": "code",
+      "source_file": "apps/api/app/qlib/trainer.py",
+      "source_location": null
+    },
+    {
+      "id": "train_task_run_training",
+      "label": "Celery run_training Task",
+      "file_type": "code",
+      "source_file": "apps/api/app/qlib/train_task.py",
+      "source_location": null
+    },
+    {
+      "id": "qlib_init_package",
+      "label": "Qlib Package Init",
+      "file_type": "code",
+      "source_file": "apps/api/app/qlib/__init__.py",
+      "source_location": null
+    },
+    {
+      "id": "risk_api_router",
+      "label": "Risk API Router",
+      "file_type": "code",
+      "source_file": "apps/api/app/risk/api.py",
+      "source_location": null
+    },
+    {
+      "id": "risk_api_RiskReportItem",
+      "label": "RiskReportItem Pydantic Model",
+      "file_type": "code",
+      "source_file": "apps/api/app/risk/api.py",
+      "source_location": null
+    },
+    {
+      "id": "industry_utils_extract_industry_from_name",
+      "label": "extract_industry_from_name",
+      "file_type": "code",
+      "source_file": "apps/api/app/risk/industry_utils.py",
+      "source_location": null
+    },
+    {
+      "id": "position_manager_PositionManager",
+      "label": "PositionManager",
+      "file_type": "code",
+      "source_file": "apps/api/app/risk/position_manager.py",
+      "source_location": null
+    },
+    {
+      "id": "risk_report_RiskReportGenerator",
+      "label": "RiskReportGenerator",
+      "file_type": "code",
+      "source_file": "apps/api/app/risk/risk_report.py",
+      "source_location": null
+    },
+    {
+      "id": "risk_report_RiskReport",
+      "label": "RiskReport Dataclass",
+      "file_type": "code",
+      "source_file": "apps/api/app/risk/risk_report.py",
+      "source_location": null
+    },
+    {
+      "id": "risk_init_package",
+      "label": "Risk Package Init",
+      "file_type": "code",
+      "source_file": "apps/api/app/risk/__init__.py",
+      "source_location": null
+    },
+    {
+      "id": "role_models_Role",
+      "label": "Role Dataclass",
+      "file_type": "code",
+      "source_file": "apps/api/app/role/models.py",
+      "source_location": null
+    },
+    {
+      "id": "role_init_package",
+      "label": "Role Package Init",
+      "file_type": "code",
+      "source_file": "apps/api/app/role/__init__.py",
+      "source_location": null
+    },
+    {
+      "id": "alert_job_AlertOrchestratorJob",
+      "label": "AlertOrchestratorJob",
+      "file_type": "code",
+      "source_file": "apps/api/app/scheduler/alert_job.py",
+      "source_location": null
+    },
+    {
+      "id": "job_AfterMarketJob",
+      "label": "AfterMarketJob",
+      "file_type": "code",
+      "source_file": "apps/api/app/scheduler/job.py",
+      "source_location": null
+    },
+    {
+      "id": "job_manager_JobManager",
+      "label": "JobManager",
+      "file_type": "code",
+      "source_file": "apps/api/app/scheduler/job_manager.py",
+      "source_location": null
+    },
+    {
+      "id": "job_manager_CronValidator",
+      "label": "CronValidator",
+      "file_type": "code",
+      "source_file": "apps/api/app/scheduler/job_manager.py",
+      "source_location": null
+    },
+    {
+      "id": "job_store_JobStore",
+      "label": "JobStore",
+      "file_type": "code",
+      "source_file": "apps/api/app/scheduler/job_store.py",
+      "source_location": null
+    },
+    {
+      "id": "monitor_job_MonitorJob",
+      "label": "MonitorJob",
+      "file_type": "code",
+      "source_file": "apps/api/app/scheduler/monitor_job.py",
+      "source_location": null
+    },
+    {
+      "id": "pre_cache_job_PreCacheJob",
+      "label": "PreCacheJob",
+      "file_type": "code",
+      "source_file": "apps/api/app/scheduler/pre_cache_job.py",
+      "source_location": null
+    }
+  ],
+  "edges": [
+    {
+      "source": "qlib_init_package",
+      "target": "data_provider_MongoDataProvider",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/qlib/__init__.py"
+    },
+    {
+      "source": "qlib_init_package",
+      "target": "trainer_QlibTrainer",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/qlib/__init__.py"
+    },
+    {
+      "source": "qlib_init_package",
+      "target": "model_manager_ModelManager",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/qlib/__init__.py"
+    },
+    {
+      "source": "qlib_init_package",
+      "target": "predictor_QlibPredictor",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/qlib/__init__.py"
+    },
+    {
+      "source": "qlib_init_package",
+      "target": "bin_converter_QlibBinConverter",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/qlib/__init__.py"
+    },
+    {
+      "source": "qlib_init_package",
+      "target": "top_stocks_manager_TopStocksManager",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/qlib/__init__.py"
+    },
+    {
+      "source": "predictor_QlibPredictor",
+      "target": "model_manager_ModelManager",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/qlib/predictor.py"
+    },
+    {
+      "source": "predictor_QlibPredictor",
+      "target": "config_QlibConfig",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/qlib/predictor.py"
+    },
+    {
+      "source": "trainer_QlibTrainer",
+      "target": "bin_converter_QlibBinConverter",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/qlib/trainer.py"
+    },
+    {
+      "source": "trainer_QlibTrainer",
+      "target": "config_QlibConfig",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/qlib/trainer.py"
+    },
+    {
+      "source": "train_task_run_training",
+      "target": "trainer_QlibTrainer",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/qlib/train_task.py"
+    },
+    {
+      "source": "bin_converter_QlibBinConverter",
+      "target": "config_CSI_STOCKS",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/qlib/bin_converter.py"
+    },
+    {
+      "source": "bin_converter_QlibBinConverter",
+      "target": "config_QlibConfig",
+      "relation": "references",
+      "confidence": "INFERRED",
+      "confidence_score": 0.7,
+      "source_file": "apps/api/app/qlib/config.py"
+    },
+    {
+      "source": "risk_init_package",
+      "target": "position_manager_PositionManager",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/risk/__init__.py"
+    },
+    {
+      "source": "risk_init_package",
+      "target": "risk_report_RiskReportGenerator",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/risk/__init__.py"
+    },
+    {
+      "source": "risk_api_router",
+      "target": "industry_utils_extract_industry_from_name",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/risk/api.py"
+    },
+    {
+      "source": "risk_api_router",
+      "target": "risk_report_RiskReportGenerator",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/risk/api.py"
+    },
+    {
+      "source": "position_manager_PositionManager",
+      "target": "risk_report_RiskReportGenerator",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/risk/position_manager.py"
+    },
+    {
+      "source": "risk_report_RiskReportGenerator",
+      "target": "industry_utils_extract_industry_from_name",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/risk/risk_report.py"
+    },
+    {
+      "source": "role_init_package",
+      "target": "role_models_Role",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/role/__init__.py"
+    },
+    {
+      "source": "alert_job_AlertOrchestratorJob",
+      "target": "job_manager_JobManager",
+      "relation": "participate_in",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "apps/api/app/scheduler/alert_job.py"
+    },
+    {
+      "source": "monitor_job_MonitorJob",
+      "target": "job_manager_JobManager",
+      "relation": "participate_in",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "apps/api/app/scheduler/monitor_job.py"
+    },
+    {
+      "source": "job_manager_JobManager",
+      "target": "job_store_JobStore",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/scheduler/job_manager.py"
+    },
+    {
+      "source": "trainer_QlibTrainer",
+      "target": "model_manager_ModelManager",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "apps/api/app/qlib/trainer.py"
+    },
+    {
+      "source": "model_manager_ModelManager",
+      "target": "top_stocks_manager_TopStocksManager",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "apps/api/app/qlib/model_manager.py"
+    },
+    {
+      "source": "data_provider_MongoDataProvider",
+      "target": "bin_converter_QlibBinConverter",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "apps/api/app/qlib/data_provider.py"
+    },
+    {
+      "source": "model_manager_ModelManager",
+      "target": "top_stocks_manager_TopStocksManager",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "apps/api/app/qlib/model_manager.py"
+    },
+    {
+      "source": "trainer_QlibTrainer",
+      "target": "predictor_QlibPredictor",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.7,
+      "source_file": "apps/api/app/qlib/trainer.py"
+    },
+    {
+      "source": "job_AfterMarketJob",
+      "target": "pre_cache_job_PreCacheJob",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.9,
+      "source_file": "apps/api/app/scheduler/job.py"
+    },
+    {
+      "source": "job_store_JobStore",
+      "target": "model_manager_ModelManager",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.65,
+      "source_file": "apps/api/app/scheduler/job_store.py"
+    },
+    {
+      "source": "position_manager_PositionManager",
+      "target": "risk_report_RiskReportGenerator",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "apps/api/app/risk/position_manager.py"
+    },
+    {
+      "source": "job_AfterMarketJob",
+      "target": "alert_job_AlertOrchestratorJob",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.7,
+      "source_file": "apps/api/app/scheduler/job.py"
+    },
+    {
+      "source": "trainer_QlibTrainer",
+      "target": "train_task_run_training",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "apps/api/app/qlib/train_task.py"
+    }
+  ],
+  "hyperedges": [
+    {
+      "id": "qlib_ml_pipeline",
+      "label": "Qlib ML Pipeline",
+      "nodes": [
+        "config_QlibConfig",
+        "bin_converter_QlibBinConverter",
+        "trainer_QlibTrainer",
+        "model_manager_ModelManager",
+        "predictor_QlibPredictor"
+      ],
+      "relation": "implement",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "apps/api/app/qlib/trainer.py"
+    },
+    {
+      "id": "risk_assessment_pipeline",
+      "label": "Risk Assessment Pipeline",
+      "nodes": [
+        "position_manager_PositionManager",
+        "risk_report_RiskReportGenerator",
+        "industry_utils_extract_industry_from_name"
+      ],
+      "relation": "implement",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "apps/api/app/risk/risk_report.py"
+    },
+    {
+      "id": "scheduled_job_orchestration",
+      "label": "Scheduled Job Orchestration",
+      "nodes": [
+        "job_manager_JobManager",
+        "job_store_JobStore",
+        "alert_job_AlertOrchestratorJob",
+        "monitor_job_MonitorJob",
+        "job_AfterMarketJob"
+      ],
+      "relation": "participate_in",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "apps/api/app/scheduler/job_manager.py"
+    }
+  ],
+  "input_tokens": 0,
+  "output_tokens": 0
+}

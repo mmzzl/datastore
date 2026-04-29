@@ -115,6 +115,36 @@ class StockKlineScraper:
             logger.warning(f"Failed to count existing data for {code}: {e}")
             return 0
 
+    def _get_latest_bar_time(self, code: str, frequency: int) -> Optional[str]:
+        """获取某只股票最新一条 K 线的时间戳"""
+        self._ensure_storage()
+        try:
+            doc = self.storage.kline_collection.find_one(
+                {"code": code, "frequency": frequency},
+                sort=[("date", -1)],
+            )
+            return doc.get("date") if doc else None
+        except Exception as e:
+            logger.warning(f"Failed to get latest bar time for {code}: {e}")
+            return None
+
+    def _is_5min_data_fresh(self, code: str) -> bool:
+        """检查 5 分钟线数据是否已包含今天的最新一根 K 线"""
+        latest = self._get_latest_bar_time(code, frequency=0)
+        if not latest:
+            return False
+        today = datetime.now().strftime("%Y-%m-%d")
+        if not latest.startswith(today):
+            return False
+        # 检查最新一根 K 线是否已经接近当前时间（5 分钟容差）
+        try:
+            latest_dt = datetime.strptime(latest, "%Y-%m-%d %H:%M:%S")
+            now = datetime.now()
+            # 交易时间段内，如果最新数据距今超过 10 分钟，认为需要更新
+            return (now - latest_dt).total_seconds() < 600
+        except ValueError:
+            return False
+
     def _ensure_storage(self):
         if self.storage is None:
             self.storage = MongoStorage(
@@ -273,6 +303,8 @@ class StockKlineScraper:
                 except (ValueError, TypeError, KeyError) as e:
                     logger.error(f"Parse error for {code}: {e}")
                     continue
+            if frequency == 0 and len(records) <= 2:
+                logger.debug(f"mootdx returned only {len(records)} bars for {code} freq={frequency}")
             return records
         except Exception as e:
             logger.error(f"Failed to fetch kline for {code}: {e}")
@@ -302,6 +334,7 @@ class StockKlineScraper:
                     {
                         "code": record["code"],
                         "date": record["date"],
+                        "frequency": record_frequency,
                     },
                     {"$set": record},
                     upsert=True,
@@ -460,28 +493,22 @@ class StockKlineScraper:
         success = 0
         skipped = 0
         failed = 0
+        updated = 0
 
         for i, code in enumerate(codes):
             try:
                 pure_code = code.split(".")[-1]
 
-                if skip_existing:
-                    self._ensure_storage()
-                    today = datetime.now().strftime("%Y-%m-%d")
-                    existing = self.storage.kline_collection.count_documents(
-                        {
-                            "code": pure_code,
-                            "date": {"$regex": f"^{today}"},
-                            "frequency": frequency,
-                        }
-                    )
-                    if existing > 0:
-                        skipped += 1
-                        if (i + 1) % 100 == 0:
-                            logger.info(
-                                f"Progress: {i + 1}/{len(codes)}, success={success}, skipped={skipped}, failed={failed}"
-                            )
-                        continue
+                if skip_existing and self._is_5min_data_fresh(pure_code):
+                    skipped += 1
+                    if (i + 1) % 100 == 0:
+                        logger.info(
+                            f"Progress: {i + 1}/{len(codes)}, success={success}, skipped={skipped}, failed={failed}, updated={updated}"
+                        )
+                    continue
+
+                # 获取当前最新 K 线时间，用于增量判断
+                latest_before = self._get_latest_bar_time(pure_code, frequency)
 
                 records = self._fetch_kline(
                     pure_code,
@@ -492,13 +519,16 @@ class StockKlineScraper:
                 )
                 if records:
                     self.save_klines(records, frequency=frequency)
+                    latest_after = self._get_latest_bar_time(pure_code, frequency)
+                    if latest_before and latest_after and latest_after != latest_before:
+                        updated += 1
                     success += 1
                 else:
                     failed += 1
 
                 if (i + 1) % 50 == 0:
                     logger.info(
-                        f"Progress: {i + 1}/{len(codes)}, success={success}, skipped={skipped}, failed={failed}"
+                        f"Progress: {i + 1}/{len(codes)}, success={success}, skipped={skipped}, failed={failed}, updated={updated}"
                     )
 
                 time.sleep(0.1)
@@ -509,9 +539,9 @@ class StockKlineScraper:
                 continue
 
         logger.info(
-            f"5min kline fetch completed: total={len(codes)}, success={success}, skipped={skipped}, failed={failed}"
+            f"5min kline fetch completed: total={len(codes)}, success={success}, skipped={skipped}, failed={failed}, updated={updated}"
         )
-        return {"success": success, "skipped": skipped, "failed": failed}
+        return {"success": success, "skipped": skipped, "failed": failed, "updated": updated}
 
     def close(self):
         if self.storage:

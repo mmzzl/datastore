@@ -1,0 +1,111 @@
+On branch marketwatch-holdings-admin
+Your branch is ahead of 'origin/marketwatch-holdings-admin' by 1 commit.
+  (use "git push" to publish your local commits)
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   ../../.claude/settings.local.json
+	modified:   qlib_data/cn_data/calendars/day.txt
+	modified:   qlib_data/cn_data/instruments/all.txt
+	modified:   qlib_data/cn_data/instruments/csi300.txt
+	modified:   qlib_data/cn_data/instruments/csi500.txt
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	../../.claude/settings.json
+	../../.graphify_chunks_meta.json
+	../../.graphify_python
+	../../CLAUDE.md
+	mlruns/949895001957905128/a426b06c154b491799db2ab1fbaa1d63/
+	mlruns/949895001957905128/a8ae48d274c0493098b1ed8feff4f3fb/
+	mlruns/949895001957905128/b1fd6ce67f4440faaa60152e58cfb8ef/
+	mlruns/949895001957905128/b522ce3a20ca4f05a80e8e5edc0cf9e4/
+	mlruns/949895001957905128/b9d0e98606dd44d192d74fb1475c95f5/
+	mlruns/949895001957905128/c1317e7633554131ab1b9e343859f684/
+	mlruns/949895001957905128/c71305c3e1074cb29d88867096b7ae68/
+	mlruns/949895001957905128/e42d3aef9d0143deb7fa954f891ae6c7/
+	mlruns/949895001957905128/e644bb7be2c54ef991d7ba27b11f009c/
+	mlruns/949895001957905128/e7bd551cd38b45678c4c7dffdd5f703e/
+	mlruns/949895001957905128/ec8b781853114fd6a72aea3c52111e00/
+	models/model_20260429_080749.pkl
+	models/model_20260429_081029.pkl
+	models/model_20260429_081418.pkl
+	models/model_20260429_081735.pkl
+	models/model_20260429_082433.pkl
+	models/model_20260429_085048.pkl
+	models/model_20260429_092654.pkl
+	models/model_20260429_092658.pkl
+	models/model_20260429_093153.pkl
+	models/model_20260429_093154.pkl
+	models/model_20260429_095559.pkl
+	models/model_20260429_100227.pkl
+	models/model_20260429_101241.pkl
+	models/model_20260429_103824.pkl
+	models/model_20260429_104150.pkl
+	models/model_20260429_112540.pkl
+	models/model_20260429_112712.pkl
+	models/model_20260429_113136.pkl
+	models/model_20260429_113234.pkl
+	models/model_20260429_113506.pkl
+	models/model_20260429_113546.pkl
+	models/model_20260429_113914.pkl
+	models/model_20260429_113934.pkl
+	models/model_20260429_114245.pkl
+	models/model_20260429_114250.pkl
+	models/model_20260429_114555.pkl
+	models/model_20260429_120130.pkl
+	models/model_20260429_120336.pkl
+	models/model_20260429_120411.pkl
+	models/model_20260429_120606.pkl
+	models/model_20260429_122209.pkl
+	models/model_20260429_122401.pkl
+	models/model_20260429_122506.pkl
+	models/model_20260429_122649.pkl
+	models/model_20260429_122748.pkl
+	models/model_20260429_123021.pkl
+	models/model_20260429_123257.pkl
+	models/model_20260429_123905.pkl
+	models/model_20260429_124242.pkl
+	models/model_20260429_125733.pkl
+	models/model_20260429_130020.pkl
+	models/model_20260429_130146.pkl
+	models/model_20260429_131739.pkl
+	models/model_20260429_131959.pkl
+	models/model_20260429_132035.pkl
+	models/model_20260429_133920.pkl
+	models/model_20260429_133931.pkl
+	models/model_20260429_140040.pkl
+	models/model_20260429_140043.pkl
+	models/model_20260429_142426.pkl
+	models/model_20260429_142453.pkl
+	models/model_20260429_144749.pkl
+	models/model_20260429_144755.pkl
+	models/model_20260429_151340.pkl
+	models/model_20260429_151449.pkl
+	models/model_20260429_151739.pkl
+	models/model_20260429_152019.pkl
+	models/model_20260429_152345.pkl
+	models/model_20260429_152908.pkl
+	models/model_20260429_154230.pkl
+	models/model_20260429_154925.pkl
+	models/model_20260429_155908.pkl
+	models/model_20260429_160139.pkl
+	models/model_20260429_160247.pkl
+	models/model_20260429_160427.pkl
+	models/model_20260429_160530.pkl
+	models/model_20260429_160705.pkl
+	models/model_20260429_160950.pkl
+	models/model_20260429_161247.pkl
+	models/model_20260429_161620.pkl
+	models/model_20260429_161803.pkl
+	models/model_20260429_161924.pkl
+	models/model_20260429_162036.pkl
+	models/model_20260429_162225.pkl
+	models/model_20260429_162540.pkl
+	models/model_20260429_162804.pkl
+	models/model_20260429_162811.pkl
+	scripts/auto_optimize.py
+	../../graphify-out/
+
+no changes added to commit (use "git add" and/or "git commit -a")

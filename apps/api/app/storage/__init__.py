@@ -1,4 +1,4 @@
-from .mongo_client import MongoStorage
+from .mongo_client import MongoStorage, get_storage
 from .models import (
     AfterMarketData,
     MarketOverview,
@@ -11,6 +11,7 @@ from .models import (
 
 __all__ = [
     "MongoStorage",
+    "get_storage",
     "AfterMarketData",
     "MarketOverview",
     "StockData",

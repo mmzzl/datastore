@@ -1,0 +1,13 @@
+On branch marketwatch-holdings-admin
+Your branch is up to date with 'origin/marketwatch-holdings-admin'.
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	mlruns/949895001957905128/b1fd6ce67f4440faaa60152e58cfb8ef/
+	scripts/auto_optimize.py
+	scripts/check_experiments.py
+	scripts/compare_all.py
+	scripts/optimize_simple.py
+	scripts/show_best.py
+
+nothing added to commit but untracked files present (use "git add" to track)

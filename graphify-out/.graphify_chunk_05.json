@@ -1,0 +1,277 @@
+{
+  "nodes": [
+    {"id": "brain_models_BrainDecision", "label": "Brain Decision Model", "file_type": "code", "source_file": "apps/api/app/monitor/brain/models.py", "source_location": null},
+    {"id": "brain_models_UnhookStrategy", "label": "Unhook Strategy Model", "file_type": "code", "source_file": "apps/api/app/monitor/brain/models.py", "source_location": null},
+    {"id": "brain_sentiment_SentimentAnalyzer", "label": "Sentiment Analyzer", "file_type": "code", "source_file": "apps/api/app/monitor/brain/sentiment.py", "source_location": null},
+    {"id": "brain_unhook_UnhookEngine", "label": "Unhook Engine", "file_type": "code", "source_file": "apps/api/app/monitor/brain/unhook.py", "source_location": null},
+    {"id": "monitor_models_AlertRule", "label": "Alert Rule", "file_type": "code", "source_file": "apps/api/app/monitor/models/alert_rule.py", "source_location": null},
+    {"id": "monitor_models_AlertCondition", "label": "Alert Condition", "file_type": "code", "source_file": "apps/api/app/monitor/models/alert_rule.py", "source_location": null},
+    {"id": "monitor_models_AlertSignal", "label": "Alert Signal", "file_type": "code", "source_file": "apps/api/app/monitor/models/alert_signal.py", "source_location": null},
+    {"id": "monitor_models_NotificationPayload", "label": "Notification Payload", "file_type": "code", "source_file": "apps/api/app/monitor/models/notification_config.py", "source_location": null},
+    {"id": "monitor_models_StockConfig", "label": "Stock Config", "file_type": "code", "source_file": "apps/api/app/monitor/models/__init__.py", "source_location": null},
+    {"id": "monitor_models_MonitorConfig", "label": "Monitor Config", "file_type": "code", "source_file": "apps/api/app/monitor/models/__init__.py", "source_location": null},
+    {"id": "monitor_notification_PriorityNotifier", "label": "Priority Notifier", "file_type": "code", "source_file": "apps/api/app/monitor/notification/priority_notifier.py", "source_location": null},
+    {"id": "utils_industry_mapper_IndustryMapper", "label": "Industry Mapper", "file_type": "code", "source_file": "apps/api/app/monitor/utils/industry_mapper.py", "source_location": null},
+    {"id": "utils_st_filter_st_filter", "label": "ST Stock Filter", "file_type": "code", "source_file": "apps/api/app/monitor/utils/st_filter.py", "source_location": null},
+    {"id": "watchers_base_BaseWatcher", "label": "Base Watcher", "file_type": "code", "source_file": "apps/api/app/monitor/watchers/base.py", "source_location": null},
+    {"id": "watchers_breadth_MarketBreadthWatcher", "label": "Market Breadth Watcher", "file_type": "code", "source_file": "apps/api/app/monitor/watchers/breadth.py", "source_location": null},
+    {"id": "watchers_correlated_CorrelatedAssetWatcher", "label": "Correlated Asset Watcher", "file_type": "code", "source_file": "apps/api/app/monitor/watchers/correlated.py", "source_location": null},
+    {"id": "watchers_minute_kline_MinuteKlineWatcher", "label": "Minute Kline Watcher", "file_type": "code", "source_file": "apps/api/app/monitor/watchers/minute_kline.py", "source_location": null},
+    {"id": "watchers_news_event_NewsEventWatcher", "label": "News Event Watcher", "file_type": "code", "source_file": "apps/api/app/monitor/watchers/news_event.py", "source_location": null},
+    {"id": "watchers_stock_alert_StockAlertWatcher", "label": "Stock Alert Watcher", "file_type": "code", "source_file": "apps/api/app/monitor/watchers/stock_alert.py", "source_location": null},
+    {"id": "notify_dedup_filter_NotificationDedupFilter", "label": "Notification Dedup Filter", "file_type": "code", "source_file": "apps/api/app/notify/dedup_filter.py", "source_location": null},
+    {"id": "notify_dingtalk_DingTalkNotifier", "label": "DingTalk Notifier", "file_type": "code", "source_file": "apps/api/app/notify/dingtalk.py", "source_location": null},
+    {"id": "data_source_manager", "label": "DataSourceManager", "file_type": "code", "source_file": "apps/api/app/data_source/__init__.py", "source_location": null},
+    {"id": "storage_mongo_client_MongoStorage", "label": "MongoStorage", "file_type": "code", "source_file": "apps/api/app/storage/mongo_client.py", "source_location": null},
+    {"id": "collector_akshare_client_AkshareClient", "label": "AkshareClient", "file_type": "code", "source_file": "apps/api/app/collector/__init__.py", "source_location": null}
+  ],
+  "edges": [
+    {
+      "source": "brain_unhook_UnhookEngine",
+      "target": "brain_models_UnhookStrategy",
+      "relation": "shares_data_with",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/monitor/brain/unhook.py"
+    },
+    {
+      "source": "brain_sentiment_SentimentAnalyzer",
+      "target": "data_source_manager",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/monitor/brain/sentiment.py"
+    },
+    {
+      "source": "watchers_breadth_MarketBreadthWatcher",
+      "target": "watchers_base_BaseWatcher",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/monitor/watchers/breadth.py"
+    },
+    {
+      "source": "watchers_correlated_CorrelatedAssetWatcher",
+      "target": "watchers_base_BaseWatcher",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/monitor/watchers/correlated.py"
+    },
+    {
+      "source": "watchers_minute_kline_MinuteKlineWatcher",
+      "target": "watchers_base_BaseWatcher",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/monitor/watchers/minute_kline.py"
+    },
+    {
+      "source": "watchers_news_event_NewsEventWatcher",
+      "target": "watchers_base_BaseWatcher",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/monitor/watchers/news_event.py"
+    },
+    {
+      "source": "watchers_stock_alert_StockAlertWatcher",
+      "target": "watchers_base_BaseWatcher",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/monitor/watchers/stock_alert.py"
+    },
+    {
+      "source": "watchers_base_BaseWatcher",
+      "target": "data_source_manager",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/monitor/watchers/base.py"
+    },
+    {
+      "source": "watchers_breadth_MarketBreadthWatcher",
+      "target": "data_source_manager",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/monitor/watchers/breadth.py"
+    },
+    {
+      "source": "watchers_correlated_CorrelatedAssetWatcher",
+      "target": "data_source_manager",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/monitor/watchers/correlated.py"
+    },
+    {
+      "source": "watchers_minute_kline_MinuteKlineWatcher",
+      "target": "data_source_manager",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/monitor/watchers/minute_kline.py"
+    },
+    {
+      "source": "watchers_news_event_NewsEventWatcher",
+      "target": "storage_mongo_client_MongoStorage",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/monitor/watchers/news_event.py"
+    },
+    {
+      "source": "monitor_notification_PriorityNotifier",
+      "target": "notify_dedup_filter_NotificationDedupFilter",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/monitor/notification/priority_notifier.py"
+    },
+    {
+      "source": "monitor_notification_PriorityNotifier",
+      "target": "notify_dingtalk_DingTalkNotifier",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/monitor/notification/priority_notifier.py"
+    },
+    {
+      "source": "monitor_notification_PriorityNotifier",
+      "target": "monitor_models_AlertSignal",
+      "relation": "shares_data_with",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/monitor/notification/priority_notifier.py"
+    },
+    {
+      "source": "monitor_notification_PriorityNotifier",
+      "target": "monitor_models_NotificationPayload",
+      "relation": "shares_data_with",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/monitor/notification/priority_notifier.py"
+    },
+    {
+      "source": "notify_dedup_filter_NotificationDedupFilter",
+      "target": "storage_mongo_client_MongoStorage",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/notify/dedup_filter.py"
+    },
+    {
+      "source": "notify_dingtalk_DingTalkNotifier",
+      "target": "collector_akshare_client_AkshareClient",
+      "relation": "references",
+      "confidence": "INFERRED",
+      "confidence_score": 0.7,
+      "source_file": "apps/api/app/notify/dingtalk.py"
+    },
+    {
+      "source": "notify_dingtalk_DingTalkNotifier",
+      "target": "storage_mongo_client_MongoStorage",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/notify/dingtalk.py"
+    },
+    {
+      "source": "watchers_stock_alert_StockAlertWatcher",
+      "target": "monitor_models_StockConfig",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "apps/api/app/monitor/watchers/stock_alert.py"
+    },
+    {
+      "source": "watchers_stock_alert_StockAlertWatcher",
+      "target": "brain_unhook_UnhookEngine",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "apps/api/app/monitor/watchers/stock_alert.py"
+    },
+    {
+      "source": "watchers_news_event_NewsEventWatcher",
+      "target": "utils_industry_mapper_IndustryMapper",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.65,
+      "source_file": "apps/api/app/monitor/watchers/news_event.py"
+    },
+    {
+      "source": "monitor_models_AlertRule",
+      "target": "monitor_models_AlertCondition",
+      "relation": "shares_data_with",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/monitor/models/alert_rule.py"
+    },
+    {
+      "source": "monitor_models_AlertSignal",
+      "target": "monitor_models_AlertRule",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "apps/api/app/monitor/models/alert_signal.py"
+    },
+    {
+      "source": "brain_sentiment_SentimentAnalyzer",
+      "target": "brain_models_BrainDecision",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.7,
+      "source_file": "apps/api/app/monitor/brain/sentiment.py"
+    },
+    {
+      "source": "notify_dedup_filter_NotificationDedupFilter",
+      "target": "monitor_notification_PriorityNotifier",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "apps/api/app/notify/dedup_filter.py"
+    },
+    {
+      "source": "utils_st_filter_st_filter",
+      "target": "utils_industry_mapper_IndustryMapper",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.7,
+      "source_file": "apps/api/app/monitor/utils/st_filter.py"
+    }
+  ],
+  "hyperedges": [
+    {
+      "id": "signal_to_notification_pipeline",
+      "label": "Signal to Notification Pipeline",
+      "nodes": ["watchers_base_BaseWatcher", "monitor_models_AlertSignal", "monitor_notification_PriorityNotifier", "notify_dedup_filter_NotificationDedupFilter", "notify_dingtalk_DingTalkNotifier"],
+      "relation": "participate_in",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "apps/api/app/monitor/watchers/base.py"
+    },
+    {
+      "id": "monitor_data_models_package",
+      "label": "Monitor Data Models Package",
+      "nodes": ["monitor_models_AlertRule", "monitor_models_AlertSignal", "monitor_models_NotificationPayload"],
+      "relation": "participate_in",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/monitor/models/__init__.py"
+    },
+    {
+      "id": "brain_multi_dimension_analysis",
+      "label": "Brain Multi-Dimension Analysis",
+      "nodes": ["brain_sentiment_SentimentAnalyzer", "brain_unhook_UnhookEngine", "brain_models_BrainDecision"],
+      "relation": "participate_in",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "apps/api/app/monitor/brain/__init__.py"
+    }
+  ],
+  "input_tokens": 0,
+  "output_tokens": 0
+}

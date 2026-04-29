@@ -1,0 +1,1 @@
+scripts/train_eval.py --model lgbm --factor alpha360 --instruments csi500 --lgbm-n-estimators 1000,2000 --lgbm-lr 0.01,0.02 --lgbm-num-leaves 63,127 --lgbm-subsample 0.8 --lgbm-colsample-bytree 0.8 --topk 30 --tag opt_a360_csi500_k30 --min-ic 0.015

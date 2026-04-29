@@ -1,0 +1,1 @@
+{"nodes": [{"id": "double_ma_strategy_1_0_1_double_ma_strategy", "label": "DoubleMAStrategy (plugin v1.0.1)", "file_type": "code", "source_file": "apps/api/app/backtest/strategies/plugins/double_ma_strategy_1.0.1/double_ma_strategy/strategy.py", "source_location": null}], "edges": [], "hyperedges": []}

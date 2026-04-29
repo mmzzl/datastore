@@ -7,7 +7,15 @@
       "Bash(pip install:*)",
       "Bash(python -m pip install email-validator -q)",
       "Bash(python -m pytest tests/api/test_qlib.py tests/api/test_backtest.py tests/api/test_scheduler.py -v --tb=line)",
-      "mcp__plugin_claude-mem_mcp-search__search"
+      "mcp__plugin_claude-mem_mcp-search__search",
+      "Bash(py *)",
+      "Bash(python -c \"import graphify\")",
+      "Bash(python *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(npx vue-tsc *)",
+      "Bash(npx vite *)",
+      "Bash(git commit *)"
     ]
   }
 }

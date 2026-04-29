@@ -1,0 +1,1 @@
+{"nodes": [{"id": "core_auth", "label": "Core Auth (AuthenticatedUser, require_permission)", "file_type": "code", "source_file": "apps/api/app/core/auth.py", "source_location": null}], "edges": [], "hyperedges": []}

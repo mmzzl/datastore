@@ -1,0 +1,493 @@
+{
+  "nodes": [
+    {
+      "id": "test_market_trend_TestMarketTrendAnalysis",
+      "label": "TestMarketTrendAnalysis",
+      "file_type": "code",
+      "source_file": "apps/api/tests/stock_selection/test_market_trend.py",
+      "source_location": null
+    },
+    {
+      "id": "test_stock_pool_TestStockPoolService",
+      "label": "TestStockPoolService",
+      "file_type": "code",
+      "source_file": "apps/api/tests/stock_selection/test_stock_pool.py",
+      "source_location": null
+    },
+    {
+      "id": "stock_selection_MarketTrendAnalyzer",
+      "label": "MarketTrendAnalyzer",
+      "file_type": "code",
+      "source_file": "apps/api/app/stock_selection/market_trend.py",
+      "source_location": null
+    },
+    {
+      "id": "stock_selection_MarketTrendData",
+      "label": "MarketTrendData",
+      "file_type": "code",
+      "source_file": "apps/api/app/schemas/stock_selection.py",
+      "source_location": null
+    },
+    {
+      "id": "stock_selection_StockIndicator",
+      "label": "StockIndicator",
+      "file_type": "code",
+      "source_file": "apps/api/app/schemas/stock_selection.py",
+      "source_location": null
+    },
+    {
+      "id": "stock_selection_StockPoolService",
+      "label": "StockPoolService",
+      "file_type": "code",
+      "source_file": "apps/api/app/stock_selection/stock_pool.py",
+      "source_location": null
+    },
+    {
+      "id": "get_stock_industry_get_all_concept_boards_stocks",
+      "label": "get_all_concept_boards_stocks",
+      "file_type": "code",
+      "source_file": "apps/python-web-scraper/get_stock_industry.py",
+      "source_location": null
+    },
+    {
+      "id": "scraper_main_main",
+      "label": "Scraper Main Entry Point",
+      "file_type": "code",
+      "source_file": "apps/python-web-scraper/main.py",
+      "source_location": null
+    },
+    {
+      "id": "spider_service_top_cli_main",
+      "label": "Spider Service CLI Entry",
+      "file_type": "code",
+      "source_file": "apps/python-web-scraper/spider_service.py",
+      "source_location": null
+    },
+    {
+      "id": "spider_service_SpiderService",
+      "label": "SpiderService",
+      "file_type": "code",
+      "source_file": "apps/python-web-scraper/internal/service/spider_service.py",
+      "source_location": null
+    },
+    {
+      "id": "scheduler_NewsScheduler",
+      "label": "NewsScheduler",
+      "file_type": "code",
+      "source_file": "apps/python-web-scraper/internal/scheduler/scheduler.py",
+      "source_location": null
+    },
+    {
+      "id": "scheduler_run_spider",
+      "label": "run_spider",
+      "file_type": "code",
+      "source_file": "apps/python-web-scraper/internal/scheduler/scheduler.py",
+      "source_location": null
+    },
+    {
+      "id": "pipeline_MongoPipeline",
+      "label": "MongoPipeline",
+      "file_type": "code",
+      "source_file": "apps/python-web-scraper/internal/pipeline/mongo_pipeline.py",
+      "source_location": null
+    },
+    {
+      "id": "spider_AkshareKlineSpider",
+      "label": "AkshareKlineSpider",
+      "file_type": "code",
+      "source_file": "apps/python-web-scraper/internal/spider/akshare_kline_spider.py",
+      "source_location": null
+    },
+    {
+      "id": "spider_EastMoneyKlineSpider",
+      "label": "EastMoneyKlineSpider",
+      "file_type": "code",
+      "source_file": "apps/python-web-scraper/internal/spider/eastmoney_kline_spider.py",
+      "source_location": null
+    },
+    {
+      "id": "spider_EastMoneyCapitalFlowSpider",
+      "label": "EastMoneyCapitalFlowSpider",
+      "file_type": "code",
+      "source_file": "apps/python-web-scraper/internal/spider/eastmoney_capital_flow_spider.py",
+      "source_location": null
+    },
+    {
+      "id": "spider_EastMoneyNewsSpider",
+      "label": "EastMoneyNewsSpider",
+      "file_type": "code",
+      "source_file": "apps/python-web-scraper/internal/spider/eastmoney_spider.py",
+      "source_location": null
+    },
+    {
+      "id": "baostock_stock_codes_load_stock_codes",
+      "label": "load_stock_codes",
+      "file_type": "code",
+      "source_file": "apps/python-web-scraper/internal/spider/baostock_stock_codes.py",
+      "source_location": null
+    },
+    {
+      "id": "baostock_stock_codes_get_stock_codes",
+      "label": "get_stock_codes",
+      "file_type": "code",
+      "source_file": "apps/python-web-scraper/internal/spider/baostock_stock_codes.py",
+      "source_location": null
+    },
+    {
+      "id": "config_load_config",
+      "label": "load_config",
+      "file_type": "code",
+      "source_file": "apps/python-web-scraper/internal/utils/config.py",
+      "source_location": null
+    },
+    {
+      "id": "config_save_progress",
+      "label": "save_progress",
+      "file_type": "code",
+      "source_file": "apps/python-web-scraper/internal/utils/config.py",
+      "source_location": null
+    },
+    {
+      "id": "config_load_progress",
+      "label": "load_progress",
+      "file_type": "code",
+      "source_file": "apps/python-web-scraper/internal/utils/config.py",
+      "source_location": null
+    },
+    {
+      "id": "mongo_storage_MongoStorage",
+      "label": "MongoStorage",
+      "file_type": "code",
+      "source_file": "apps/python-web-scraper/internal/storage/mongo_storage.py",
+      "source_location": null
+    }
+  ],
+  "edges": [
+    {
+      "source": "test_market_trend_TestMarketTrendAnalysis",
+      "target": "stock_selection_MarketTrendAnalyzer",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/tests/stock_selection/test_market_trend.py"
+    },
+    {
+      "source": "test_market_trend_TestMarketTrendAnalysis",
+      "target": "stock_selection_MarketTrendData",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/tests/stock_selection/test_market_trend.py"
+    },
+    {
+      "source": "test_market_trend_TestMarketTrendAnalysis",
+      "target": "stock_selection_StockIndicator",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/tests/stock_selection/test_market_trend.py"
+    },
+    {
+      "source": "test_stock_pool_TestStockPoolService",
+      "target": "stock_selection_StockPoolService",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/tests/stock_selection/test_stock_pool.py"
+    },
+    {
+      "source": "scraper_main_main",
+      "target": "scheduler_NewsScheduler",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/python-web-scraper/main.py"
+    },
+    {
+      "source": "spider_service_top_cli_main",
+      "target": "spider_service_SpiderService",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/python-web-scraper/spider_service.py"
+    },
+    {
+      "source": "spider_service_SpiderService",
+      "target": "scheduler_NewsScheduler",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/python-web-scraper/internal/service/spider_service.py"
+    },
+    {
+      "source": "spider_service_SpiderService",
+      "target": "scheduler_run_spider",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/python-web-scraper/internal/service/spider_service.py"
+    },
+    {
+      "source": "spider_service_SpiderService",
+      "target": "config_load_config",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/python-web-scraper/internal/service/spider_service.py"
+    },
+    {
+      "source": "spider_service_SpiderService",
+      "target": "config_load_progress",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/python-web-scraper/internal/service/spider_service.py"
+    },
+    {
+      "source": "scheduler_NewsScheduler",
+      "target": "scheduler_run_spider",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/python-web-scraper/internal/scheduler/scheduler.py"
+    },
+    {
+      "source": "scheduler_NewsScheduler",
+      "target": "config_load_config",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/python-web-scraper/internal/scheduler/scheduler.py"
+    },
+    {
+      "source": "scheduler_NewsScheduler",
+      "target": "config_load_progress",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/python-web-scraper/internal/scheduler/scheduler.py"
+    },
+    {
+      "source": "scheduler_run_spider",
+      "target": "spider_EastMoneyNewsSpider",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/python-web-scraper/internal/scheduler/scheduler.py"
+    },
+    {
+      "source": "pipeline_MongoPipeline",
+      "target": "mongo_storage_MongoStorage",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/python-web-scraper/internal/pipeline/mongo_pipeline.py"
+    },
+    {
+      "source": "spider_AkshareKlineSpider",
+      "target": "mongo_storage_MongoStorage",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/python-web-scraper/internal/spider/akshare_kline_spider.py"
+    },
+    {
+      "source": "spider_AkshareKlineSpider",
+      "target": "config_load_config",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/python-web-scraper/internal/spider/akshare_kline_spider.py"
+    },
+    {
+      "source": "spider_EastMoneyKlineSpider",
+      "target": "mongo_storage_MongoStorage",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/python-web-scraper/internal/spider/eastmoney_kline_spider.py"
+    },
+    {
+      "source": "spider_EastMoneyKlineSpider",
+      "target": "config_load_config",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/python-web-scraper/internal/spider/eastmoney_kline_spider.py"
+    },
+    {
+      "source": "spider_EastMoneyKlineSpider",
+      "target": "baostock_stock_codes_load_stock_codes",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/python-web-scraper/internal/spider/eastmoney_kline_spider.py"
+    },
+    {
+      "source": "spider_EastMoneyCapitalFlowSpider",
+      "target": "mongo_storage_MongoStorage",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/python-web-scraper/internal/spider/eastmoney_capital_flow_spider.py"
+    },
+    {
+      "source": "spider_EastMoneyCapitalFlowSpider",
+      "target": "config_load_config",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/python-web-scraper/internal/spider/eastmoney_capital_flow_spider.py"
+    },
+    {
+      "source": "spider_EastMoneyNewsSpider",
+      "target": "mongo_storage_MongoStorage",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/python-web-scraper/internal/spider/eastmoney_spider.py"
+    },
+    {
+      "source": "spider_EastMoneyNewsSpider",
+      "target": "config_load_config",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/python-web-scraper/internal/spider/eastmoney_spider.py"
+    },
+    {
+      "source": "spider_EastMoneyNewsSpider",
+      "target": "config_save_progress",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/python-web-scraper/internal/spider/eastmoney_spider.py"
+    },
+    {
+      "source": "baostock_stock_codes_load_stock_codes",
+      "target": "baostock_stock_codes_get_stock_codes",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/python-web-scraper/internal/spider/baostock_stock_codes.py"
+    },
+    {
+      "source": "baostock_stock_codes_load_stock_codes",
+      "target": "config_load_config",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/python-web-scraper/internal/spider/baostock_stock_codes.py"
+    },
+    {
+      "source": "baostock_stock_codes_get_stock_codes",
+      "target": "config_load_config",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/python-web-scraper/internal/spider/baostock_stock_codes.py"
+    },
+    {
+      "source": "spider_AkshareKlineSpider",
+      "target": "spider_EastMoneyKlineSpider",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "apps/python-web-scraper/internal/spider/akshare_kline_spider.py"
+    },
+    {
+      "source": "spider_AkshareKlineSpider",
+      "target": "spider_EastMoneyCapitalFlowSpider",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.7,
+      "source_file": "apps/python-web-scraper/internal/spider/akshare_kline_spider.py"
+    },
+    {
+      "source": "spider_AkshareKlineSpider",
+      "target": "spider_EastMoneyNewsSpider",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.65,
+      "source_file": "apps/python-web-scraper/internal/spider/akshare_kline_spider.py"
+    },
+    {
+      "source": "spider_EastMoneyKlineSpider",
+      "target": "spider_EastMoneyCapitalFlowSpider",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.7,
+      "source_file": "apps/python-web-scraper/internal/spider/eastmoney_kline_spider.py"
+    },
+    {
+      "source": "spider_EastMoneyKlineSpider",
+      "target": "spider_EastMoneyNewsSpider",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.65,
+      "source_file": "apps/python-web-scraper/internal/spider/eastmoney_kline_spider.py"
+    },
+    {
+      "source": "spider_EastMoneyCapitalFlowSpider",
+      "target": "spider_EastMoneyNewsSpider",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.7,
+      "source_file": "apps/python-web-scraper/internal/spider/eastmoney_capital_flow_spider.py"
+    },
+    {
+      "source": "get_stock_industry_get_all_concept_boards_stocks",
+      "target": "baostock_stock_codes_get_stock_codes",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.65,
+      "source_file": "apps/python-web-scraper/get_stock_industry.py"
+    }
+  ],
+  "hyperedges": [
+    {
+      "id": "scraper_scheduler_spider_lifecycle",
+      "label": "Scraper Scheduler to Spider Lifecycle",
+      "nodes": [
+        "spider_service_SpiderService",
+        "scheduler_NewsScheduler",
+        "scheduler_run_spider",
+        "spider_EastMoneyNewsSpider"
+      ],
+      "relation": "participate_in",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/python-web-scraper/internal/service/spider_service.py"
+    },
+    {
+      "id": "all_spiders_share_mongo_storage",
+      "label": "All Spiders Persist via MongoStorage",
+      "nodes": [
+        "spider_AkshareKlineSpider",
+        "spider_EastMoneyKlineSpider",
+        "spider_EastMoneyCapitalFlowSpider",
+        "spider_EastMoneyNewsSpider",
+        "mongo_storage_MongoStorage"
+      ],
+      "relation": "participate_in",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/python-web-scraper/internal/spider/akshare_kline_spider.py"
+    },
+    {
+      "id": "kline_spiders_incremental_update_pattern",
+      "label": "K-line Spiders Incremental Update Pattern",
+      "nodes": [
+        "spider_AkshareKlineSpider",
+        "spider_EastMoneyKlineSpider",
+        "mongo_storage_MongoStorage"
+      ],
+      "relation": "implement",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "apps/python-web-scraper/internal/spider/akshare_kline_spider.py"
+    }
+  ],
+  "input_tokens": 0,
+  "output_tokens": 0
+}

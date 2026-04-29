@@ -1,0 +1,38 @@
+On branch marketwatch-holdings-admin
+Your branch is up to date with 'origin/marketwatch-holdings-admin'.
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   qlib_data/cn_data/calendars/day.txt
+	modified:   qlib_data/cn_data/instruments/all.txt
+	modified:   qlib_data/cn_data/instruments/csi300.txt
+	modified:   qlib_data/cn_data/instruments/csi500.txt
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	../../CLAUDE.md
+	mlruns/949895001957905128/a8ae48d274c0493098b1ed8feff4f3fb/
+	mlruns/949895001957905128/b1fd6ce67f4440faaa60152e58cfb8ef/
+	mlruns/949895001957905128/c1317e7633554131ab1b9e343859f684/
+	mlruns/949895001957905128/c71305c3e1074cb29d88867096b7ae68/
+	models/model_20260429_080749.pkl
+	models/model_20260429_081029.pkl
+	models/model_20260429_081418.pkl
+	models/model_20260429_081735.pkl
+	models/model_20260429_082433.pkl
+	models/model_20260429_085048.pkl
+	models/model_20260429_092654.pkl
+	models/model_20260429_092658.pkl
+	models/model_20260429_093153.pkl
+	models/model_20260429_093154.pkl
+	models/model_20260429_095559.pkl
+	models/model_20260429_100227.pkl
+	models/model_20260429_101241.pkl
+	models/model_20260429_103824.pkl
+	models/model_20260429_104150.pkl
+	models/model_20260429_112540.pkl
+	models/model_20260429_112712.pkl
+	scripts/auto_optimize.py
+
+no changes added to commit (use "git add" and/or "git commit -a")

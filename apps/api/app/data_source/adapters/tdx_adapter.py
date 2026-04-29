@@ -57,8 +57,12 @@ class TDXAdapter(IDataSource):
             return []
 
         try:
-            # 转换代码格式 sh.600000 -> 600000, sz.000001 -> 000001
+            # 转换代码格式 sh.600000 -> 600000, SH600000 -> 600000, sz.000001 -> 000001
             stock_code = code.split(".")[-1] if "." in code else code
+            for prefix in ("SH", "SZ", "sh", "sz"):
+                if stock_code.startswith(prefix):
+                    stock_code = stock_code[len(prefix):]
+                    break
             client = self._get_client()
             if client is None:
                 return []
@@ -117,8 +121,12 @@ class TDXAdapter(IDataSource):
         if not MOOTDX_AVAILABLE:
             return None
         try:
-            # 转换代码格式
+            # 转换代码格式 sh.600000 -> 600000, SH600000 -> 600000
             stock_code = code.split(".")[-1] if "." in code else code
+            for prefix in ("SH", "SZ", "sh", "sz"):
+                if stock_code.startswith(prefix):
+                    stock_code = stock_code[len(prefix):]
+                    break
 
                 # 判断市场代码
             if stock_code.startswith("6") or stock_code.startswith("9"):
@@ -161,8 +169,12 @@ class TDXAdapter(IDataSource):
             return {}
 
         try:
-            # 转换代码格式
+            # 转换代码格式 sh.600000 -> 600000, SH600000 -> 600000
             stock_code = code.split(".")[-1] if "." in code else code
+            for prefix in ("SH", "SZ", "sh", "sz"):
+                if stock_code.startswith(prefix):
+                    stock_code = stock_code[len(prefix):]
+                    break
 
             # 判断市场代码
             if stock_code.startswith("6") or stock_code.startswith("9"):

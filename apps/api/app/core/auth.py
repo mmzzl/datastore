@@ -8,6 +8,7 @@ from app.core.security import security
 from app.user.models import User
 from app.user.password import verify_password
 from app.storage import MongoStorage
+from app.storage.mongo_client import get_storage
 from app.role.models import Role
 from app.auth import verify_token as verify_custom_token
 
@@ -42,18 +43,6 @@ class AuthenticatedUser:
         if f"{resource}:*" in self.permissions:
             return True
         return permission in self.permissions
-
-
-def get_storage() -> MongoStorage:
-    storage = MongoStorage(
-        host=settings.mongodb_host,
-        port=settings.mongodb_port,
-        db_name=settings.mongodb_database,
-        username=settings.mongodb_username,
-        password=settings.mongodb_password,
-    )
-    storage.connect()
-    return storage
 
 
 async def get_current_user(

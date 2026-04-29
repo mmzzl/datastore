@@ -753,15 +753,8 @@ async def start_qlib_sync(
         try:
             _sync_tasks[tid]["status"] = "running"
 
-            from app.storage.mongo_client import MongoStorage
-            storage = MongoStorage(
-                host=settings.mongodb_host,
-                port=settings.mongodb_port,
-                db_name=settings.mongodb_database,
-                username=settings.mongodb_username,
-                password=settings.mongodb_password,
-            )
-            storage.connect()
+            from app.storage.mongo_client import get_storage
+            storage = get_storage()
 
             converter = QlibBinConverter(
                 target_dir=QlibConfig.provider_uri,
@@ -784,12 +777,6 @@ async def start_qlib_sync(
             _sync_tasks[tid]["status"] = "failed"
             _sync_tasks[tid]["error"] = str(e)
             _sync_tasks[tid]["completed_at"] = datetime.now()
-
-        finally:
-            try:
-                storage.close()
-            except Exception:
-                pass
 
     thread = threading.Thread(target=_run_sync, args=(task_id, request.mode), daemon=True)
     thread.start()

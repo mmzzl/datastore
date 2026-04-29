@@ -56,23 +56,20 @@ async def list_roles(
 ):
     """获取角色列表"""
     storage = get_storage()
-    try:
-        storage.connect()
+    storage.connect()
 
-        roles = storage.get_all_roles()
-        skip = (page - 1) * page_size
-        total = len(roles)
-        paginated_roles = roles[skip : skip + page_size]
-        items = [_role_to_response(r) for r in paginated_roles]
+    roles = storage.get_all_roles()
+    skip = (page - 1) * page_size
+    total = len(roles)
+    paginated_roles = roles[skip : skip + page_size]
+    items = [_role_to_response(r) for r in paginated_roles]
 
-        return RoleListResponse(
-            items=items,
-            total=total,
-            page=page,
-            page_size=page_size,
-        )
-    finally:
-        storage.close()
+    return RoleListResponse(
+        items=items,
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
 
 
 @router.get("/permissions", response_model=PermissionResponse)
@@ -90,43 +87,40 @@ async def create_role(
 ):
     """创建角色"""
     storage = get_storage()
-    try:
-        storage.connect()
+    storage.connect()
 
-        existing = storage.get_role_by_id(role_data.role_id)
-        if existing:
+    existing = storage.get_role_by_id(role_data.role_id)
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="角色ID已存在",
+        )
+
+    for perm in role_data.permissions:
+        if perm != "*" and not any(
+            perm == p or perm.startswith(p.split(":")[0] + ":*")
+            for p in ALL_PERMISSIONS
+        ):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="角色ID已存在",
+                detail=f"无效的权限: {perm}",
             )
 
-        for perm in role_data.permissions:
-            if perm != "*" and not any(
-                perm == p or perm.startswith(p.split(":")[0] + ":*")
-                for p in ALL_PERMISSIONS
-            ):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"无效的权限: {perm}",
-                )
+    now = datetime.now()
+    new_role = {
+        "role_id": role_data.role_id,
+        "name": role_data.name,
+        "description": role_data.description,
+        "permissions": role_data.permissions,
+        "is_system": False,
+        "created_at": now,
+        "updated_at": now,
+    }
 
-        now = datetime.now()
-        new_role = {
-            "role_id": role_data.role_id,
-            "name": role_data.name,
-            "description": role_data.description,
-            "permissions": role_data.permissions,
-            "is_system": False,
-            "created_at": now,
-            "updated_at": now,
-        }
+    role_id = storage.save_role(new_role)
+    logger.info(f"User {current_user.username} created role {role_data.role_id}")
 
-        role_id = storage.save_role(new_role)
-        logger.info(f"User {current_user.username} created role {role_data.role_id}")
-
-        return _role_to_response({**new_role, "_id": role_id})
-    finally:
-        storage.close()
+    return _role_to_response({**new_role, "_id": role_id})
 
 
 @router.get("/{role_id}", response_model=RoleResponse)
@@ -136,19 +130,16 @@ async def get_role(
 ):
     """获取角色详情"""
     storage = get_storage()
-    try:
-        storage.connect()
+    storage.connect()
 
-        role_data = storage.get_role_by_id(role_id)
-        if not role_data:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="角色不存在",
-            )
+    role_data = storage.get_role_by_id(role_id)
+    if not role_data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="角色不存在",
+        )
 
-        return _role_to_response(role_data)
-    finally:
-        storage.close()
+    return _role_to_response(role_data)
 
 
 @router.put("/{role_id}", response_model=RoleResponse)
@@ -159,38 +150,35 @@ async def update_role(
 ):
     """更新角色"""
     storage = get_storage()
-    try:
-        storage.connect()
+    storage.connect()
 
-        existing = storage.get_role_by_id(role_id)
-        if not existing:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="角色不存在",
-            )
+    existing = storage.get_role_by_id(role_id)
+    if not existing:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="角色不存在",
+        )
 
-        if existing.get("is_system"):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="系统内置角色不能修改",
-            )
+    if existing.get("is_system"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="系统内置角色不能修改",
+        )
 
-        update_data = {}
-        if role_data.name is not None:
-            update_data["name"] = role_data.name
-        if role_data.description is not None:
-            update_data["description"] = role_data.description
-        if role_data.permissions is not None:
-            update_data["permissions"] = role_data.permissions
+    update_data = {}
+    if role_data.name is not None:
+        update_data["name"] = role_data.name
+    if role_data.description is not None:
+        update_data["description"] = role_data.description
+    if role_data.permissions is not None:
+        update_data["permissions"] = role_data.permissions
 
-        if update_data:
-            storage.update_role(role_id, update_data)
-            logger.info(f"User {current_user.username} updated role {role_id}")
+    if update_data:
+        storage.update_role(role_id, update_data)
+        logger.info(f"User {current_user.username} updated role {role_id}")
 
-        updated_role = storage.get_role_by_id(role_id)
-        return _role_to_response(updated_role)
-    finally:
-        storage.close()
+    updated_role = storage.get_role_by_id(role_id)
+    return _role_to_response(updated_role)
 
 
 @router.delete("/{role_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -200,31 +188,28 @@ async def delete_role(
 ):
     """删除角色"""
     storage = get_storage()
-    try:
-        storage.connect()
+    storage.connect()
 
-        existing = storage.get_role_by_id(role_id)
-        if not existing:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="角色不存在",
-            )
+    existing = storage.get_role_by_id(role_id)
+    if not existing:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="角色不存在",
+        )
 
-        if existing.get("is_system"):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="系统内置角色不能删除",
-            )
+    if existing.get("is_system"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="系统内置角色不能删除",
+        )
 
-        all_users = storage.get_all_users(limit=10000)
-        users_with_role = [u for u in all_users if u.get("role_id") == role_id]
-        if users_with_role:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"角色正在被 {len(users_with_role)} 个用户使用，无法删除",
-            )
+    all_users = storage.get_all_users(limit=10000)
+    users_with_role = [u for u in all_users if u.get("role_id") == role_id]
+    if users_with_role:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"角色正在被 {len(users_with_role)} 个用户使用，无法删除",
+        )
 
-        storage.delete_role(role_id)
-        logger.info(f"User {current_user.username} deleted role {role_id}")
-    finally:
-        storage.close()
+    storage.delete_role(role_id)
+    logger.info(f"User {current_user.username} deleted role {role_id}")

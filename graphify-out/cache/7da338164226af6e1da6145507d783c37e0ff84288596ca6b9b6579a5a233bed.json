@@ -1,0 +1,1 @@
+{"nodes": [{"id": "auth_module", "label": "Custom Token Auth + JWT Fallback", "file_type": "code", "source_file": "apps/api/app/auth.py", "source_location": null}], "edges": [{"source": "auth_module", "target": "security_module", "relation": "calls", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "apps/api/app/auth.py"}], "hyperedges": []}

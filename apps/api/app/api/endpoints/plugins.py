@@ -251,83 +251,70 @@ async def upload_plugin(
     version = manifest.get("version")
 
     storage = get_storage()
-    try:
-        storage.connect()
-        registry = get_registry(storage)
+    registry = get_registry(storage)
 
-        existing = registry.get_by_name(name)
-        if existing:
-            existing_versions = registry.get_existing_versions(existing["_id"])
-            version_valid, version_msg = check_version_rules(version, existing_versions)
-            if not version_valid:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail=version_msg,
-                )
+    existing = registry.get_by_name(name)
+    if existing:
+        existing_versions = registry.get_existing_versions(existing["_id"])
+        version_valid, version_msg = check_version_rules(version, existing_versions)
+        if not version_valid:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=version_msg,
+            )
 
-        _ensure_plugins_dir()
+    _ensure_plugins_dir()
 
-        plugin_dir = _get_plugin_dir(name, version)
+    plugin_dir = _get_plugin_dir(name, version)
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            zip_path = os.path.join(temp_dir, file.filename)
-            with open(zip_path, "wb") as f:
-                f.write(file_content)
+    with tempfile.TemporaryDirectory() as temp_dir:
+        zip_path = os.path.join(temp_dir, file.filename)
+        with open(zip_path, "wb") as f:
+            f.write(file_content)
 
-            if os.path.exists(plugin_dir):
-                shutil.rmtree(plugin_dir)
+        if os.path.exists(plugin_dir):
+            shutil.rmtree(plugin_dir)
 
-            with zipfile.ZipFile(zip_path, "r") as zf:
-                zf.extractall(plugin_dir)
+        with zipfile.ZipFile(zip_path, "r") as zf:
+            zf.extractall(plugin_dir)
 
-        plugin_id = registry.register(
-            name=name,
-            version=version,
-            path=plugin_dir,
-            manifest=manifest,
-        )
+    plugin_id = registry.register(
+        name=name,
+        version=version,
+        path=plugin_dir,
+        manifest=manifest,
+    )
 
-        logger.info(
-            f"User {current_user.username} uploaded plugin {name} v{version}"
-        )
+    logger.info(
+        f"User {current_user.username} uploaded plugin {name} v{version}"
+    )
 
-        plugin = registry.get(plugin_id)
+    plugin = registry.get(plugin_id)
 
-        return PluginUploadResponse(
-            id=plugin_id,
-            message="Plugin uploaded successfully",
-            plugin=PluginResponse(
-                id=plugin["_id"],
-                name=plugin["name"],
-                version=plugin["version"],
-                display_name=plugin["manifest"].get("display_name", ""),
-                description=plugin["manifest"].get("description", ""),
-                author=plugin["manifest"].get("author", ""),
-                strategy_class=plugin["manifest"].get("strategy_class", ""),
-                path=plugin["path"],
-                status=plugin["status"],
-                min_data_points=plugin["manifest"].get("min_data_points", 1),
-                tags=plugin["manifest"].get("tags", []),
-                parameters=plugin["manifest"].get("parameters", {}),
-                created_at=plugin["created_at"].isoformat()
-                if isinstance(plugin.get("created_at"), datetime)
-                else plugin.get("created_at", ""),
-                updated_at=plugin["updated_at"].isoformat()
-                if isinstance(plugin.get("updated_at"), datetime)
-                else plugin.get("updated_at", ""),
-            ),
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Failed to upload plugin: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to upload plugin: {str(e)}",
-        )
-    finally:
-        storage.close()
+    return PluginUploadResponse(
+        id=plugin_id,
+        message="Plugin uploaded successfully",
+        plugin=PluginResponse(
+            id=plugin["_id"],
+            name=plugin["name"],
+            version=plugin["version"],
+            display_name=plugin["manifest"].get("display_name", ""),
+            description=plugin["manifest"].get("description", ""),
+            author=plugin["manifest"].get("author", ""),
+            strategy_class=plugin["manifest"].get("strategy_class", ""),
+            path=plugin["path"],
+            status=plugin["status"],
+            min_data_points=plugin["manifest"].get("min_data_points", 1),
+            tags=plugin["manifest"].get("tags", []),
+            parameters=plugin["manifest"].get("parameters", {}),
+            created_at=plugin["created_at"].isoformat()
+            if isinstance(plugin.get("created_at"), datetime)
+            else plugin.get("created_at", ""),
+            updated_at=plugin["updated_at"].isoformat()
+            if isinstance(plugin.get("updated_at"), datetime)
+            else plugin.get("updated_at", ""),
+        ),
+    )
 
 
 @router.get("", response_model=PluginListResponse)
@@ -342,55 +329,44 @@ async def list_plugins(
     Requires permission: plugin:view
     """
     storage = get_storage()
-    try:
-        storage.connect()
-        registry = get_registry(storage)
+    registry = get_registry(storage)
 
-        skip = (page - 1) * page_size
-        plugins = registry.list(status=status, skip=skip, limit=page_size)
-        total = registry.count(status=status)
+    skip = (page - 1) * page_size
+    plugins = registry.list(status=status, skip=skip, limit=page_size)
+    total = registry.count(status=status)
 
-        items = []
-        for plugin in plugins:
-            manifest = plugin.get("manifest", {})
-            items.append(
-                PluginResponse(
-                    id=plugin["_id"],
-                    name=plugin["name"],
-                    version=plugin["version"],
-                    display_name=manifest.get("display_name", ""),
-                    description=manifest.get("description", ""),
-                    author=manifest.get("author", ""),
-                    strategy_class=manifest.get("strategy_class", ""),
-                    path=plugin["path"],
-                    status=plugin["status"],
-                    min_data_points=manifest.get("min_data_points", 1),
-                    tags=manifest.get("tags", []),
-                    parameters=manifest.get("parameters", {}),
-                    created_at=plugin["created_at"].isoformat()
-                    if isinstance(plugin.get("created_at"), datetime)
-                    else plugin.get("created_at", ""),
-                    updated_at=plugin["updated_at"].isoformat()
-                    if isinstance(plugin.get("updated_at"), datetime)
-                    else plugin.get("updated_at", ""),
-                )
+    items = []
+    for plugin in plugins:
+        manifest = plugin.get("manifest", {})
+        items.append(
+            PluginResponse(
+                id=plugin["_id"],
+                name=plugin["name"],
+                version=plugin["version"],
+                display_name=manifest.get("display_name", ""),
+                description=manifest.get("description", ""),
+                author=manifest.get("author", ""),
+                strategy_class=manifest.get("strategy_class", ""),
+                path=plugin["path"],
+                status=plugin["status"],
+                min_data_points=manifest.get("min_data_points", 1),
+                tags=manifest.get("tags", []),
+                parameters=manifest.get("parameters", {}),
+                created_at=plugin["created_at"].isoformat()
+                if isinstance(plugin.get("created_at"), datetime)
+                else plugin.get("created_at", ""),
+                updated_at=plugin["updated_at"].isoformat()
+                if isinstance(plugin.get("updated_at"), datetime)
+                else plugin.get("updated_at", ""),
             )
-
-        return PluginListResponse(
-            items=items,
-            total=total,
-            page=page,
-            page_size=page_size,
         )
 
-    except Exception as e:
-        logger.error(f"Failed to list plugins: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to list plugins: {str(e)}",
-        )
-    finally:
-        storage.close()
+    return PluginListResponse(
+        items=items,
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
 
 
 @router.get("/{plugin_id}", response_model=PluginResponse)
@@ -403,50 +379,37 @@ async def get_plugin(
     Requires permission: plugin:view
     """
     storage = get_storage()
-    try:
-        storage.connect()
-        registry = get_registry(storage)
+    registry = get_registry(storage)
 
-        plugin = registry.get(plugin_id)
-        if not plugin:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Plugin not found",
-            )
-
-        manifest = plugin.get("manifest", {})
-
-        return PluginResponse(
-            id=plugin["_id"],
-            name=plugin["name"],
-            version=plugin["version"],
-            display_name=manifest.get("display_name", ""),
-            description=manifest.get("description", ""),
-            author=manifest.get("author", ""),
-            strategy_class=manifest.get("strategy_class", ""),
-            path=plugin["path"],
-            status=plugin["status"],
-            min_data_points=manifest.get("min_data_points", 1),
-            tags=manifest.get("tags", []),
-            parameters=manifest.get("parameters", {}),
-            created_at=plugin["created_at"].isoformat()
-            if isinstance(plugin.get("created_at"), datetime)
-            else plugin.get("created_at", ""),
-            updated_at=plugin["updated_at"].isoformat()
-            if isinstance(plugin.get("updated_at"), datetime)
-            else plugin.get("updated_at", ""),
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Failed to get plugin: {e}")
+    plugin = registry.get(plugin_id)
+    if not plugin:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get plugin: {str(e)}",
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Plugin not found",
         )
-    finally:
-        storage.close()
+
+    manifest = plugin.get("manifest", {})
+
+    return PluginResponse(
+        id=plugin["_id"],
+        name=plugin["name"],
+        version=plugin["version"],
+        display_name=manifest.get("display_name", ""),
+        description=manifest.get("description", ""),
+        author=manifest.get("author", ""),
+        strategy_class=manifest.get("strategy_class", ""),
+        path=plugin["path"],
+        status=plugin["status"],
+        min_data_points=manifest.get("min_data_points", 1),
+        tags=manifest.get("tags", []),
+        parameters=manifest.get("parameters", {}),
+        created_at=plugin["created_at"].isoformat()
+        if isinstance(plugin.get("created_at"), datetime)
+        else plugin.get("created_at", ""),
+        updated_at=plugin["updated_at"].isoformat()
+        if isinstance(plugin.get("updated_at"), datetime)
+        else plugin.get("updated_at", ""),
+    )
 
 
 @router.delete("/{plugin_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -461,36 +424,23 @@ async def delete_plugin(
     Requires permission: plugin:manage
     """
     storage = get_storage()
-    try:
-        storage.connect()
-        registry = get_registry(storage)
+    registry = get_registry(storage)
 
-        plugin = registry.get(plugin_id)
-        if not plugin:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Plugin not found",
-            )
-
-        plugin_path = plugin.get("path", "")
-        if plugin_path and os.path.exists(plugin_path):
-            shutil.rmtree(plugin_path)
-            logger.info(f"Deleted plugin files: {plugin_path}")
-
-        registry.unregister(plugin_id)
-
-        logger.info(f"User {current_user.username} deleted plugin {plugin_id}")
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Failed to delete plugin: {e}")
+    plugin = registry.get(plugin_id)
+    if not plugin:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete plugin: {str(e)}",
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Plugin not found",
         )
-    finally:
-        storage.close()
+
+    plugin_path = plugin.get("path", "")
+    if plugin_path and os.path.exists(plugin_path):
+        shutil.rmtree(plugin_path)
+        logger.info(f"Deleted plugin files: {plugin_path}")
+
+    registry.unregister(plugin_id)
+
+    logger.info(f"User {current_user.username} deleted plugin {plugin_id}")
 
 
 @router.post("/{plugin_id}/activate", response_model=PluginResponse)
@@ -505,55 +455,42 @@ async def activate_plugin(
     Requires permission: plugin:manage
     """
     storage = get_storage()
-    try:
-        storage.connect()
-        registry = get_registry(storage)
+    registry = get_registry(storage)
 
-        plugin = registry.get(plugin_id)
-        if not plugin:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Plugin not found",
-            )
-
-        registry.activate(plugin_id)
-
-        plugin = registry.get(plugin_id)
-        manifest = plugin.get("manifest", {})
-
-        logger.info(f"User {current_user.username} activated plugin {plugin_id}")
-
-        return PluginResponse(
-            id=plugin["_id"],
-            name=plugin["name"],
-            version=plugin["version"],
-            display_name=manifest.get("display_name", ""),
-            description=manifest.get("description", ""),
-            author=manifest.get("author", ""),
-            strategy_class=manifest.get("strategy_class", ""),
-            path=plugin["path"],
-            status=plugin["status"],
-            min_data_points=manifest.get("min_data_points", 1),
-            tags=manifest.get("tags", []),
-            parameters=manifest.get("parameters", {}),
-            created_at=plugin["created_at"].isoformat()
-            if isinstance(plugin.get("created_at"), datetime)
-            else plugin.get("created_at", ""),
-            updated_at=plugin["updated_at"].isoformat()
-            if isinstance(plugin.get("updated_at"), datetime)
-            else plugin.get("updated_at", ""),
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Failed to activate plugin: {e}")
+    plugin = registry.get(plugin_id)
+    if not plugin:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to activate plugin: {str(e)}",
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Plugin not found",
         )
-    finally:
-        storage.close()
+
+    registry.activate(plugin_id)
+
+    plugin = registry.get(plugin_id)
+    manifest = plugin.get("manifest", {})
+
+    logger.info(f"User {current_user.username} activated plugin {plugin_id}")
+
+    return PluginResponse(
+        id=plugin["_id"],
+        name=plugin["name"],
+        version=plugin["version"],
+        display_name=manifest.get("display_name", ""),
+        description=manifest.get("description", ""),
+        author=manifest.get("author", ""),
+        strategy_class=manifest.get("strategy_class", ""),
+        path=plugin["path"],
+        status=plugin["status"],
+        min_data_points=manifest.get("min_data_points", 1),
+        tags=manifest.get("tags", []),
+        parameters=manifest.get("parameters", {}),
+        created_at=plugin["created_at"].isoformat()
+        if isinstance(plugin.get("created_at"), datetime)
+        else plugin.get("created_at", ""),
+        updated_at=plugin["updated_at"].isoformat()
+        if isinstance(plugin.get("updated_at"), datetime)
+        else plugin.get("updated_at", ""),
+    )
 
 
 @router.post("/{plugin_id}/deactivate", response_model=PluginResponse)
@@ -566,55 +503,42 @@ async def deactivate_plugin(
     Requires permission: plugin:manage
     """
     storage = get_storage()
-    try:
-        storage.connect()
-        registry = get_registry(storage)
+    registry = get_registry(storage)
 
-        plugin = registry.get(plugin_id)
-        if not plugin:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Plugin not found",
-            )
-
-        registry.deactivate(plugin_id)
-
-        plugin = registry.get(plugin_id)
-        manifest = plugin.get("manifest", {})
-
-        logger.info(f"User {current_user.username} deactivated plugin {plugin_id}")
-
-        return PluginResponse(
-            id=plugin["_id"],
-            name=plugin["name"],
-            version=plugin["version"],
-            display_name=manifest.get("display_name", ""),
-            description=manifest.get("description", ""),
-            author=manifest.get("author", ""),
-            strategy_class=manifest.get("strategy_class", ""),
-            path=plugin["path"],
-            status=plugin["status"],
-            min_data_points=manifest.get("min_data_points", 1),
-            tags=manifest.get("tags", []),
-            parameters=manifest.get("parameters", {}),
-            created_at=plugin["created_at"].isoformat()
-            if isinstance(plugin.get("created_at"), datetime)
-            else plugin.get("created_at", ""),
-            updated_at=plugin["updated_at"].isoformat()
-            if isinstance(plugin.get("updated_at"), datetime)
-            else plugin.get("updated_at", ""),
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Failed to deactivate plugin: {e}")
+    plugin = registry.get(plugin_id)
+    if not plugin:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to deactivate plugin: {str(e)}",
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Plugin not found",
         )
-    finally:
-        storage.close()
+
+    registry.deactivate(plugin_id)
+
+    plugin = registry.get(plugin_id)
+    manifest = plugin.get("manifest", {})
+
+    logger.info(f"User {current_user.username} deactivated plugin {plugin_id}")
+
+    return PluginResponse(
+        id=plugin["_id"],
+        name=plugin["name"],
+        version=plugin["version"],
+        display_name=manifest.get("display_name", ""),
+        description=manifest.get("description", ""),
+        author=manifest.get("author", ""),
+        strategy_class=manifest.get("strategy_class", ""),
+        path=plugin["path"],
+        status=plugin["status"],
+        min_data_points=manifest.get("min_data_points", 1),
+        tags=manifest.get("tags", []),
+        parameters=manifest.get("parameters", {}),
+        created_at=plugin["created_at"].isoformat()
+        if isinstance(plugin.get("created_at"), datetime)
+        else plugin.get("created_at", ""),
+        updated_at=plugin["updated_at"].isoformat()
+        if isinstance(plugin.get("updated_at"), datetime)
+        else plugin.get("updated_at", ""),
+    )
 
 
 @router.get("/{plugin_id}/versions")
@@ -627,31 +551,18 @@ async def get_plugin_versions(
     Requires permission: plugin:view
     """
     storage = get_storage()
-    try:
-        storage.connect()
-        registry = get_registry(storage)
+    registry = get_registry(storage)
 
-        plugin = registry.get(plugin_id)
-        if not plugin:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Plugin not found",
-            )
-
-        versions = registry.get_versions(plugin_id)
-
-        return {
-            "plugin_id": plugin_id,
-            "versions": versions,
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Failed to get plugin versions: {e}")
+    plugin = registry.get(plugin_id)
+    if not plugin:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get plugin versions: {str(e)}",
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Plugin not found",
         )
-    finally:
-        storage.close()
+
+    versions = registry.get_versions(plugin_id)
+
+    return {
+        "plugin_id": plugin_id,
+        "versions": versions,
+    }

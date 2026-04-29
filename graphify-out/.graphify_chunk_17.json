@@ -1,0 +1,516 @@
+{
+  "nodes": [
+    {
+      "id": "experiment_949895001957905128",
+      "type": "mlflow_experiment",
+      "attributes": {
+        "experiment_id": "949895001957905128",
+        "description": "MLflow experiment tracking Qlib model training runs with data pipeline updates and dependency cleanup",
+        "run_count": 7,
+        "branch": "marketwatch-holdings-admin"
+      }
+    },
+    {
+      "id": "run_906ed4eae57149b68ef205a778111bbe",
+      "type": "mlflow_run",
+      "attributes": {
+        "run_id": "906ed4eae57149b68ef205a778111bbe",
+        "purpose": "Frontend dependency cleanup: esbuild platform package removal from package-lock.json",
+        "experiment_id": "949895001957905128"
+      }
+    },
+    {
+      "id": "run_a8ae48d274c0493098b1ed8feff4f3fb",
+      "type": "mlflow_run",
+      "attributes": {
+        "run_id": "a8ae48d274c0493098b1ed8feff4f3fb",
+        "purpose": "Qlib data pipeline update with model training and auto_optimize script",
+        "experiment_id": "949895001957905128"
+      }
+    },
+    {
+      "id": "run_b1fd6ce67f4440faaa60152e58cfb8ef",
+      "type": "mlflow_run",
+      "attributes": {
+        "run_id": "b1fd6ce67f4440faaa60152e58cfb8ef",
+        "purpose": "Qlib experiment comparison and optimization scripts development",
+        "experiment_id": "949895001957905128"
+      }
+    },
+    {
+      "id": "run_c1317e7633554131ab1b9e343859f684",
+      "type": "mlflow_run",
+      "attributes": {
+        "run_id": "c1317e7633554131ab1b9e343859f684",
+        "purpose": "Qlib data pipeline update with model training",
+        "experiment_id": "949895001957905128"
+      }
+    },
+    {
+      "id": "run_c71305c3e1074cb29d88867096b7ae68",
+      "type": "mlflow_run",
+      "attributes": {
+        "run_id": "c71305c3e1074cb29d88867096b7ae68",
+        "purpose": "Qlib data pipeline update with CSI500 expansion",
+        "experiment_id": "949895001957905128"
+      }
+    },
+    {
+      "id": "run_cbd5e53c78834a0188d6e4a453491683",
+      "type": "mlflow_run",
+      "attributes": {
+        "run_id": "cbd5e53c78834a0188d6e4a453491683",
+        "purpose": "Qlib data pipeline update with model training",
+        "experiment_id": "949895001957905128"
+      }
+    },
+    {
+      "id": "run_cf7ba0f121394c18b7ca907fb021a12f",
+      "type": "mlflow_run",
+      "attributes": {
+        "run_id": "cf7ba0f121394c18b7ca907fb021a12f",
+        "purpose": "Qlib data pipeline update with model training",
+        "experiment_id": "949895001957905128"
+      }
+    },
+    {
+      "id": "qlib_calendar_day_txt",
+      "type": "data_file",
+      "attributes": {
+        "path": "apps/api/qlib_data/cn_data/calendars/day.txt",
+        "purpose": "Qlib trading calendar for CN market",
+        "last_date": "2026-04-29"
+      }
+    },
+    {
+      "id": "qlib_instruments_all_txt",
+      "type": "data_file",
+      "attributes": {
+        "path": "apps/api/qlib_data/cn_data/instruments/all.txt",
+        "purpose": "Master list of all A-share instruments (SH/SZ) with date ranges",
+        "format": "TICKER START_DATE END_DATE",
+        "coverage": "SH6xxxxx and SZ0xxxxx stocks, dates ~2013-2026"
+      }
+    },
+    {
+      "id": "qlib_instruments_csi300_txt",
+      "type": "data_file",
+      "attributes": {
+        "path": "apps/api/qlib_data/cn_data/instruments/csi300.txt",
+        "purpose": "CSI 300 index constituent stocks for Qlib",
+        "format": "TICKER START_DATE END_DATE"
+      }
+    },
+    {
+      "id": "qlib_instruments_csi500_txt",
+      "type": "data_file",
+      "attributes": {
+        "path": "apps/api/qlib_data/cn_data/instruments/csi500.txt",
+        "purpose": "CSI 500 index constituent stocks for Qlib",
+        "format": "TICKER START_DATE END_DATE"
+      }
+    },
+    {
+      "id": "package_lock_json",
+      "type": "data_file",
+      "attributes": {
+        "path": "frontend/vue-admin/package-lock.json",
+        "purpose": "NPM dependency lockfile for Vue frontend"
+      }
+    },
+    {
+      "id": "auto_optimize_script",
+      "type": "script",
+      "attributes": {
+        "path": "apps/api/scripts/auto_optimize.py",
+        "purpose": "Automated Qlib model optimization script"
+      }
+    },
+    {
+      "id": "check_experiments_script",
+      "type": "script",
+      "attributes": {
+        "path": "apps/api/scripts/check_experiments.py",
+        "purpose": "Qlib experiment checking and inspection script"
+      }
+    },
+    {
+      "id": "compare_all_script",
+      "type": "script",
+      "attributes": {
+        "path": "apps/api/scripts/compare_all.py",
+        "purpose": "Compare all Qlib experiment results"
+      }
+    },
+    {
+      "id": "optimize_simple_script",
+      "type": "script",
+      "attributes": {
+        "path": "apps/api/scripts/optimize_simple.py",
+        "purpose": "Simplified Qlib model optimization script"
+      }
+    },
+    {
+      "id": "show_best_script",
+      "type": "script",
+      "attributes": {
+        "path": "apps/api/scripts/show_best.py",
+        "purpose": "Display best Qlib experiment results"
+      }
+    },
+    {
+      "id": "qlib_model_artifacts",
+      "type": "model_collection",
+      "attributes": {
+        "pattern": "apps/api/models/model_20260429_*.pkl",
+        "count": 17,
+        "purpose": "Serialized Qlib LightGBM model artifacts from 2026-04-29 training runs",
+        "earliest": "080749",
+        "latest": "113546"
+      }
+    },
+    {
+      "id": "esbuild_platform_packages",
+      "type": "npm_package_group",
+      "attributes": {
+        "name": "esbuild platform-specific packages",
+        "version": "0.27.7",
+        "purpose": "Optional platform binaries for esbuild bundler, removed from lockfile during cleanup"
+      }
+    },
+    {
+      "id": "code_diff_artifact",
+      "type": "artifact_type",
+      "attributes": {
+        "name": "code_diff.txt",
+        "purpose": "Captures git diff output at time of MLflow run"
+      }
+    },
+    {
+      "id": "code_status_artifact",
+      "type": "artifact_type",
+      "attributes": {
+        "name": "code_status.txt",
+        "purpose": "Captures git status output at time of MLflow run"
+      }
+    },
+    {
+      "id": "code_cached_artifact",
+      "type": "artifact_type",
+      "attributes": {
+        "name": "code_cached.txt",
+        "purpose": "Captures git cached/staged changes at time of MLflow run"
+      }
+    },
+    {
+      "id": "csi300_rebalance_concept",
+      "type": "concept",
+      "attributes": {
+        "name": "CSI300 constituent rebalancing",
+        "description": "Massive removal of stocks from csi300.txt indicating a major index constituent rebalance. Stocks removed include SH600000-SH600999 and SZ000001-SZ003816 ranges",
+        "rationale": "The csi300 diff shows ~270 stocks removed and ~40 remaining, suggesting a quarterly or special rebalancing event. This is a significant structural change to the Qlib universe."
+      }
+    },
+    {
+      "id": "csi500_expansion_concept",
+      "type": "concept",
+      "attributes": {
+        "name": "CSI500 constituent expansion",
+        "description": "Massive addition of stocks to csi500.txt, growing from ~28 entries to ~596 entries. This aligns with stocks removed from CSI300 being redistributed to CSI500",
+        "rationale": "The csi500 diff shows ~570 stocks added, the inverse of csi300 removals. This represents an index rebalancing event where former CSI300 constituents were moved to CSI500."
+      }
+    },
+    {
+      "id": "qlib_data_pipeline_concept",
+      "type": "concept",
+      "attributes": {
+        "name": "Qlib data pipeline daily update",
+        "description": "Daily update of Qlib binary data files including trading calendar extension and instrument universe maintenance for A-share quantitative trading",
+        "rationale": "The calendar day.txt had 2026-04-29 appended, and instruments/all.txt had hundreds of new stock tickers added. These files feed into Qlib's data handler for model training."
+      }
+    },
+    {
+      "id": "npm_dependency_cleanup_concept",
+      "type": "concept",
+      "attributes": {
+        "name": "NPM optional dependency cleanup",
+        "description": "Removal of esbuild platform-specific optional packages (aix-ppc64, netbsd-arm64, openbsd-arm64, openharmony-arm64, and vitest/esbuild sub-dependencies) from package-lock.json",
+        "rationale": "Cleaning up unnecessary platform-specific esbuild binaries reduces lockfile size and npm install time on the target Windows platform."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "source": "run_906ed4eae57149b68ef205a778111bbe",
+      "target": "experiment_949895001957905128",
+      "relationship": "belongs_to",
+      "confidence": 1.0,
+      "metadata": { "tag": "EXTRACTED" }
+    },
+    {
+      "source": "run_a8ae48d274c0493098b1ed8feff4f3fb",
+      "target": "experiment_949895001957905128",
+      "relationship": "belongs_to",
+      "confidence": 1.0,
+      "metadata": { "tag": "EXTRACTED" }
+    },
+    {
+      "source": "run_b1fd6ce67f4440faaa60152e58cfb8ef",
+      "target": "experiment_949895001957905128",
+      "relationship": "belongs_to",
+      "confidence": 1.0,
+      "metadata": { "tag": "EXTRACTED" }
+    },
+    {
+      "source": "run_c1317e7633554131ab1b9e343859f684",
+      "target": "experiment_949895001957905128",
+      "relationship": "belongs_to",
+      "confidence": 1.0,
+      "metadata": { "tag": "EXTRACTED" }
+    },
+    {
+      "source": "run_c71305c3e1074cb29d88867096b7ae68",
+      "target": "experiment_949895001957905128",
+      "relationship": "belongs_to",
+      "confidence": 1.0,
+      "metadata": { "tag": "EXTRACTED" }
+    },
+    {
+      "source": "run_cbd5e53c78834a0188d6e4a453491683",
+      "target": "experiment_949895001957905128",
+      "relationship": "belongs_to",
+      "confidence": 1.0,
+      "metadata": { "tag": "EXTRACTED" }
+    },
+    {
+      "source": "run_cf7ba0f121394c18b7ca907fb021a12f",
+      "target": "experiment_949895001957905128",
+      "relationship": "belongs_to",
+      "confidence": 1.0,
+      "metadata": { "tag": "EXTRACTED" }
+    },
+    {
+      "source": "run_906ed4eae57149b68ef205a778111bbe",
+      "target": "package_lock_json",
+      "relationship": "tracks_changes_to",
+      "confidence": 1.0,
+      "metadata": { "tag": "EXTRACTED" }
+    },
+    {
+      "source": "run_c71305c3e1074cb29d88867096b7ae68",
+      "target": "qlib_calendar_day_txt",
+      "relationship": "tracks_changes_to",
+      "confidence": 1.0,
+      "metadata": { "tag": "EXTRACTED" }
+    },
+    {
+      "source": "run_c71305c3e1074cb29d88867096b7ae68",
+      "target": "qlib_instruments_all_txt",
+      "relationship": "tracks_changes_to",
+      "confidence": 1.0,
+      "metadata": { "tag": "EXTRACTED" }
+    },
+    {
+      "source": "run_c71305c3e1074cb29d88867096b7ae68",
+      "target": "qlib_instruments_csi300_txt",
+      "relationship": "tracks_changes_to",
+      "confidence": 1.0,
+      "metadata": { "tag": "EXTRACTED" }
+    },
+    {
+      "source": "run_c71305c3e1074cb29d88867096b7ae68",
+      "target": "qlib_instruments_csi500_txt",
+      "relationship": "tracks_changes_to",
+      "confidence": 1.0,
+      "metadata": { "tag": "EXTRACTED" }
+    },
+    {
+      "source": "run_a8ae48d274c0493098b1ed8feff4f3fb",
+      "target": "qlib_calendar_day_txt",
+      "relationship": "tracks_changes_to",
+      "confidence": 1.0,
+      "metadata": { "tag": "EXTRACTED" }
+    },
+    {
+      "source": "run_a8ae48d274c0493098b1ed8feff4f3fb",
+      "target": "qlib_instruments_all_txt",
+      "relationship": "tracks_changes_to",
+      "confidence": 1.0,
+      "metadata": { "tag": "EXTRACTED" }
+    },
+    {
+      "source": "run_a8ae48d274c0493098b1ed8feff4f3fb",
+      "target": "qlib_instruments_csi300_txt",
+      "relationship": "tracks_changes_to",
+      "confidence": 1.0,
+      "metadata": { "tag": "EXTRACTED" }
+    },
+    {
+      "source": "run_a8ae48d274c0493098b1ed8feff4f3fb",
+      "target": "qlib_instruments_csi500_txt",
+      "relationship": "tracks_changes_to",
+      "confidence": 1.0,
+      "metadata": { "tag": "EXTRACTED" }
+    },
+    {
+      "source": "run_b1fd6ce67f4440faaa60152e58cfb8ef",
+      "target": "auto_optimize_script",
+      "relationship": "produces",
+      "confidence": 1.0,
+      "metadata": { "tag": "EXTRACTED" }
+    },
+    {
+      "source": "run_b1fd6ce67f4440faaa60152e58cfb8ef",
+      "target": "check_experiments_script",
+      "relationship": "produces",
+      "confidence": 1.0,
+      "metadata": { "tag": "EXTRACTED" }
+    },
+    {
+      "source": "run_b1fd6ce67f4440faaa60152e58cfb8ef",
+      "target": "compare_all_script",
+      "relationship": "produces",
+      "confidence": 1.0,
+      "metadata": { "tag": "EXTRACTED" }
+    },
+    {
+      "source": "run_b1fd6ce67f4440faaa60152e58cfb8ef",
+      "target": "optimize_simple_script",
+      "relationship": "produces",
+      "confidence": 1.0,
+      "metadata": { "tag": "EXTRACTED" }
+    },
+    {
+      "source": "run_b1fd6ce67f4440faaa60152e58cfb8ef",
+      "target": "show_best_script",
+      "relationship": "produces",
+      "confidence": 1.0,
+      "metadata": { "tag": "EXTRACTED" }
+    },
+    {
+      "source": "run_a8ae48d274c0493098b1ed8feff4f3fb",
+      "target": "qlib_model_artifacts",
+      "relationship": "produces",
+      "confidence": 1.0,
+      "metadata": { "tag": "EXTRACTED" }
+    },
+    {
+      "source": "run_c71305c3e1074cb29d88867096b7ae68",
+      "target": "code_diff_artifact",
+      "relationship": "has_artifact_type",
+      "confidence": 1.0,
+      "metadata": { "tag": "EXTRACTED" }
+    },
+    {
+      "source": "run_c71305c3e1074cb29d88867096b7ae68",
+      "target": "code_status_artifact",
+      "relationship": "has_artifact_type",
+      "confidence": 1.0,
+      "metadata": { "tag": "EXTRACTED" }
+    },
+    {
+      "source": "run_c71305c3e1074cb29d88867096b7ae68",
+      "target": "code_cached_artifact",
+      "relationship": "has_artifact_type",
+      "confidence": 1.0,
+      "metadata": { "tag": "EXTRACTED" }
+    },
+    {
+      "source": "qlib_instruments_csi300_txt",
+      "target": "qlib_instruments_csi500_txt",
+      "relationship": "constituents_redistributed_to",
+      "confidence": 0.85,
+      "metadata": { "tag": "INFERRED", "rationale": "CSI300 had ~270 stocks removed while CSI500 had ~570 added simultaneously, indicating rebalancing redistribution" }
+    },
+    {
+      "source": "qlib_calendar_day_txt",
+      "target": "qlib_instruments_all_txt",
+      "relationship": "updated_concurrently",
+      "confidence": 1.0,
+      "metadata": { "tag": "EXTRACTED", "rationale": "Both files modified in same diff on 2026-04-29" }
+    },
+    {
+      "source": "run_906ed4eae57149b68ef205a778111bbe",
+      "target": "esbuild_platform_packages",
+      "relationship": "removes",
+      "confidence": 1.0,
+      "metadata": { "tag": "EXTRACTED" }
+    },
+    {
+      "source": "run_a8ae48d274c0493098b1ed8feff4f3fb",
+      "target": "auto_optimize_script",
+      "relationship": "uses",
+      "confidence": 0.9,
+      "metadata": { "tag": "INFERRED", "rationale": "auto_optimize.py appears in untracked files for both runs, suggesting iterative development" }
+    },
+    {
+      "source": "csi300_rebalance_concept",
+      "target": "csi500_expansion_concept",
+      "relationship": "semantically_similar_to",
+      "confidence": 0.95,
+      "metadata": { "rationale": "Both describe the same index rebalancing event from different perspectives - removal from CSI300 vs addition to CSI500" }
+    },
+    {
+      "source": "qlib_data_pipeline_concept",
+      "target": "csi300_rebalance_concept",
+      "relationship": "semantically_similar_to",
+      "confidence": 0.7,
+      "metadata": { "rationale": "Both relate to Qlib data maintenance; the pipeline concept is the general process, rebalancing is a specific event within it" }
+    },
+    {
+      "source": "npm_dependency_cleanup_concept",
+      "target": "run_906ed4eae57149b68ef205a778111bbe",
+      "relationship": "describes",
+      "confidence": 1.0,
+      "metadata": { "tag": "EXTRACTED" }
+    },
+    {
+      "source": "qlib_data_pipeline_concept",
+      "target": "run_c71305c3e1074cb29d88867096b7ae68",
+      "relationship": "describes",
+      "confidence": 1.0,
+      "metadata": { "tag": "EXTRACTED" }
+    },
+    {
+      "source": "qlib_instruments_all_txt",
+      "target": "qlib_instruments_csi300_txt",
+      "relationship": "superset_of",
+      "confidence": 0.9,
+      "metadata": { "tag": "INFERRED", "rationale": "all.txt contains the full universe while csi300.txt is a filtered subset of CSI300 constituents" }
+    },
+    {
+      "source": "qlib_instruments_all_txt",
+      "target": "qlib_instruments_csi500_txt",
+      "relationship": "superset_of",
+      "confidence": 0.9,
+      "metadata": { "tag": "INFERRED", "rationale": "all.txt contains the full universe while csi500.txt is a filtered subset of CSI500 constituents" }
+    },
+    {
+      "source": "qlib_model_artifacts",
+      "target": "auto_optimize_script",
+      "relationship": "generated_by",
+      "confidence": 0.8,
+      "metadata": { "tag": "INFERRED", "rationale": "auto_optimize.py and model pkl files appear in untracked files during same training session" }
+    }
+  ],
+  "hyperedges": [
+    {
+      "id": "he_qlib_index_rebalancing_20260429",
+      "edge_ids": ["run_c71305c3e1074cb29d88867096b7ae68-tracks_changes_to-qlib_instruments_csi300_txt", "run_c71305c3e1074cb29d88867096b7ae68-tracks_changes_to-qlib_instruments_csi500_txt", "run_c71305c3e1074cb29d88867096b7ae68-tracks_changes_to-qlib_calendar_day_txt"],
+      "description": "2026-04-29 Qlib index rebalancing event: CSI300 constituent removal, CSI500 constituent expansion, and calendar extension all captured in a single MLflow run",
+      "confidence": 1.0
+    },
+    {
+      "id": "he_model_training_scripts_20260429",
+      "edge_ids": ["run_b1fd6ce67f4440faaa60152e58cfb8ef-produces-auto_optimize_script", "run_b1fd6ce67f4440faaa60152e58cfb8ef-produces-compare_all_script", "run_b1fd6ce67f4440faaa60152e58cfb8ef-produces-show_best_script"],
+      "description": "Batch of Qlib experiment management scripts (auto_optimize, compare_all, show_best) developed as part of iterative model optimization workflow",
+      "confidence": 1.0
+    },
+    {
+      "id": "he_experiment_artifact_tracking",
+      "edge_ids": ["run_c71305c3e1074cb29d88867096b7ae68-has_artifact_type-code_diff_artifact", "run_c71305c3e1074cb29d88867096b7ae68-has_artifact_type-code_status_artifact", "run_c71305c3e1074cb29d88867096b7ae68-has_artifact_type-code_cached_artifact"],
+      "description": "MLflow run artifact pattern: each run captures git diff, status, and cached changes as artifacts for reproducibility tracking",
+      "confidence": 1.0
+    }
+  ]
+}

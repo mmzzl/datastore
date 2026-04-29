@@ -20,6 +20,7 @@ from app.backtest.async_engine import AsyncBacktestEngine
 from app.backtest.strategies.factory import StrategyFactory
 from app.core.config import settings
 from app.core.auth import AuthenticatedUser, require_permission
+from app.storage.mongo_client import get_storage
 import os
 import zipfile
 import importlib
@@ -91,21 +92,6 @@ class BacktestResultsResponse(BaseModel):
     total: int
     page: int
     page_size: int
-
-
-def get_storage():
-    """Get MongoDB storage instance."""
-    from app.storage import MongoStorage
-
-    storage = MongoStorage(
-        host=settings.mongodb_host,
-        port=settings.mongodb_port,
-        db_name=settings.mongodb_database,
-        username=settings.mongodb_username,
-        password=settings.mongodb_password,
-    )
-    storage.connect()
-    return storage
 
 
 def get_backtest_engine(request: Request) -> AsyncBacktestEngine:
@@ -226,9 +212,6 @@ async def get_backtest_results(
         logger.error(f"Failed to get backtest results: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get results: {str(e)}")
 
-    finally:
-        storage.close()
-
 
 async def save_backtest_result(result: Dict[str, Any]) -> None:
     storage = get_storage()
@@ -251,9 +234,6 @@ async def save_backtest_result(result: Dict[str, Any]) -> None:
 
     except Exception as e:
         logger.error(f"Failed to save backtest result: {e}")
-
-    finally:
-        storage.close()
 
 
 @router.websocket("/ws/backtest/{task_id}")
@@ -387,28 +367,25 @@ async def upload_strategy_plugin(
 
             # Save to MongoDB
             storage = get_storage()
-            try:
-                plugin_data = {
-                    "name": metadata.get("name", module_name),
-                    "description": metadata.get("description", ""),
-                    "module_name": module_name,
-                    "class_name": strategy_class.__name__,
-                    "path": f"plugins/{module_name}",
-                    "author": metadata.get("author", ""),
-                    "version": metadata.get("version", "1.0.0"),
-                    "tags": metadata.get("tags", []),
-                    "parameters": metadata.get("parameters", {}),
-                }
+            plugin_data = {
+                "name": metadata.get("name", module_name),
+                "description": metadata.get("description", ""),
+                "module_name": module_name,
+                "class_name": strategy_class.__name__,
+                "path": f"plugins/{module_name}",
+                "author": metadata.get("author", ""),
+                "version": metadata.get("version", "1.0.0"),
+                "tags": metadata.get("tags", []),
+                "parameters": metadata.get("parameters", {}),
+            }
 
-                plugin_id = storage.save_strategy_plugin(plugin_data)
+            plugin_id = storage.save_strategy_plugin(plugin_data)
 
-                return {
-                    "id": plugin_id,
-                    "message": "Strategy plugin uploaded successfully",
-                    "plugin": plugin_data,
-                }
-            finally:
-                storage.close()
+            return {
+                "id": plugin_id,
+                "message": "Strategy plugin uploaded successfully",
+                "plugin": plugin_data,
+            }
 
         except Exception as e:
             # Clean up
@@ -432,35 +409,32 @@ async def get_strategy_plugins():
     Get all strategy plugins.
     """
     storage = get_storage()
-    try:
-        plugins = storage.get_all_strategy_plugins()
+    plugins = storage.get_all_strategy_plugins()
 
-        items = []
-        for plugin in plugins:
-            items.append(
-                StrategyPluginResponse(
-                    id=str(plugin["_id"]),
-                    name=plugin.get("name", ""),
-                    description=plugin.get("description", ""),
-                    module_name=plugin.get("module_name", ""),
-                    class_name=plugin.get("class_name", ""),
-                    path=plugin.get("path", ""),
-                    author=plugin.get("author", ""),
-                    version=plugin.get("version", "1.0.0"),
-                    tags=plugin.get("tags", []),
-                    parameters=plugin.get("parameters", {}),
-                    created_at=plugin.get("created_at", "").isoformat()
-                    if hasattr(plugin.get("created_at"), "isoformat")
-                    else "",
-                    updated_at=plugin.get("updated_at", "").isoformat()
-                    if hasattr(plugin.get("updated_at"), "isoformat")
-                    else "",
-                )
+    items = []
+    for plugin in plugins:
+        items.append(
+            StrategyPluginResponse(
+                id=str(plugin["_id"]),
+                name=plugin.get("name", ""),
+                description=plugin.get("description", ""),
+                module_name=plugin.get("module_name", ""),
+                class_name=plugin.get("class_name", ""),
+                path=plugin.get("path", ""),
+                author=plugin.get("author", ""),
+                version=plugin.get("version", "1.0.0"),
+                tags=plugin.get("tags", []),
+                parameters=plugin.get("parameters", {}),
+                created_at=plugin.get("created_at", "").isoformat()
+                if hasattr(plugin.get("created_at"), "isoformat")
+                else "",
+                updated_at=plugin.get("updated_at", "").isoformat()
+                if hasattr(plugin.get("updated_at"), "isoformat")
+                else "",
             )
+        )
 
-        return StrategyPluginsResponse(items=items, total=len(items))
-    finally:
-        storage.close()
+    return StrategyPluginsResponse(items=items, total=len(items))
 
 
 @router.delete("/plugins/{plugin_id}")
@@ -471,29 +445,26 @@ async def delete_strategy_plugin(
     Delete a strategy plugin.
     """
     storage = get_storage()
-    try:
-        # Get plugin info first
-        plugin = storage.get_strategy_plugin(plugin_id)
-        if not plugin:
-            raise HTTPException(status_code=404, detail="Plugin not found")
+    # Get plugin info first
+    plugin = storage.get_strategy_plugin(plugin_id)
+    if not plugin:
+        raise HTTPException(status_code=404, detail="Plugin not found")
 
-        # Delete from file system
-        module_name = plugin.get("module_name")
-        if module_name:
-            plugin_path = os.path.join(
-                "app", "backtest", "strategies", "plugins", module_name
-            )
-            if os.path.exists(plugin_path):
-                shutil.rmtree(plugin_path)
+    # Delete from file system
+    module_name = plugin.get("module_name")
+    if module_name:
+        plugin_path = os.path.join(
+            "app", "backtest", "strategies", "plugins", module_name
+        )
+        if os.path.exists(plugin_path):
+            shutil.rmtree(plugin_path)
 
-        # Delete from MongoDB
-        deleted = storage.delete_strategy_plugin(plugin_id)
-        if not deleted:
-            raise HTTPException(status_code=404, detail="Failed to delete plugin")
+    # Delete from MongoDB
+    deleted = storage.delete_strategy_plugin(plugin_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Failed to delete plugin")
 
-        return {"message": "Strategy plugin deleted successfully"}
-    finally:
-        storage.close()
+    return {"message": "Strategy plugin deleted successfully"}
 
 
 @router.get("/plugins/{plugin_id}", response_model=StrategyPluginResponse)
@@ -504,28 +475,25 @@ async def get_strategy_plugin(
     Get a strategy plugin by ID.
     """
     storage = get_storage()
-    try:
-        plugin = storage.get_strategy_plugin(plugin_id)
-        if not plugin:
-            raise HTTPException(status_code=404, detail="Plugin not found")
+    plugin = storage.get_strategy_plugin(plugin_id)
+    if not plugin:
+        raise HTTPException(status_code=404, detail="Plugin not found")
 
-        return StrategyPluginResponse(
-            id=str(plugin["_id"]),
-            name=plugin.get("name", ""),
-            description=plugin.get("description", ""),
-            module_name=plugin.get("module_name", ""),
-            class_name=plugin.get("class_name", ""),
-            path=plugin.get("path", ""),
-            author=plugin.get("author", ""),
-            version=plugin.get("version", "1.0.0"),
-            tags=plugin.get("tags", []),
-            parameters=plugin.get("parameters", {}),
-            created_at=plugin.get("created_at", "").isoformat()
-            if hasattr(plugin.get("created_at"), "isoformat")
-            else "",
-            updated_at=plugin.get("updated_at", "").isoformat()
-            if hasattr(plugin.get("updated_at"), "isoformat")
-            else "",
-        )
-    finally:
-        storage.close()
+    return StrategyPluginResponse(
+        id=str(plugin["_id"]),
+        name=plugin.get("name", ""),
+        description=plugin.get("description", ""),
+        module_name=plugin.get("module_name", ""),
+        class_name=plugin.get("class_name", ""),
+        path=plugin.get("path", ""),
+        author=plugin.get("author", ""),
+        version=plugin.get("version", "1.0.0"),
+        tags=plugin.get("tags", []),
+        parameters=plugin.get("parameters", {}),
+        created_at=plugin.get("created_at", "").isoformat()
+        if hasattr(plugin.get("created_at"), "isoformat")
+        else "",
+        updated_at=plugin.get("updated_at", "").isoformat()
+        if hasattr(plugin.get("updated_at"), "isoformat")
+        else "",
+    )

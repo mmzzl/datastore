@@ -1,0 +1,1 @@
+{"nodes": [{"id": "auth_guard_demo", "label": "Auth Guard Demo Endpoint", "file_type": "code", "source_file": "apps/api/app/auth_guard_demo.py", "source_location": null}], "edges": [{"source": "auth_guard_demo", "target": "auth_module", "relation": "calls", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "apps/api/app/auth_guard_demo.py"}], "hyperedges": []}

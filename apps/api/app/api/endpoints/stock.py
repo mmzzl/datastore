@@ -16,6 +16,7 @@ import csv
 import json
 
 from ...storage import MongoStorage
+from ...storage.mongo_client import get_storage
 from ...core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -246,22 +247,6 @@ class DataExporter:
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             headers={"Content-Disposition": f'attachment; filename="{filename}"'},
         )
-
-
-def get_storage() -> MongoStorage:
-    """获取MongoDB存储实例"""
-    storage = MongoStorage(
-        settings.mongodb_host,
-        settings.mongodb_port,
-        settings.mongodb_database,
-        settings.mongodb_username,
-        settings.mongodb_password,
-    )
-    storage.connect()
-    try:
-        yield storage
-    finally:
-        storage.close()
 
 
 def parse_pagination_params(
@@ -943,14 +928,7 @@ PRICE_CACHE_TTL = 300
 def _get_prev_close_from_db(code: str) -> Optional[float]:
     """从MongoDB获取昨日收盘价"""
     try:
-        storage = MongoStorage(
-            settings.mongodb_host,
-            settings.mongodb_port,
-            settings.mongodb_database,
-            settings.mongodb_username,
-            settings.mongodb_password,
-        )
-        storage.connect()
+        storage = get_storage()
 
         pure_code = code.split("SZ")[-1].split("SH")[-1].split("sz")[-1].split("sh")[-1]
 
@@ -966,11 +944,6 @@ def _get_prev_close_from_db(code: str) -> Optional[float]:
     except Exception as e:
         logger.warning(f"从数据库获取收盘价失败: {code}, error: {e}")
         return None
-    finally:
-        try:
-            storage.close()
-        except:
-            pass
 
 
 def _fetch_realtime_prices(codes: List[str]) -> Dict[str, Dict[str, Any]]:

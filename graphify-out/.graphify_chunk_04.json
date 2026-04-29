@@ -1,0 +1,449 @@
+{
+  "nodes": [
+    {
+      "id": "auth_middleware_authmiddleware",
+      "label": "AuthMiddleware",
+      "file_type": "code",
+      "source_file": "apps/api/app/middleware/auth_middleware.py",
+      "source_location": "class AuthMiddleware"
+    },
+    {
+      "id": "news_newsmodel",
+      "label": "NewsModel",
+      "file_type": "code",
+      "source_file": "apps/api/app/models/news.py",
+      "source_location": "class NewsModel"
+    },
+    {
+      "id": "alert_orchestrator_alertorchestrator",
+      "label": "AlertOrchestrator",
+      "file_type": "code",
+      "source_file": "apps/api/app/monitor/alert_orchestrator.py",
+      "source_location": "class AlertOrchestrator"
+    },
+    {
+      "id": "config_monitorconfig",
+      "label": "MonitorConfig (runtime)",
+      "file_type": "code",
+      "source_file": "apps/api/app/monitor/config.py",
+      "source_location": "class MonitorConfig"
+    },
+    {
+      "id": "daily_scanner_dailysignalscanner",
+      "label": "DailySignalScanner",
+      "file_type": "code",
+      "source_file": "apps/api/app/monitor/daily_scanner.py",
+      "source_location": "class DailySignalScanner"
+    },
+    {
+      "id": "data_source_multidatasourcemanager",
+      "label": "MultiDataSourceManager",
+      "file_type": "code",
+      "source_file": "apps/api/app/monitor/data_source.py",
+      "source_location": "class MultiDataSourceManager"
+    },
+    {
+      "id": "data_source_aksharedatasource",
+      "label": "AkshareDataSource",
+      "file_type": "code",
+      "source_file": "apps/api/app/monitor/data_source.py",
+      "source_location": "class AkshareDataSource"
+    },
+    {
+      "id": "data_source_sinadatasource",
+      "label": "SinaDataSource",
+      "file_type": "code",
+      "source_file": "apps/api/app/monitor/data_source.py",
+      "source_location": "class SinaDataSource"
+    },
+    {
+      "id": "data_source_mongodbdatasource",
+      "label": "MongoDBDataSource",
+      "file_type": "code",
+      "source_file": "apps/api/app/monitor/data_source.py",
+      "source_location": "class MongoDBDataSource"
+    },
+    {
+      "id": "intraday_monitor_intradaymonitor",
+      "label": "IntradayMonitor",
+      "file_type": "code",
+      "source_file": "apps/api/app/monitor/intraday_monitor.py",
+      "source_location": "class IntradayMonitor"
+    },
+    {
+      "id": "market_signals_signal_api",
+      "label": "Market Signals API",
+      "file_type": "code",
+      "source_file": "apps/api/app/monitor/market_signals.py",
+      "source_location": null
+    },
+    {
+      "id": "market_watcher_marketwatcher",
+      "label": "MarketWatcher",
+      "file_type": "code",
+      "source_file": "apps/api/app/monitor/market_watcher.py",
+      "source_location": "class MarketWatcher"
+    },
+    {
+      "id": "models_stockconfig",
+      "label": "StockConfig (pydantic)",
+      "file_type": "code",
+      "source_file": "apps/api/app/monitor/models.py",
+      "source_location": "class StockConfig"
+    },
+    {
+      "id": "models_monitorresult",
+      "label": "MonitorResult",
+      "file_type": "code",
+      "source_file": "apps/api/app/monitor/models.py",
+      "source_location": "class MonitorResult"
+    },
+    {
+      "id": "news_processor_newssignalprocessor",
+      "label": "NewsSignalProcessor",
+      "file_type": "code",
+      "source_file": "apps/api/app/monitor/news_processor.py",
+      "source_location": "class NewsSignalProcessor"
+    },
+    {
+      "id": "stock_monitor_stockmonitor",
+      "label": "StockMonitor",
+      "file_type": "code",
+      "source_file": "apps/api/app/monitor/stock_monitor.py",
+      "source_location": "class StockMonitor"
+    },
+    {
+      "id": "aggregator_alertaggregator",
+      "label": "AlertAggregator",
+      "file_type": "code",
+      "source_file": "apps/api/app/monitor/analysis/aggregator.py",
+      "source_location": "class AlertAggregator"
+    },
+    {
+      "id": "signal_signalgenerator",
+      "label": "SignalGenerator",
+      "file_type": "code",
+      "source_file": "apps/api/app/monitor/analysis/signal.py",
+      "source_location": "class SignalGenerator"
+    },
+    {
+      "id": "technical_technicalanalyzer",
+      "label": "TechnicalAnalyzer",
+      "file_type": "code",
+      "source_file": "apps/api/app/monitor/analysis/technical.py",
+      "source_location": "class TechnicalAnalyzer"
+    },
+    {
+      "id": "brain_analyzer_brainanalyzer",
+      "label": "BrainAnalyzer",
+      "file_type": "code",
+      "source_file": "apps/api/app/monitor/brain/analyzer.py",
+      "source_location": "class BrainAnalyzer"
+    },
+    {
+      "id": "brain_backtest_backtestengine",
+      "label": "BacktestEngine (brain)",
+      "file_type": "code",
+      "source_file": "apps/api/app/monitor/brain/backtest.py",
+      "source_location": "class BacktestEngine"
+    },
+    {
+      "id": "brain_capitalflow_capitalflowanalyzer",
+      "label": "CapitalFlowAnalyzer",
+      "file_type": "code",
+      "source_file": "apps/api/app/monitor/brain/capital_flow.py",
+      "source_location": "class CapitalFlowAnalyzer"
+    },
+    {
+      "id": "brain_models_braindecision",
+      "label": "BrainDecision",
+      "file_type": "code",
+      "source_file": "apps/api/app/monitor/brain/models.py",
+      "source_location": "class BrainDecision"
+    },
+    {
+      "id": "brain_models_unhookstrategy",
+      "label": "UnhookStrategy",
+      "file_type": "code",
+      "source_file": "apps/api/app/monitor/brain/models.py",
+      "source_location": "class UnhookStrategy"
+    },
+    {
+      "id": "models_alert_signal_alertsignal",
+      "label": "AlertSignal",
+      "file_type": "code",
+      "source_file": "apps/api/app/monitor/models/alert_signal.py",
+      "source_location": "class AlertSignal"
+    },
+    {
+      "id": "models_alert_rule_alertrule",
+      "label": "AlertRule",
+      "file_type": "code",
+      "source_file": "apps/api/app/monitor/models/alert_rule.py",
+      "source_location": "class AlertRule"
+    }
+  ],
+  "edges": [
+    {
+      "source": "alert_orchestrator_alertorchestrator",
+      "target": "aggregator_alertaggregator",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/monitor/alert_orchestrator.py"
+    },
+    {
+      "source": "alert_orchestrator_alertorchestrator",
+      "target": "market_signals_signal_api",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/monitor/alert_orchestrator.py"
+    },
+    {
+      "source": "alert_orchestrator_alertorchestrator",
+      "target": "technical_technicalanalyzer",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/monitor/alert_orchestrator.py"
+    },
+    {
+      "source": "alert_orchestrator_alertorchestrator",
+      "target": "models_alert_signal_alertsignal",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/monitor/alert_orchestrator.py"
+    },
+    {
+      "source": "alert_orchestrator_alertorchestrator",
+      "target": "models_alert_rule_alertrule",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/monitor/alert_orchestrator.py"
+    },
+    {
+      "source": "aggregator_alertaggregator",
+      "target": "models_alert_signal_alertsignal",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/monitor/analysis/aggregator.py"
+    },
+    {
+      "source": "aggregator_alertaggregator",
+      "target": "models_alert_rule_alertrule",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/monitor/analysis/aggregator.py"
+    },
+    {
+      "source": "stock_monitor_stockmonitor",
+      "target": "config_monitorconfig",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/monitor/stock_monitor.py"
+    },
+    {
+      "source": "stock_monitor_stockmonitor",
+      "target": "technical_technicalanalyzer",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/monitor/stock_monitor.py"
+    },
+    {
+      "source": "stock_monitor_stockmonitor",
+      "target": "signal_signalgenerator",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/monitor/stock_monitor.py"
+    },
+    {
+      "source": "stock_monitor_stockmonitor",
+      "target": "brain_analyzer_brainanalyzer",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/monitor/stock_monitor.py"
+    },
+    {
+      "source": "stock_monitor_stockmonitor",
+      "target": "models_monitorresult",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/monitor/stock_monitor.py"
+    },
+    {
+      "source": "signal_signalgenerator",
+      "target": "technical_technicalanalyzer",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "apps/api/app/monitor/analysis/signal.py"
+    },
+    {
+      "source": "brain_analyzer_brainanalyzer",
+      "target": "brain_capitalflow_capitalflowanalyzer",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/monitor/brain/analyzer.py"
+    },
+    {
+      "source": "brain_analyzer_brainanalyzer",
+      "target": "brain_models_braindecision",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/monitor/brain/analyzer.py"
+    },
+    {
+      "source": "brain_analyzer_brainanalyzer",
+      "target": "technical_technicalanalyzer",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "apps/api/app/monitor/brain/analyzer.py"
+    },
+    {
+      "source": "daily_scanner_dailysignalscanner",
+      "target": "intraday_monitor_intradaymonitor",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "apps/api/app/monitor/daily_scanner.py"
+    },
+    {
+      "source": "news_processor_newssignalprocessor",
+      "target": "daily_scanner_dailysignalscanner",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "apps/api/app/monitor/news_processor.py"
+    },
+    {
+      "source": "data_source_multidatasourcemanager",
+      "target": "data_source_aksharedatasource",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/monitor/data_source.py"
+    },
+    {
+      "source": "data_source_multidatasourcemanager",
+      "target": "data_source_sinadatasource",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/monitor/data_source.py"
+    },
+    {
+      "source": "data_source_multidatasourcemanager",
+      "target": "data_source_mongodbdatasource",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/monitor/data_source.py"
+    },
+    {
+      "source": "config_monitorconfig",
+      "target": "models_stockconfig",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "apps/api/app/monitor/config.py"
+    },
+    {
+      "source": "stock_monitor_stockmonitor",
+      "target": "brain_models_unhookstrategy",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/monitor/stock_monitor.py"
+    },
+    {
+      "source": "brain_capitalflow_capitalflowanalyzer",
+      "target": "market_watcher_marketwatcher",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.7,
+      "source_file": "apps/api/app/monitor/brain/capital_flow.py"
+    },
+    {
+      "source": "brain_analyzer_brainanalyzer",
+      "target": "market_watcher_marketwatcher",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "apps/api/app/monitor/brain/analyzer.py"
+    },
+    {
+      "source": "brain_backtest_backtestengine",
+      "target": "technical_technicalanalyzer",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.7,
+      "source_file": "apps/api/app/monitor/brain/backtest.py"
+    },
+    {
+      "source": "market_signals_signal_api",
+      "target": "auth_middleware_authmiddleware",
+      "relation": "references",
+      "confidence": "INFERRED",
+      "confidence_score": 0.7,
+      "source_file": "apps/api/app/monitor/market_signals.py"
+    }
+  ],
+  "hyperedges": [
+    {
+      "id": "stock_monitor_multidimensional_analysis",
+      "label": "StockMonitor multi-dimensional analysis pipeline",
+      "nodes": [
+        "stock_monitor_stockmonitor",
+        "technical_technicalanalyzer",
+        "signal_signalgenerator",
+        "brain_analyzer_brainanalyzer"
+      ],
+      "relation": "participate_in",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/monitor/stock_monitor.py"
+    },
+    {
+      "id": "alert_orchestration_pipeline",
+      "label": "Alert orchestration and aggregation pipeline",
+      "nodes": [
+        "alert_orchestrator_alertorchestrator",
+        "aggregator_alertaggregator",
+        "models_alert_signal_alertsignal",
+        "market_signals_signal_api"
+      ],
+      "relation": "participate_in",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "apps/api/app/monitor/alert_orchestrator.py"
+    },
+    {
+      "id": "watchlist_to_monitoring_flow",
+      "label": "Watchlist population and monitoring flow",
+      "nodes": [
+        "daily_scanner_dailysignalscanner",
+        "news_processor_newssignalprocessor",
+        "intraday_monitor_intradaymonitor"
+      ],
+      "relation": "participate_in",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "apps/api/app/monitor/daily_scanner.py"
+    }
+  ],
+  "input_tokens": 0,
+  "output_tokens": 0
+}

@@ -12,19 +12,11 @@ from app.core.security import security
 from app.core.encryption import encrypt_value, decrypt_value, mask_value
 from app.core.auth import AuthenticatedUser, require_permission
 from app.storage import MongoStorage
+from app.storage.mongo_client import get_storage
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/dingtalk/configs", tags=["dingtalk"])
-
-
-storage = MongoStorage(
-    host=settings.mongodb_host,
-    port=settings.mongodb_port,
-    db_name=settings.mongodb_database,
-    username=settings.mongodb_username,
-    password=settings.mongodb_password,
-)
 
 
 class DingTalkConfigCreate(BaseModel):
@@ -61,8 +53,7 @@ class TestNotificationRequest(BaseModel):
 
 
 def get_collection():
-    if storage.db is None:
-        storage.connect()
+    storage = get_storage()
     return storage.db["dingtalk_configs"]
 
 
