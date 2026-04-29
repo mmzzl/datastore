@@ -35,19 +35,21 @@ def test_save_top_stocks():
 
 def test_get_top_stocks_by_date_range():
     col = MagicMock()
-    col.find.return_value.sort.return_value = iter([
+    col.count_documents.return_value = 2
+    col.find.return_value.sort.return_value.skip.return_value.limit.return_value = iter([
         {"date": "2026-04-25", "stocks": [], "model_id": "m1"},
         {"date": "2026-04-24", "stocks": [], "model_id": "m1"},
     ])
 
     manager = _make_manager(col)
-    results = manager.get_top_stocks(start_date="2026-04-24", end_date="2026-04-25")
+    result = manager.get_top_stocks(start_date="2026-04-24", end_date="2026-04-25")
 
     query = col.find.call_args[0][0]
     assert "date" in query
     assert "$gte" in query["date"]
     assert "$lte" in query["date"]
-    assert len(results) == 2
+    assert result["total"] == 2
+    assert len(result["items"]) == 2
 
 
 def test_get_latest_top_stocks():
@@ -80,8 +82,9 @@ def test_get_top_stocks_no_collection():
     manager._mongo_client = None
     manager._collection = None
 
-    results = manager.get_top_stocks()
-    assert results == []
+    result = manager.get_top_stocks()
+    assert result["items"] == []
+    assert result["total"] == 0
 
     result = manager.get_latest_top_stocks()
     assert result is None

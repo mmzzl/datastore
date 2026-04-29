@@ -99,6 +99,13 @@ interface TopStocksDay {
   created_at: string | null
 }
 
+interface TopStocksListResponse {
+  items: TopStocksDay[]
+  total: number
+  page: number
+  page_size: number
+}
+
 interface TrainingTask {
   task_id: string
   job_id: string
@@ -169,8 +176,8 @@ export const apiQlib = {
     return res.data
   },
 
-  async getTopStocks(startDate?: string, endDate?: string, modelId?: string): Promise<TopStocksDay[]> {
-    const params: Record<string, any> = {}
+  async getTopStocks(startDate?: string, endDate?: string, modelId?: string, page: number = 1, pageSize: number = 20): Promise<TopStocksListResponse> {
+    const params: Record<string, any> = { page, page_size: pageSize }
     if (startDate) params.start_date = startDate
     if (endDate) params.end_date = endDate
     if (modelId) params.model_id = modelId
@@ -199,4 +206,4 @@ export const apiQlib = {
   }
 }
 
-export type { TrainingRequest, TrainingStatus, Model, SelectionRequest, SelectionResult, Instrument, Experiment, ExperimentListResult, BestModel, TopStockItem, TopStocksDay, TrainingTask, TrainingTasksResponse }
+export type { TrainingRequest, TrainingStatus, Model, SelectionRequest, SelectionResult, Instrument, Experiment, ExperimentListResult, BestModel, TopStockItem, TopStocksDay, TopStocksListResponse, TrainingTask, TrainingTasksResponse }

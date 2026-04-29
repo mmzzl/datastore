@@ -80,9 +80,11 @@ class TopStocksManager:
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
         model_id: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
+        page: int = 1,
+        page_size: int = 20,
+    ) -> Dict[str, Any]:
         if self.collection is None:
-            return []
+            return {"items": [], "total": 0, "page": page, "page_size": page_size}
 
         try:
             query: Dict[str, Any] = {}
@@ -99,18 +101,20 @@ class TopStocksManager:
             if model_id:
                 query["model_id"] = model_id
 
-            cursor = self.collection.find(query).sort("date", -1)
+            total = self.collection.count_documents(query)
+            skip = (page - 1) * page_size
+            cursor = self.collection.find(query).sort("date", -1).skip(skip).limit(page_size)
 
             results = []
             for doc in cursor:
                 doc.pop("_id", None)
                 results.append(doc)
 
-            return results
+            return {"items": results, "total": total, "page": page, "page_size": page_size}
 
         except Exception as e:
             logger.error(f"Failed to get top stocks: {e}")
-            return []
+            return {"items": [], "total": 0, "page": page, "page_size": page_size}
 
     def get_latest_top_stocks(self, model_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
         if self.collection is None:

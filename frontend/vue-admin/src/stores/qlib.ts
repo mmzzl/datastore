@@ -14,6 +14,8 @@ export const useQlibStore = defineStore('qlib', () => {
   experimentsPage: 1,
   bestModel: null as BestModel | null,
   topStocks: [] as TopStocksDay[],
+  topStocksTotal: 0,
+  topStocksPage: 1,
   refreshingTopStocks: false,
   trainingTasks: [] as TrainingTask[],
   trainingTasksTotal: 0,
@@ -138,11 +140,14 @@ export const useQlibStore = defineStore('qlib', () => {
     }
   }
 
-  async function fetchTopStocks(startDate?: string, endDate?: string, modelId?: string) {
+  async function fetchTopStocks(startDate?: string, endDate?: string, modelId?: string, page: number = 1, pageSize: number = 20) {
     state.loading = true
     state.error = null
     try {
-      state.topStocks = await apiQlib.getTopStocks(startDate, endDate, modelId)
+      const res = await apiQlib.getTopStocks(startDate, endDate, modelId, page, pageSize)
+      state.topStocks = res.items
+      state.topStocksTotal = res.total
+      state.topStocksPage = page
     } catch (e: any) {
       state.error = e.response?.data?.detail || '获取Top10推荐失败'
     } finally {
@@ -156,7 +161,7 @@ export const useQlibStore = defineStore('qlib', () => {
     try {
       await apiQlib.refreshTopStocks()
       const today = new Date().toISOString().split('T')[0]
-      state.topStocks = await apiQlib.getTopStocks(today, today)
+      await fetchTopStocks(today, today, undefined, 1)
     } catch (e: any) {
       state.error = e.response?.data?.detail || '刷新Top10失败'
     } finally {

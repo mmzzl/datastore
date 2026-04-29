@@ -547,6 +547,13 @@ class TopStocksDayResponse(BaseModel):
     created_at: Optional[datetime] = None
 
 
+class TopStocksListResponse(BaseModel):
+    items: List[TopStocksDayResponse]
+    total: int
+    page: int
+    page_size: int
+
+
 @router.get("/experiments", response_model=ExperimentListResponse)
 async def list_experiments(
     page: int = 1,
@@ -621,35 +628,40 @@ async def get_best_model(
         raise HTTPException(status_code=500, detail=f"Failed to get best model: {str(e)}")
 
 
-@router.get("/top-stocks", response_model=List[TopStocksDayResponse])
+@router.get("/top-stocks", response_model=TopStocksListResponse)
 async def get_top_stocks(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     model_id: Optional[str] = None,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
     mgr: TopStocksManager = Depends(get_top_stocks_manager),
 ):
     try:
-        if start_date is None and end_date is None:
-            end_date = datetime.now().strftime("%Y-%m-%d")
-            start_date = end_date
-
-        results = mgr.get_top_stocks(
+        result = mgr.get_top_stocks(
             start_date=start_date,
             end_date=end_date,
             model_id=model_id,
+            page=page,
+            page_size=page_size,
         )
 
-        return [
-            TopStocksDayResponse(
-                date=r.get("date", ""),
-                model_id=r.get("model_id", ""),
-                model_type=r.get("model_type", ""),
-                factor=r.get("factor", ""),
-                stocks=[TopStockItem(**s) for s in r.get("stocks", [])],
-                created_at=r.get("created_at"),
-            )
-            for r in results
-        ]
+        return TopStocksListResponse(
+            items=[
+                TopStocksDayResponse(
+                    date=r.get("date", ""),
+                    model_id=r.get("model_id", ""),
+                    model_type=r.get("model_type", ""),
+                    factor=r.get("factor", ""),
+                    stocks=[TopStockItem(**s) for s in r.get("stocks", [])],
+                    created_at=r.get("created_at"),
+                )
+                for r in result["items"]
+            ],
+            total=result["total"],
+            page=result["page"],
+            page_size=result["page_size"],
+        )
     except Exception as e:
         logger.error(f"Failed to get top stocks: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get top stocks: {str(e)}")
@@ -658,8 +670,6 @@ async def get_top_stocks(
 @router.post("/top-stocks/refresh")
 async def refresh_top_stocks(
     tracker: ExperimentTracker = Depends(get_tracker),
-    predictor: QlibPredictor = Depends(get_predictor),
-    mgr: TopStocksManager = Depends(get_top_stocks_manager),
 ):
     try:
         best = tracker.get_best("backtest_result.sharpe_ratio")
@@ -670,37 +680,14 @@ async def refresh_top_stocks(
         if not model_id:
             raise HTTPException(status_code=400, detail="Best experiment has no model_id")
 
-        config = best.get("config", {})
-        today = datetime.now().strftime("%Y-%m-%d")
-
-        predictions = predictor.predict(
-            model_id=model_id,
-            topk=10,
-            date=today,
-        )
-
-        if not predictions:
-            raise HTTPException(status_code=400, detail=f"Model {model_id} produce no predictions (model file may be missing)")
-
-        stocks = [
-            {"rank": p.get("rank", i + 1), "code": p.get("code", ""), "name": p.get("name", ""), "score": p.get("score", 0.0)}
-            for i, p in enumerate(predictions[:10])
-        ]
-
-        mgr.save_top_stocks(
-            date=today,
-            model_id=model_id,
-            model_type=config.get("model_type", "lgbm"),
-            factor=config.get("factor_type", "alpha158"),
-            stocks=stocks,
-        )
-
-        return {"message": "Top stocks refreshed", "date": today, "model_id": model_id, "count": len(stocks)}
+        from app.scheduler.top_stocks_task import refresh_top_stocks as celery_refresh
+        task = celery_refresh.delay({})
+        return {"message": "Task dispatched", "task_id": task.id, "model_id": model_id}
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to refresh top stocks: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to refresh top stocks: {str(e)}")
+        logger.error(f"Failed to dispatch top stocks refresh: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to dispatch: {str(e)}")
 
 
 class SyncRequest(BaseModel):
