@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { ref, onMounted, onActivated, onUnmounted, nextTick, h } from 'vue'
+import { ref, computed, onMounted, onActivated, onUnmounted, nextTick, h } from 'vue'
 import { useQlibStore } from '../../stores/qlib'
 import { apiQlib } from '../../services/api_qlib'
 import { NDataTable, NDatePicker, NButton, NTag, NEmpty, NSpin, NSpace, NAlert, NDivider, NProgress, NPagination } from 'naive-ui'
-import type { DataTableColumns } from 'naive-ui'
 import type { TopStockItem, TrainingTask } from '../../services/api_qlib'
 import * as echarts from 'echarts'
 
@@ -11,12 +10,11 @@ const store = useQlibStore()
 const showHistory = ref(false)
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
-// date range
-const dateRange = ref<[number, number] | null>(null)
-
-// pagination
-const currentPage = ref(1)
-const pageSize = ref(20)
+// selected date (timestamp ms), default today
+const selectedDate = ref<number>(Date.now())
+// per-day stock pagination
+const stockPage = ref(1)
+const stockPageSize = 10
 
 // K-line
 const showKlineModal = ref(false)
@@ -45,34 +43,41 @@ onUnmounted(() => {
   if (klineChart) { klineChart.dispose(); klineChart = null }
 })
 
-function formatDate(ts: number): string {
+function fmt(ts: number): string {
   return new Date(ts).toISOString().split('T')[0]
 }
 
+// current day data
+const currentDay = computed(() => store.state.topStocks[0] || null)
+const pagedStocks = computed(() => {
+  if (!currentDay.value) return []
+  const all = currentDay.value.stocks
+  const start = (stockPage.value - 1) * stockPageSize
+  return all.slice(start, start + stockPageSize)
+})
+const stockTotal = computed(() => currentDay.value?.stocks?.length || 0)
+
 async function loadTopStocks() {
-  let start: string | undefined
-  let end: string | undefined
-  if (dateRange.value) {
-    start = formatDate(dateRange.value[0])
-    end = formatDate(dateRange.value[1])
+  const date = fmt(selectedDate.value)
+  await store.fetchTopStocks(date, date, undefined, 1, 20)
+  stockPage.value = 1
+}
+
+async function handleDateChange(value: number | null) {
+  if (value) {
+    selectedDate.value = value
+    await loadTopStocks()
   }
-  await store.fetchTopStocks(start, end, undefined, currentPage.value, pageSize.value)
 }
 
-async function handleDateRangeChange(value: [number, number] | null) {
-  dateRange.value = value
-  currentPage.value = 1
-  await loadTopStocks()
-}
-
-async function handlePageChange(page: number) {
-  currentPage.value = page
-  await loadTopStocks()
+async function handleStockPageChange(page: number) {
+  stockPage.value = page
 }
 
 async function handleRefresh() {
+  selectedDate.value = Date.now()
   await store.refreshTopStocks()
-  currentPage.value = 1
+  stockPage.value = 1
 }
 
 async function handleTrainNow() {
@@ -125,29 +130,20 @@ function renderKlineChart() {
   const volumes = klineData.value.map(d => d.volume)
   const closes = klineData.value.map(d => d.close)
 
-  const ma5 = calculateMA(5, closes)
-  const ma10 = calculateMA(10, closes)
-  const ma20 = calculateMA(20, closes)
+  const ma5 = calcMA(5, closes)
+  const ma10 = calcMA(10, closes)
+  const ma20 = calcMA(20, closes)
 
   const option = {
-    title: {
-      text: `${klineName.value} (${klineCode.value})`,
-      left: 'center', top: 10,
-      textStyle: { fontSize: 16, fontWeight: 'bold' }
-    },
+    title: { text: `${klineName.value} (${klineCode.value})`, left: 'center', top: 10, textStyle: { fontSize: 16, fontWeight: 'bold' } },
     tooltip: {
-      trigger: 'axis', axisPointer: { type: 'cross' },
-      borderWidth: 1, textStyle: { color: '#333' },
+      trigger: 'axis', axisPointer: { type: 'cross' }, borderWidth: 1, textStyle: { color: '#333' },
       formatter(params: any) {
         const data = klineData.value[params[0].dataIndex]
         const vol = params.find((p: any) => p.seriesType === 'bar')
-        let result = `日期: ${data.date}<br/>`
-        result += `开盘: ${data.open?.toFixed(2)}<br/>`
-        result += `收盘: ${data.close?.toFixed(2)}<br/>`
-        result += `最高: ${data.high?.toFixed(2)}<br/>`
-        result += `最低: ${data.low?.toFixed(2)}<br/>`
-        if (vol) result += `成交量: ${(vol.data / 10000).toFixed(2)}万手<br/>`
-        return result
+        let r = `日期: ${data.date}<br/>开盘: ${data.open?.toFixed(2)}<br/>收盘: ${data.close?.toFixed(2)}<br/>最高: ${data.high?.toFixed(2)}<br/>最低: ${data.low?.toFixed(2)}`
+        if (vol) r += `<br/>成交量: ${(vol.data / 10000).toFixed(2)}万手`
+        return r
       }
     },
     legend: { data: ['K线', 'MA5', 'MA10', 'MA20'], top: 40 },
@@ -177,11 +173,10 @@ function renderKlineChart() {
       }
     ]
   }
-
   klineChart.setOption(option)
 }
 
-function calculateMA(dayCount: number, data: number[]) {
+function calcMA(dayCount: number, data: number[]) {
   return data.map((_: number, i: number) => {
     if (i < dayCount - 1) return '-'
     let sum = 0
@@ -203,11 +198,7 @@ const taskColumns: DataTableColumns<TrainingTask> = [
   { title: '状态', key: 'status', width: 80,
     render: (row) => {
       const map: Record<string, [string, string]> = {
-        pending: ['等待', 'default'],
-        running: ['运行中', 'info'],
-        success: ['完成', 'success'],
-        failed: ['失败', 'error'],
-        revoked: ['已取消', 'warning'],
+        pending: ['等待', 'default'], running: ['运行中', 'info'], success: ['完成', 'success'], failed: ['失败', 'error'], revoked: ['已取消', 'warning'],
       }
       const [label, type] = map[row.status] || [row.status, 'default']
       return h(NTag, { type, size: 'small' }, () => label)
@@ -220,18 +211,12 @@ const taskColumns: DataTableColumns<TrainingTask> = [
       return h(NProgress, { percentage: row.progress || 0, height: 16, indicatorPlacement: 'inside' })
     },
   },
-  { title: '消息', key: 'message', ellipsis: { tooltip: true },
-    render: (row) => row.message || row.error_message || '-',
-  },
+  { title: '消息', key: 'message', ellipsis: { tooltip: true }, render: (row) => row.message || row.error_message || '-' },
   { title: '操作', key: 'actions', width: 120,
     render: (row) => {
       const btns = []
-      if (row.status === 'running' || row.status === 'pending') {
-        btns.push(h(NButton, { size: 'tiny', type: 'warning', onClick: () => handleRevoke(row.task_id) }, () => '取消'))
-      }
-      if (row.status === 'success' || row.status === 'failed' || row.status === 'revoked') {
-        btns.push(h(NButton, { size: 'tiny', type: 'primary', onClick: () => handleRerun(row.task_id) }, () => '重跑'))
-      }
+      if (row.status === 'running' || row.status === 'pending') btns.push(h(NButton, { size: 'tiny', type: 'warning', onClick: () => handleRevoke(row.task_id) }, () => '取消'))
+      if (row.status === 'success' || row.status === 'failed' || row.status === 'revoked') btns.push(h(NButton, { size: 'tiny', type: 'primary', onClick: () => handleRerun(row.task_id) }, () => '重跑'))
       return h(NSpace, { size: 'small' }, () => btns)
     },
   },
@@ -251,8 +236,8 @@ const taskColumns: DataTableColumns<TrainingTask> = [
 <template>
   <div class="top-stocks">
     <NSpace class="filter-bar" align="center">
-      <NDatePicker type="daterange" clearable @update:value="handleDateRangeChange" style="width: 280px" />
-      <NButton type="primary" :loading="store.state.refreshingTopStocks" @click="handleRefresh">刷新今日推荐</NButton>
+      <NDatePicker type="date" :value="selectedDate" @update:value="handleDateChange" style="width: 180px" />
+      <NButton type="primary" :loading="store.state.refreshingTopStocks" @click="handleRefresh">刷新推荐</NButton>
       <NButton type="warning" @click="handleTrainNow">开始训练</NButton>
       <NButton size="small" quaternary @click="showHistory = !showHistory">
         {{ showHistory ? '隐藏训练记录' : '训练记录' }}
@@ -275,39 +260,37 @@ const taskColumns: DataTableColumns<TrainingTask> = [
 
     <NAlert v-if="store.state.error" type="error" style="margin-bottom: 12px" closable>{{ store.state.error }}</NAlert>
     <NSpin :show="store.state.loading">
-      <div v-if="store.state.topStocks.length > 0">
-        <div v-for="day in store.state.topStocks" :key="day.date" style="margin-bottom: 20px">
-          <NTag type="info" style="margin-bottom: 8px">{{ day.date }} | 模型: {{ day.model_id }} | {{ day.model_type }} | {{ day.factor }}</NTag>
-          <NDataTable
-            :columns="[
-              { title: '排名', key: 'rank', width: 60 },
-              { title: '代码', key: 'code', width: 120 },
-              { title: '名称', key: 'name', render: (row) => row.name || row.code },
-              { title: '评分', key: 'score', width: 100, render: (row) => row.score.toFixed(4) },
-              { title: '操作', key: 'actions', width: 80,
-                render: (row) => h(NButton, { size: 'tiny', type: 'primary', onClick: () => showKline(row.code, row.name || row.code) }, () => 'K线')
-              },
-            ]"
-            :data="day.stocks"
-            :bordered="false"
-            size="small"
-            striped
-            :row-key="(row: TopStockItem) => row.code"
-          />
-        </div>
-
-        <div style="display: flex; justify-content: flex-end; margin-top: 12px">
+      <div v-if="currentDay">
+        <NTag type="info" style="margin-bottom: 8px">
+          {{ currentDay.date }} | 模型: {{ currentDay.model_id }} | {{ currentDay.model_type }} | {{ currentDay.factor }}
+        </NTag>
+        <NDataTable
+          :columns="[
+            { title: '排名', key: 'rank', width: 60 },
+            { title: '代码', key: 'code', width: 120 },
+            { title: '名称', key: 'name', render: (row) => row.name || row.code },
+            { title: '评分', key: 'score', width: 100, render: (row) => row.score.toFixed(4) },
+            { title: '操作', key: 'actions', width: 80,
+              render: (row) => h(NButton, { size: 'tiny', type: 'primary', onClick: () => showKline(row.code, row.name || row.code) }, () => 'K线')
+            },
+          ]"
+          :data="pagedStocks"
+          :bordered="false"
+          size="small"
+          striped
+          :row-key="(row: TopStockItem) => row.code"
+        />
+        <div v-if="stockTotal > stockPageSize" style="display: flex; justify-content: flex-end; margin-top: 12px">
           <NPagination
-            :page="currentPage"
-            :page-size="pageSize"
-            :item-count="store.state.topStocksTotal"
+            :page="stockPage"
+            :page-size="stockPageSize"
+            :item-count="stockTotal"
             :page-slot="7"
-            show-quick-jumper
-            @update:page="handlePageChange"
+            @update:page="handleStockPageChange"
           />
         </div>
       </div>
-      <NEmpty v-else-if="!store.state.loading" description="暂无推荐数据，点击刷新按钮生成" />
+      <NEmpty v-else-if="!store.state.loading" description="该日期暂无推荐数据" />
     </NSpin>
 
     <!-- K-line Modal -->
