@@ -174,6 +174,7 @@ def build_training_config(
         "instruments": instruments,
         "start_time": args.start,
         "end_time": args.end,
+        "topk": args.topk,  # 保存 TopK 信息
     }
 
     if args.model == "lgbm":
