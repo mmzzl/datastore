@@ -54,6 +54,7 @@ class TestNotificationRequest(BaseModel):
 
 def get_collection():
     storage = get_storage()
+    storage.connect()
     return storage.db["dingtalk_configs"]
 
 

@@ -163,6 +163,7 @@ async def get_backtest_results(
     current_user: AuthenticatedUser = Depends(require_permission("backtest:view")),
 ):
     storage = get_storage()
+    storage.connect()
     try:
         collection = storage.db["backtest_results"]
         skip = (page - 1) * page_size
@@ -215,6 +216,7 @@ async def get_backtest_results(
 
 async def save_backtest_result(result: Dict[str, Any]) -> None:
     storage = get_storage()
+    storage.connect()
     try:
         collection = storage.db["backtest_results"]
         doc = {
