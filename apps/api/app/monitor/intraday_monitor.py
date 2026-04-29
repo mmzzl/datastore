@@ -4,6 +4,7 @@ from typing import List, Dict, Any
 from datetime import datetime, timedelta
 
 from app.storage.mongo_client import MongoStorage
+from app.monitor.market_signals import add_signal
 from app.monitor.utils.st_filter import is_st_stock
 
 logger = logging.getLogger(__name__)
@@ -135,13 +136,15 @@ class IntradayMonitor:
                     if not self._is_in_cooldown(symbol, sig_type):
                         signal_doc = {
                             "symbol": symbol,
-                            "signal_type": sig_type,
+                            "code": symbol,
+                            "signal": sig_type,
+                            "alert_type": "intraday",
                             "message": sig['message'],
                             "price": sig['price'],
                             "volume": sig['volume'],
                             "timestamp": datetime.now()
                         }
-                        self.storage.save_market_signal(signal_doc)
+                        add_signal(signal_doc)
                         self._set_cooldown(symbol, sig_type)
                         logger.info(f"Market Signal Triggered: {symbol} - {sig_type}")
                     else:

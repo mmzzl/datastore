@@ -106,7 +106,7 @@ class NotificationDedupFilter:
 
     def _make_dedup_key(self, code: str, signal: str, reasons: List[str]) -> str:
         today = datetime.now().strftime("%Y-%m-%d")
-        raw = f"{today}|{code}|daily"
+        raw = f"{today}|{code}|{signal}"
         return hashlib.sha256(raw.encode()).hexdigest()
 
     @staticmethod

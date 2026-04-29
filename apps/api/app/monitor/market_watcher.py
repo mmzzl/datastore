@@ -105,11 +105,13 @@ class MarketWatcher:
                 "price": current_price,
                 "capital_flow": cap_flow,
             }
-        try:
-            # 将信号写入 MongoDB 存储，替代原有的内存 list
-            self.storage.save_market_signal(signal)
-        except Exception:
-            pass
+
+            try:
+                # 将信号写入 MongoDB 存储，替代原有的内存 list
+                self.storage.save_market_signal(signal)
+            except Exception:
+                pass
+
             self.signals_log.append(signal)
             if self.report_callback:
                 try:

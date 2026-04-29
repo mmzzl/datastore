@@ -5,6 +5,8 @@ import logging
 from app.monitor.alert_orchestrator import AlertOrchestrator
 from app.monitor.notification.priority_notifier import PriorityNotifier
 from app.notify.dingtalk import DingTalkNotifier
+from app.storage.mongo_client import MongoStorage
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -30,13 +32,44 @@ class AlertOrchestratorJob:
             )
 
     def _get_watchlist(self) -> list:
-        watchlist = self.config.get("watchlist", [])
-        if watchlist:
-            return watchlist
-        return [
-            {"code": "SH600000", "name": "浦发银行"},
-            {"code": "SH600519", "name": "贵州茅台"},
-        ]
+        config_watchlist = self.config.get("watchlist", [])
+
+        # 合并 DailySignalScanner 扫描出的 watch_list
+        db_symbols = []
+        try:
+            storage = MongoStorage(
+                host=settings.mongodb_host,
+                port=settings.mongodb_port,
+                db_name=settings.mongodb_database,
+                username=settings.mongodb_username,
+                password=settings.mongodb_password,
+            )
+            storage.connect()
+            db_symbols = storage.get_watch_list()
+            storage.close()
+        except Exception as e:
+            logger.error(f"Failed to load watch_list from DB: {e}")
+
+        # 去重合并
+        existing_codes = {item.get("code") for item in config_watchlist if item.get("code")}
+        merged = list(config_watchlist)
+        for symbol in db_symbols:
+            if symbol not in existing_codes:
+                merged.append({"code": symbol, "name": symbol})
+                existing_codes.add(symbol)
+
+        if not merged:
+            merged = [
+                {"code": "SH600000", "name": "浦发银行"},
+                {"code": "SH600519", "name": "贵州茅台"},
+            ]
+
+        logger.info(
+            f"Watchlist loaded: {len(merged)} stocks "
+            f"({len(config_watchlist)} from config, "
+            f"{len(merged) - len(config_watchlist)} from daily scanner)"
+        )
+        return merged
 
     def _get_news_keywords(self) -> dict:
         return self.config.get(
