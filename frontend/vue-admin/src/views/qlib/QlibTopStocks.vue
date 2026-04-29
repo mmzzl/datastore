@@ -43,7 +43,7 @@ onUnmounted(() => {
   if (klineChart) { klineChart.dispose(); klineChart = null }
 })
 
-function fmt(ts: number): string {
+function toLocalDateStr(ts: number): string {
   const d = new Date(ts)
   const y = d.getFullYear()
   const m = String(d.getMonth() + 1).padStart(2, '0')
@@ -62,7 +62,7 @@ const pagedStocks = computed(() => {
 const stockTotal = computed(() => currentDay.value?.stocks?.length || 0)
 
 async function loadTopStocks() {
-  const date = fmt(selectedDate.value)
+  const date = toLocalDateStr(selectedDate.value)
   await store.fetchTopStocks(date, date, undefined, 1, 20)
   stockPage.value = 1
 }
