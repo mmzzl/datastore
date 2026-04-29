@@ -2,6 +2,7 @@ import logging
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 import pandas as pd
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -59,10 +60,8 @@ class TDXAdapter(IDataSource):
         try:
             # 转换代码格式 sh.600000 -> 600000, SH600000 -> 600000, sz.000001 -> 000001
             stock_code = code.split(".")[-1] if "." in code else code
-            for prefix in ("SH", "SZ", "sh", "sz"):
-                if stock_code.startswith(prefix):
-                    stock_code = stock_code[len(prefix):]
-                    break
+            # 兼容 SH600619 格式，去掉前缀字母
+            stock_code = re.sub(r'^[A-Za-z]+', '', stock_code)
             client = self._get_client()
             if client is None:
                 return []
@@ -123,10 +122,8 @@ class TDXAdapter(IDataSource):
         try:
             # 转换代码格式 sh.600000 -> 600000, SH600000 -> 600000
             stock_code = code.split(".")[-1] if "." in code else code
-            for prefix in ("SH", "SZ", "sh", "sz"):
-                if stock_code.startswith(prefix):
-                    stock_code = stock_code[len(prefix):]
-                    break
+            # 兼容 SH600619 格式，去掉前缀字母
+            stock_code = re.sub(r'^[A-Za-z]+', '', stock_code)
 
                 # 判断市场代码
             if stock_code.startswith("6") or stock_code.startswith("9"):
@@ -171,10 +168,8 @@ class TDXAdapter(IDataSource):
         try:
             # 转换代码格式 sh.600000 -> 600000, SH600000 -> 600000
             stock_code = code.split(".")[-1] if "." in code else code
-            for prefix in ("SH", "SZ", "sh", "sz"):
-                if stock_code.startswith(prefix):
-                    stock_code = stock_code[len(prefix):]
-                    break
+            # 兼容 SH600619 格式，去掉前缀字母
+            stock_code = re.sub(r'^[A-Za-z]+', '', stock_code)
 
             # 判断市场代码
             if stock_code.startswith("6") or stock_code.startswith("9"):
@@ -265,4 +260,52 @@ class TDXAdapter(IDataSource):
     def get_minute_kline(
         self, code: str, frequency: str = "5", days: int = 5
     ) -> List[StockKLine]:
-        return []
+        """获取分钟K线数据 - 使用mootdx"""
+        if not MOOTDX_AVAILABLE:
+            return []
+
+        try:
+            import re as _re
+            stock_code = code.split(".")[-1] if "." in code else code
+            stock_code = _re.sub(r'^[A-Za-z]+', '', stock_code)
+
+            freq_map = {"1": 0, "5": 7, "15": 8, "30": 1, "60": 2}
+            freq = freq_map.get(frequency, 7)
+
+            client = self._get_client()
+            if client is None:
+                return []
+
+            # 每个交易日约 4 小时 = 48 根 5 分钟 K 线，按天数估算条数
+            bars_per_day = max(240 // int(frequency), 1)
+            offset = bars_per_day * days
+
+            df = client.bars(symbol=stock_code, frequency=freq, offset=offset)
+            if df is None or df.empty:
+                return []
+
+            result = []
+            for _, row in df.iterrows():
+                try:
+                    dt = row.get("datetime", "")
+                    if not dt:
+                        continue
+                    result.append(
+                        StockKLine(
+                            code=code,
+                            date=str(dt),
+                            open=float(row.get("open", 0)),
+                            high=float(row.get("high", 0)),
+                            low=float(row.get("low", 0)),
+                            close=float(row.get("close", 0)),
+                            volume=int(row.get("volume", 0)),
+                            amount=float(row.get("amount", 0)),
+                            change_pct=None,
+                        )
+                    )
+                except Exception:
+                    continue
+            return result
+        except Exception as e:
+            logger.warning(f"get_minute_kline({code}, {frequency}) failed: {e}")
+            return []

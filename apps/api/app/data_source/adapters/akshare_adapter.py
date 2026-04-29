@@ -1,8 +1,10 @@
 import logging
+import re
 from typing import List, Optional, Dict, Any, Tuple
 from datetime import datetime, timedelta
 import akshare as ak
 import pandas as pd
+import requests
 
 from ..interface import IDataSource
 from ..models import StockKLine, StockInfo, MarketBreadth, CorrelatedAssets
@@ -317,34 +319,60 @@ class AkshareAdapter(IDataSource):
         return 0
 
     def get_market_breadth(self) -> Optional[MarketBreadth]:
-        """获取市场广度数据"""
+        """获取市场广度数据（使用新浪接口，不依赖东方财富）"""
         try:
-            from datetime import datetime
-            import akshare as ak
+            headers = {
+                "Referer": "https://finance.sina.com.cn",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            }
 
-            spot_em = ak.stock_zh_a_spot_em()
-            advance = int(spot_em[spot_em["涨跌幅"] > 0].shape[0])
-            decline = int(spot_em[spot_em["涨跌幅"] < 0].shape[0])
+            # 从新浪行业板块数据获取涨跌家数和板块排名
+            url = "https://vip.stock.finance.sina.com.cn/q/view/newSinaHy.php"
+            r = requests.get(url, headers=headers, timeout=15)
+            r.encoding = "gbk"
+            text = r.text
 
-            north = ak.stock_em_hsgt_north_flow(indicator="北向资金")
-            north_flow = float(north["北向资金"].iloc[-1]) if not north.empty else 0.0
+            match = re.search(r"\{(.+)\}", text)
+            if not match:
+                logger.warning("新浪行业板块数据解析失败")
+                return None
 
-            sector = ak.stock_board_industry_name_em()
-            sector_sorted = sector.sort_values("涨跌幅", ascending=False)
-            sector_rankings = [
-                {"name": row["板块名称"], "change_pct": float(row["涨跌幅"])}
-                for _, row in sector_sorted.head(10).iterrows()
-            ]
+            items = re.findall(r'"(\w+)":"([^"]+)"', match.group(0))
+
+            total_advance = 0
+            sectors = []
+            for _key, val in items:
+                parts = val.split(",")
+                if len(parts) < 9:
+                    continue
+                try:
+                    up_count = int(parts[2])
+                    chg_pct = float(parts[3])
+                    name = parts[1]
+                    total_advance += up_count
+                    sectors.append({"name": name, "change_pct": chg_pct})
+                except (ValueError, IndexError):
+                    continue
+
+            # 获取A股总数来估算下跌家数
+            total_url = "https://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodeStockCount?node=hs_a"
+            total_r = requests.get(total_url, headers=headers, timeout=10)
+            total_count = int(re.search(r"\d+", total_r.text).group()) if total_r.ok else 5500
+            total_decline = max(total_count - total_advance, 0)
+
+            # 板块按涨跌幅排序取前10
+            sectors.sort(key=lambda x: x["change_pct"], reverse=True)
+            sector_rankings = sectors[:10]
 
             return MarketBreadth(
                 timestamp=datetime.now(),
-                advance_count=advance,
-                decline_count=decline,
-                advance_decline_ratio=round(advance / decline, 2)
-                if decline > 0
+                advance_count=total_advance,
+                decline_count=total_decline,
+                advance_decline_ratio=round(total_advance / total_decline, 2)
+                if total_decline > 0
                 else 99.0,
                 sector_rankings=sector_rankings,
-                north_bound_flow=north_flow,
+                north_bound_flow=0.0,  # 北向资金需东方财富，暂不可用
                 vix=DEFAULT_VIX,
             )
         except Exception as e:
@@ -399,55 +427,5 @@ class AkshareAdapter(IDataSource):
     def get_minute_kline(
         self, code: str, frequency: str = "5", days: int = 5
     ) -> List[StockKLine]:
-        """获取分钟K线数据"""
-        try:
-            import akshare as ak
-            from datetime import datetime, timedelta
-
-            if not code.startswith(("SH", "SZ")):
-                if code.startswith("6"):
-                    code = f"SH{code}"
-                else:
-                    code = f"SZ{code}"
-
-            freq_map = {"1": "1", "5": "5", "15": "15", "30": "30", "60": "60"}
-            freq = freq_map.get(frequency, "5")
-
-            end_date = datetime.now().strftime("%Y%m%d %H:%M:%S")
-            start_date = (datetime.now() - timedelta(days=days)).strftime(
-                "%Y%m%d %H:%M:%S"
-            )
-
-            df = ak.stock_zh_a_hist_min_em(
-                symbol=code,
-                period=freq,
-                start_date=start_date,
-                end_date=end_date,
-                adjust="qfq",
-            )
-
-            if df is None or df.empty:
-                return []
-
-            result = []
-            for _, row in df.iterrows():
-                try:
-                    result.append(
-                        StockKLine(
-                            code=code,
-                            date=str(row["时间"]),
-                            open=float(row["开盘"]),
-                            high=float(row["最高"]),
-                            low=float(row["最低"]),
-                            close=float(row["收盘"]),
-                            volume=int(row["成交量"]),
-                            amount=float(row.get("成交额", 0)),
-                            change_pct=float(row.get("涨跌幅", 0)),
-                        )
-                    )
-                except Exception:
-                    continue
-            return result
-        except Exception as e:
-            logger.warning(f"get_minute_kline({code}, {frequency}) failed: {e}")
-            return []
+        """akshare不提供分钟K线（依赖东方财富），由TDX adapter处理"""
+        return []
