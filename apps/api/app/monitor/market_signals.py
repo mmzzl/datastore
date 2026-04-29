@@ -25,8 +25,14 @@ def _make_dedup_key(signal: Dict[str, Any]) -> str:
 def add_signal(signal: Dict[str, Any]):
     try:
         storage = get_storage()
-        if not signal.get("timestamp"):
+        ts = signal.get("timestamp")
+        if not ts:
             signal["timestamp"] = datetime.now()
+        elif isinstance(ts, str):
+            try:
+                signal["timestamp"] = datetime.fromisoformat(ts)
+            except ValueError:
+                signal["timestamp"] = datetime.now()
         if not signal.get("code") and signal.get("symbol"):
             signal["code"] = signal["symbol"]
         if not signal.get("symbol") and signal.get("code"):

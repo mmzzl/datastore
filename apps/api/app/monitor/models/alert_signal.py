@@ -32,7 +32,7 @@ class AlertSignal:
 
     def to_dict(self) -> Dict[str, Any]:
         return {
-            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
+            "timestamp": self.timestamp if self.timestamp else None,
             "code": self.code,
             "name": self.name,
             "signal": self.signal.value,
