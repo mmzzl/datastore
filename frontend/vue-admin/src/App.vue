@@ -19,9 +19,12 @@
           <button @click="logout" class="logout-btn">退出登录</button>
         </div>
       </aside>
-      <main class="content">
-        <router-view />
-      </main>
+      <div class="content-wrapper">
+        <main class="content">
+          <router-view />
+        </main>
+        <Footer />
+      </div>
     </div>
     <router-view v-else />
   </n-message-provider>
@@ -32,6 +35,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { NMessageProvider } from 'naive-ui'
 import { authService, apiAuth } from './services/api'
+import Footer from './components/Footer.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -135,6 +139,12 @@ body {
 .logout-btn:hover {
   background: #475569;
   color: #fff;
+}
+.content-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
 }
 .content {
   flex: 1;
