@@ -4,6 +4,39 @@ from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
+_name_map: Optional[Dict[str, str]] = None
+
+
+def _get_name_map() -> Dict[str, str]:
+    global _name_map
+    if _name_map is not None:
+        return _name_map
+    _name_map = {}
+    try:
+        import os
+        import pandas as pd
+        csv_path = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", "data", "all_stock.csv"))
+        df = pd.read_csv(csv_path, usecols=["code", "code_name"])
+        for _, row in df.iterrows():
+            raw = str(row["code"]).strip()
+            name = str(row["code_name"]).strip()
+            pure = raw.split(".")[-1] if "." in raw else raw
+            market = raw.split(".")[0].upper() if "." in raw else ""
+            key = f"{market}{pure}" if market else pure
+            _name_map[key] = name
+            _name_map[pure] = name
+    except Exception as e:
+        logger.warning(f"Failed to load stock names: {e}")
+    return _name_map
+
+
+def _fill_stock_names(stocks: List[Dict[str, Any]]) -> None:
+    """原地补全空 name 字段"""
+    nm = _get_name_map()
+    for s in stocks:
+        if not s.get("name") and s.get("code"):
+            s["name"] = nm.get(s["code"], s["code"])
+
 
 class TopStocksManager:
 
@@ -53,6 +86,7 @@ class TopStocksManager:
         factor: str,
         stocks: List[Dict[str, Any]],
     ) -> str:
+        _fill_stock_names(stocks)
         document = {
             "date": date,
             "model_id": model_id,
@@ -108,6 +142,7 @@ class TopStocksManager:
             results = []
             for doc in cursor:
                 doc.pop("_id", None)
+                _fill_stock_names(doc.get("stocks", []))
                 results.append(doc)
 
             return {"items": results, "total": total, "page": page, "page_size": page_size}
@@ -128,6 +163,7 @@ class TopStocksManager:
             doc = self.collection.find_one(query, sort=[("date", -1)])
             if doc:
                 doc.pop("_id", None)
+                _fill_stock_names(doc.get("stocks", []))
                 return doc
 
         except Exception as e:

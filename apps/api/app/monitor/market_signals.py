@@ -24,8 +24,7 @@ def get_stock_name(code: str) -> str:
         return _stock_name_cache[code]
 
     import os
-    csv_path = os.path.join(os.path.dirname(__file__), "..", "..", "data", "all_stock.csv")
-    csv_path = os.path.normpath(csv_path)
+    csv_path = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", "data", "all_stock.csv"))
 
     try:
         import pandas as pd

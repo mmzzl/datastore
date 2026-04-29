@@ -17,6 +17,32 @@ from .model_manager import ModelManager
 
 logger = logging.getLogger(__name__)
 
+_stock_name_map: Optional[Dict[str, str]] = None
+
+
+def _load_stock_name_map() -> Dict[str, str]:
+    """加载 all_stock.csv，返回 {SH600519: '贵州茅台', ...} 映射"""
+    global _stock_name_map
+    if _stock_name_map is not None:
+        return _stock_name_map
+    _stock_name_map = {}
+    try:
+        import os
+        csv_path = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", "data", "all_stock.csv"))
+        df = pd.read_csv(csv_path, usecols=["code", "code_name"])
+        for _, row in df.iterrows():
+            raw = str(row["code"]).strip()
+            name = str(row["code_name"]).strip()
+            pure = raw.split(".")[-1] if "." in raw else raw
+            market = raw.split(".")[0].upper() if "." in raw else ""
+            key = f"{market}{pure}" if market else pure
+            _stock_name_map[key] = name
+            _stock_name_map[pure] = name
+        logger.info(f"Loaded {_stock_name_map.__len__()} stock names from all_stock.csv")
+    except Exception as e:
+        logger.warning(f"Failed to load stock names: {e}")
+    return _stock_name_map
+
 
 class QlibPredictor:
     """
@@ -317,23 +343,7 @@ class QlibPredictor:
             return ""
         # 缓存避免重复读 CSV
         if not hasattr(self, "_name_cache"):
-            self._name_cache = {}
-            try:
-                import os
-                csv_path = os.path.join(os.path.dirname(__file__), "..", "data", "all_stock.csv")
-                csv_path = os.path.normpath(csv_path)
-                import pandas as pd
-                df = pd.read_csv(csv_path, usecols=["code", "code_name"])
-                for _, row in df.iterrows():
-                    raw = str(row["code"]).strip()
-                    name = str(row["code_name"]).strip()
-                    pure = raw.split(".")[-1] if "." in raw else raw
-                    market = raw.split(".")[0].upper() if "." in raw else ""
-                    key = f"{market}{pure}" if market else pure
-                    self._name_cache[key] = name
-                    self._name_cache[pure] = name
-            except Exception as e:
-                logger.warning(f"Failed to load stock names: {e}")
+            self._name_cache = _load_stock_name_map()
         return self._name_cache.get(code, "")
     
     def _get_cached(self, cache_key: str) -> Optional[Dict[str, Any]]:

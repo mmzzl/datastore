@@ -30,9 +30,6 @@ let klineChart: echarts.ECharts | null = null
 onMounted(async () => {
   await loadTopStocks()
   await store.fetchTrainingTasks()
-  if (store.state.trainingTasks.some(t => t.status === 'running' || t.status === 'pending')) {
-    showHistory.value = true
-  }
   pollTimer = setInterval(() => store.fetchTrainingTasks(), 15000)
 })
 
