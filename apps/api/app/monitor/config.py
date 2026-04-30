@@ -95,6 +95,17 @@ class MonitorConfig:
             # 获取当前监控股票池
             monitor_stocks = mongo.get_monitor_stocks()
 
+            # 从持仓集合获取股票
+            holdings_coll = mongo.db.get_collection("holdings")
+            holding_codes = set()
+            holding_costs = {}
+            if holdings_coll is not None:
+                for h in holdings_coll.find({"quantity": {"$gt": 0}}):
+                    code = h.get("code", "")
+                    if code:
+                        holding_codes.add(code)
+                        holding_costs[code] = h.get("average_cost", 0)
+
             # 如果监控股票池为空，初始化监控股票池
             if not monitor_stocks:
                 # 合并配置文件中的股票和新闻分析后的股票
@@ -106,6 +117,9 @@ class MonitorConfig:
                     code = stock.get("code")
                     if code and code not in seen_codes:
                         seen_codes.add(code)
+                        if code in holding_codes:
+                            stock["hold"] = True
+                            stock["cost_price"] = holding_costs.get(code, 0)
                         all_stocks.append(stock)
 
                 # 再添加新闻分析后的股票
@@ -113,18 +127,37 @@ class MonitorConfig:
                     code = stock.get("code")
                     if code and code not in seen_codes:
                         seen_codes.add(code)
+                        if code in holding_codes:
+                            stock["hold"] = True
+                            stock["cost_price"] = holding_costs.get(code, 0)
                         all_stocks.append(stock)
+
+                # 添加持仓中但不在配置和新闻中的股票
+                for code in holding_codes:
+                    if code not in seen_codes:
+                        seen_codes.add(code)
+                        all_stocks.append({
+                            "code": code,
+                            "name": "",
+                            "hold": True,
+                            "cost_price": holding_costs.get(code, 0),
+                            "rsi_buy_level": 30,
+                            "rsi_sell_level": 70,
+                            "k_buy_level": 20,
+                            "k_sell_level": 80,
+                        })
 
                 # 保存到监控股票池
                 if all_stocks:
                     mongo.save_monitor_stocks(all_stocks)
                 mongo.close()
-                logger.info(f"初始化监控股票池，共 {len(all_stocks)} 只股票")
+                logger.info(f"初始化监控股票池，共 {len(all_stocks)} 只股票（持仓 {len(holding_codes)} 只）")
                 return all_stocks
             else:
                 # 检查是否有新的新闻分析股票需要添加
                 seen_codes = set(stock.get("code") for stock in monitor_stocks)
                 new_stocks = []
+                updated = False
 
                 # 添加新的新闻分析股票
                 for stock in news_stocks:
@@ -134,10 +167,33 @@ class MonitorConfig:
                         monitor_stocks.append(stock)
                         new_stocks.append(stock)
 
-                # 如果有新股票，更新监控股票池
-                if new_stocks:
+                # 同步持仓股票到监控股票池
+                for stock in monitor_stocks:
+                    code = stock.get("code", "")
+                    if code in holding_codes and not stock.get("hold"):
+                        stock["hold"] = True
+                        stock["cost_price"] = holding_costs.get(code, 0)
+                        updated = True
+
+                for code in holding_codes:
+                    if code not in seen_codes:
+                        seen_codes.add(code)
+                        monitor_stocks.append({
+                            "code": code,
+                            "name": "",
+                            "hold": True,
+                            "cost_price": holding_costs.get(code, 0),
+                            "rsi_buy_level": 30,
+                            "rsi_sell_level": 70,
+                            "k_buy_level": 20,
+                            "k_sell_level": 80,
+                        })
+                        new_stocks.append({"code": code})
+
+                # 如果有新股票或持仓更新，更新监控股票池
+                if new_stocks or updated:
                     mongo.save_monitor_stocks(monitor_stocks)
-                    logger.info(f"添加 {len(new_stocks)} 只新股票到监控股票池")
+                    logger.info(f"更新监控股票池：新增 {len(new_stocks)} 只，持仓同步 {len(holding_codes)} 只")
 
                 mongo.close()
                 logger.info(f"从监控股票池获取到 {len(monitor_stocks)} 只股票")
