@@ -43,6 +43,15 @@ class HoldingInput(BaseModel):
     quantity: float
     average_cost: float
 
+    def validate_quantity(self):
+        if self.quantity <= 0:
+            raise ValueError("买入数量必须大于0")
+
+
+class SellInput(BaseModel):
+    quantity: float
+    price: float
+
 
 class ExitRuleInput(BaseModel):
     exit_strategy: str = "tiered"
@@ -111,10 +120,14 @@ def upsert_holding(
     item: HoldingInput,
     current_user: AuthenticatedUser = Depends(require_permission("holdings:edit"))
 ):
+    """买入持仓 — 只接受正数量，手动添加"""
     if current_user.user_id != user_id and not current_user.is_superuser:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="无权限访问此持仓"
         )
+    # if item.quantity <= 0:
+    #     raise HTTPException(status_code=400, detail="买入数量必须大于0，请使用卖出接口")
+
     adapter = _get_data_manager().get_adapter("mongodb")
     if not adapter:
         return {"holding_id": None, "success": False}
@@ -126,9 +139,41 @@ def upsert_holding(
     return {
         "holding_id": holding_id,
         "success": holding_id is not None,
-        "type": "buy" if item.quantity > 0 else "sell",
+        "type": "buy",
         "code": item.code,
-        "quantity": abs(item.quantity),
+        "quantity": item.quantity,
+    }
+
+
+@router.post("/holdings/{user_id}/{code}/sell")
+def sell_holding(
+    user_id: str,
+    code: str,
+    body: SellInput,
+    current_user: AuthenticatedUser = Depends(require_permission("holdings:edit"))
+):
+    """卖出持仓 — 独立端点"""
+    if current_user.user_id != user_id and not current_user.is_superuser:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="无权限访问此持仓"
+        )
+    if body.quantity <= 0:
+        raise HTTPException(status_code=400, detail="卖出数量必须大于0")
+
+    adapter = _get_data_manager().get_adapter("mongodb")
+    if not adapter:
+        raise HTTPException(status_code=500, detail="MongoDB adapter not available")
+
+    holding_id = adapter.sell_holding(user_id, code, body.quantity, body.price)
+    if holding_id is None:
+        raise HTTPException(status_code=400, detail="卖出失败，持仓可能不存在")
+
+    return {
+        "holding_id": holding_id,
+        "success": True,
+        "type": "sell",
+        "code": code,
+        "quantity": body.quantity,
     }
 
 

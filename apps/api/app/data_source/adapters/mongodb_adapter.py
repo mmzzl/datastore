@@ -286,82 +286,18 @@ class MongoDBAdapter(IDataSource):
         except Exception as e:
             logger.error(f"Upsert 持仓失败: {e}")
             return None
-        try:
-            tx_type = "buy" if quantity > 0 else "sell"
-            self.add_transaction(user_id, code, quantity, price, tx_type)
 
-            transactions = self.get_transactions(user_id, code)
-
-            # 计算当前持仓数量
-            total_buy_qty = sum(
-                t["quantity"] for t in transactions if t["type"] == "buy"
-            )
-            total_sell_qty = sum(
-                t["quantity"] for t in transactions if t["type"] == "sell"
-            )
-            current_qty = total_buy_qty - total_sell_qty
-
-            coll = getattr(self.storage, "holdings_collection", None)
-            if coll is None:
-                return None
-
-            now = __import__("datetime").datetime.now()
-            existing = coll.find_one({"user_id": user_id, "code": code})
-
-            # 计算成本（移动平均法）
-            avg_cost = 0.0
-            if current_qty > 0:
-                if existing and tx_type == "buy":
-                    # 买入时：加权平均
-                    old_qty = existing.get("quantity", 0)
-                    old_cost = existing.get("average_cost", 0)
-                    new_qty = quantity if quantity > 0 else 0
-                    if old_qty + new_qty > 0:
-                        avg_cost = (old_qty * old_cost + new_qty * price) / (
-                            old_qty + new_qty
-                        )
-                    else:
-                        avg_cost = old_cost
-                elif existing:
-                    # 卖出时：成本不变
-                    avg_cost = existing.get("average_cost", 0)
-                else:
-                    # 首次买入
-                    avg_cost = price
-
-            if existing:
-                coll.update_one(
-                    {"_id": existing.get("_id")},
-                    {
-                        "$set": {
-                            "quantity": current_qty,
-                            "average_cost": avg_cost,
-                            "updated_at": now,
-                        }
-                    },
-                )
-                return str(existing.get("_id"))
-            else:
-                doc = {
-                    "user_id": user_id,
-                    "code": code,
-                    "quantity": current_qty,
-                    "average_cost": avg_cost,
-                    "created_at": now,
-                    "updated_at": now,
-                }
-                res = coll.insert_one(doc)
-                return str(res.inserted_id)
-        except Exception as e:
-            logger.error(f"Upsert 持仓失败: {e}")
+    def sell_holding(
+        self, user_id: str, code: str, quantity: float, price: float
+    ) -> Optional[str]:
+        """卖出持仓，记录卖出交易并更新持仓数量和成本"""
+        if not self.storage or quantity <= 0:
             return None
         try:
-            tx_type = "buy" if quantity > 0 else "sell"
-            self.add_transaction(user_id, code, quantity, price, tx_type)
+            self.add_transaction(user_id, code, quantity, price, "sell")
 
-            transactions = self.get_transactions(user_id, code)
+            transactions = self.get_transactions(user_id, code).get("items", [])
 
-            # 计算当前持仓数量
             total_buy_qty = sum(
                 t["quantity"] for t in transactions if t["type"] == "buy"
             )
@@ -370,17 +306,15 @@ class MongoDBAdapter(IDataSource):
             )
             current_qty = total_buy_qty - total_sell_qty
 
-            # 计算移动平均成本
-            # 买入：加权平均 = (原金额 + 新金额) / 总数量
-            # 卖出：不改变成本，只减少数量
+            total_buy_amount = sum(
+                t["quantity"] * t["price"] for t in transactions if t["type"] == "buy"
+            )
+            total_sell_amount = sum(
+                t["quantity"] * t["price"] for t in transactions if t["type"] == "sell"
+            )
             avg_cost = 0.0
             if current_qty > 0:
-                total_cost = sum(
-                    t["quantity"] * t["price"]
-                    for t in transactions
-                    if t["type"] == "buy"
-                )
-                avg_cost = total_cost / current_qty
+                avg_cost = (total_buy_amount - total_sell_amount) / current_qty
 
             coll = getattr(self.storage, "holdings_collection", None)
             if coll is None:
@@ -401,179 +335,9 @@ class MongoDBAdapter(IDataSource):
                     },
                 )
                 return str(existing.get("_id"))
-            else:
-                doc = {
-                    "user_id": user_id,
-                    "code": code,
-                    "quantity": current_qty,
-                    "average_cost": avg_cost,
-                    "created_at": now,
-                    "updated_at": now,
-                }
-                res = coll.insert_one(doc)
-                return str(res.inserted_id)
-        except Exception as e:
-            logger.error(f"Upsert 持仓失败: {e}")
             return None
-        try:
-            tx_type = "buy" if quantity > 0 else "sell"
-            self.add_transaction(user_id, code, quantity, price, tx_type)
-
-            transactions = self.get_transactions(user_id, code)
-
-            # 计算当前持仓数量
-            total_buy_qty = sum(
-                t["quantity"] for t in transactions if t["type"] == "buy"
-            )
-            total_sell_qty = sum(
-                t["quantity"] for t in transactions if t["type"] == "sell"
-            )
-            current_qty = total_buy_qty - total_sell_qty
-
-            # 计算剩余持仓的加权平均成本（FIFO）
-            avg_cost = 0.0
-            if current_qty > 0:
-                # FIFO: 按时间顺序匹配卖出
-                buy_queue = [
-                    (t["quantity"], t["price"])
-                    for t in transactions
-                    if t["type"] == "buy"
-                ]
-                sell_total = total_sell_qty
-
-                # 模拟FIFO卖出，移除已卖出的部分
-                remaining_buys = []
-                for buy_qty, buy_price in buy_queue:
-                    if sell_total > 0:
-                        if sell_total >= buy_qty:
-                            sell_total -= buy_qty
-                        else:
-                            remaining_buys.append((buy_qty - sell_total, buy_price))
-                            sell_total = 0
-                    else:
-                        remaining_buys.append((buy_qty, buy_price))
-
-                # 计算剩余持仓的加权平均成本
-                total_cost = sum(q * p for q, p in remaining_buys)
-                avg_cost = total_cost / current_qty if current_qty > 0 else 0.0
-
-            coll = getattr(self.storage, "holdings_collection", None)
-            if coll is None:
-                return None
-
-            now = __import__("datetime").datetime.now()
-            existing = coll.find_one({"user_id": user_id, "code": code})
-
-            if existing:
-                coll.update_one(
-                    {"_id": existing.get("_id")},
-                    {
-                        "$set": {
-                            "quantity": current_qty,
-                            "average_cost": avg_cost,
-                            "updated_at": now,
-                        }
-                    },
-                )
-                return str(existing.get("_id"))
-            else:
-                doc = {
-                    "user_id": user_id,
-                    "code": code,
-                    "quantity": current_qty,
-                    "average_cost": avg_cost,
-                    "created_at": now,
-                    "updated_at": now,
-                }
-                res = coll.insert_one(doc)
-                return str(res.inserted_id)
         except Exception as e:
-            logger.error(f"Upsert 持仓失败: {e}")
-            return None
-        try:
-            tx_type = "buy" if quantity > 0 else "sell"
-            self.add_transaction(user_id, code, quantity, price, tx_type)
-
-            transactions = self.get_transactions(user_id, code)
-            total_buy_qty = sum(
-                t["quantity"] for t in transactions if t["type"] == "buy"
-            )
-            total_sell_qty = sum(
-                t["quantity"] for t in transactions if t["type"] == "sell"
-            )
-            current_qty = total_buy_qty - total_sell_qty
-
-            # 计算加权平均成本
-            avg_cost = 0.0
-            if current_qty > 0:
-                weighted_sum = sum(
-                    t["quantity"] * t["price"]
-                    for t in transactions
-                    if t["type"] == "buy"
-                )
-                # 减去已卖出部分的成本（FIFO）
-                sell_qty_remaining = total_sell_qty
-                for tx in transactions:
-                    if tx["type"] == "buy":
-                        sell_qty_remaining -= tx["quantity"]
-                # 计算剩余持仓的成本
-                if sell_qty_remaining < total_buy_qty:
-                    remaining_cost = 0.0
-                    for tx in transactions:
-                        if tx["type"] == "buy":
-                            remaining_qty = min(
-                                tx["quantity"],
-                                max(
-                                    0,
-                                    total_buy_qty
-                                    - sell_qty_remaining
-                                    - (
-                                        total_buy_qty
-                                        - sell_qty_remaining
-                                        - tx["quantity"]
-                                    ),
-                                ),
-                            )
-                            if sell_qty_remaining > 0:
-                                sell_qty_remaining -= tx["quantity"]
-                                continue
-                            remaining_cost += tx["quantity"] * tx["price"]
-                    avg_cost = remaining_cost / current_qty if current_qty > 0 else 0.0
-                else:
-                    avg_cost = 0.0
-
-            coll = getattr(self.storage, "holdings_collection", None)
-            if coll is None:
-                return None
-
-            now = __import__("datetime").datetime.now()
-            existing = coll.find_one({"user_id": user_id, "code": code})
-
-            if existing:
-                coll.update_one(
-                    {"_id": existing.get("_id")},
-                    {
-                        "$set": {
-                            "quantity": current_qty,
-                            "average_cost": avg_cost,
-                            "updated_at": now,
-                        }
-                    },
-                )
-                return str(existing.get("_id"))
-            else:
-                doc = {
-                    "user_id": user_id,
-                    "code": code,
-                    "quantity": current_qty,
-                    "average_cost": avg_cost,
-                    "created_at": now,
-                    "updated_at": now,
-                }
-                res = coll.insert_one(doc)
-                return str(res.inserted_id)
-        except Exception as e:
-            logger.error(f"Upsert 持仓失败: {e}")
+            logger.error(f"卖出持仓失败: {e}")
             return None
 
     def remove_holding(self, user_id: str, code: str) -> int:
@@ -589,6 +353,10 @@ class MongoDBAdapter(IDataSource):
         except Exception as e:
             logger.error(f"移除持仓失败: {e}")
             return 0
+
+    def set_holdings(self, user_id: str, holdings: List[Dict[str, Any]]) -> List[str]:
+        """已禁用 — 持仓只能通过手动买入添加"""
+        raise RuntimeError("批量设定持仓已禁用，请通过买入接口手动添加")
 
     def get_market_breadth(self) -> Optional[MarketBreadth]:
         return None
@@ -687,43 +455,6 @@ class MongoDBAdapter(IDataSource):
         except Exception as e:
             logger.error(f"设置 Settings 失败: {e}")
             raise RuntimeError(f"保存设置失败: {e}")
-
-    def set_holdings(self, user_id: str, holdings: List[Dict[str, Any]]) -> List[str]:
-        """批量设定持仓，覆盖当前用户的所有持仓记录（只更新数量大于0的，保留历史记录）"""
-        if not self.storage:
-            return []
-        try:
-            coll = getattr(self.storage, "holdings_collection", None)
-            if coll is None:
-                return []
-            now = __import__("datetime").datetime.now()
-            result_ids = []
-
-            # 首先删除所有数量大于0的当前持仓（保留历史记录）
-            coll.delete_many({"user_id": user_id, "quantity": {"$gt": 0}})
-
-            # 插入新的持仓
-            for h in holdings:
-                quantity = float(h.get("quantity", 0))
-                if quantity <= 0:
-                    continue
-
-                doc = {
-                    "user_id": user_id,
-                    "code": h.get("code"),
-                    "quantity": quantity,
-                    "average_cost": float(h.get("average_cost", 0)),
-                    "name": h.get("name"),
-                    "created_at": now,
-                    "updated_at": now,
-                }
-                result = coll.insert_one(doc)
-                result_ids.append(str(result.inserted_id))
-
-            return result_ids
-        except Exception as e:
-            logger.error(f"设置持仓失败: {e}")
-            return []
 
     def add_transaction(
         self,

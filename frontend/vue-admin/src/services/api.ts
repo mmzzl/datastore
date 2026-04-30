@@ -93,6 +93,10 @@ export const apiHoldings = {
     const res = await api.post(`/holdings/${userId}`, payload)
     return res.data
   },
+  async sellHolding(userId: string, code: string, quantity: number, price: number) {
+    const res = await api.post(`/holdings/${userId}/${code}/sell`, { quantity, price })
+    return res.data
+  },
   async removeHolding(userId: string, code: string) {
     const res = await api.delete(`/holdings/${userId}/${code}`)
     return res.data

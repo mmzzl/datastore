@@ -84,6 +84,14 @@ export const useHoldingsStore = defineStore('holdings', () => {
     await fetchHoldings(userId, state.currentPage)
   }
 
+  async function sellHolding(userId: string, code: string, quantity: number, price: number) {
+    if (!authService.isAuthenticated()) {
+      throw new Error('未登录')
+    }
+    await apiHoldings.sellHolding(userId, code, quantity, price)
+    await fetchHoldings(userId, state.currentPage)
+  }
+
   async function removeHolding(userId: string, code: string) {
     if (!authService.isAuthenticated()) {
       throw new Error('未登录')
@@ -115,11 +123,12 @@ export const useHoldingsStore = defineStore('holdings', () => {
     }
   }
 
-  return { 
-    state, 
-    fetchHoldings, 
+  return {
+    state,
+    fetchHoldings,
     saveHolding,
+    sellHolding,
     removeHolding,
-    refreshPortfolio 
+    refreshPortfolio
   }
 })

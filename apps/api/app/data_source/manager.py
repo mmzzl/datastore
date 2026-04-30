@@ -222,16 +222,6 @@ class DataSourceManager:
                     return data
         return []
 
-    def set_holdings(self, user_id: str, holdings: List[Dict[str, Any]]) -> List[str]:
-        """批量设定持仓，使用具备 set_holdings 的数据源实现"""
-        for provider, adapter in self._adapters.items():
-            try:
-                if hasattr(adapter, "set_holdings"):
-                    return adapter.set_holdings(user_id, holdings)
-            except Exception:
-                continue
-        return []
-
     # 新增 holdings 的统一入口（按优先级使用第一个实现了 holdings 的数据源）
     def get_holdings(self, user_id: str) -> List[Dict[str, Any]]:
         """获取指定用户的持仓列表（若某数据源实现了 holdings，将优先使用）"""

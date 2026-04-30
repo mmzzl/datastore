@@ -779,11 +779,10 @@ async function onSellHolding() {
     return
   }
   try {
-    await store.saveHolding(
+    await store.sellHolding(
       userId.value,
       sellHolding.value.code,
-      sellHolding.value.name,
-      -sellHolding.value.quantity,
+      sellHolding.value.quantity,
       sellHolding.value.price
     )
     showSellForm.value = false
