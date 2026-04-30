@@ -79,37 +79,33 @@ async def get_current_user(
             )
 
     storage = get_storage()
-    try:
-        storage.connect()
-        user_data = storage.get_user_by_username(username)
-        if user_data is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="用户不存在",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-
-        if user_data.get("status") != "active":
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="用户已被禁用",
-            )
-
-        role_id = user_data.get("role_id")
-        role_data = storage.get_role_by_id(role_id) if role_id else None
-        permissions = role_data.get("permissions", []) if role_data else []
-        is_superuser = user_data.get("is_superuser", False)
-
-        return AuthenticatedUser(
-            username=user_data.get("username"),
-            user_id=str(user_data.get("_id")),
-            display_name=user_data.get("display_name", ""),
-            role_id=role_id,
-            permissions=permissions,
-            is_superuser=is_superuser,
+    user_data = storage.get_user_by_username(username)
+    if user_data is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="用户不存在",
+            headers={"WWW-Authenticate": "Bearer"},
         )
-    finally:
-        storage.close()
+
+    if user_data.get("status") != "active":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="用户已被禁用",
+        )
+
+    role_id = user_data.get("role_id")
+    role_data = storage.get_role_by_id(role_id) if role_id else None
+    permissions = role_data.get("permissions", []) if role_data else []
+    is_superuser = user_data.get("is_superuser", False)
+
+    return AuthenticatedUser(
+        username=user_data.get("username"),
+        user_id=str(user_data.get("_id")),
+        display_name=user_data.get("display_name", ""),
+        role_id=role_id,
+        permissions=permissions,
+        is_superuser=is_superuser,
+    )
 
 
 def require_permission(permission: str):
