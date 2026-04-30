@@ -242,6 +242,37 @@ def run_risk_report_job():
         logging.error(f"Risk report job failed: {e}")
         logging.error(traceback.format_exc())
 
+def run_daily_recommendation_job():
+    if datetime.now().weekday() >= 5:
+        logging.info("Skipping daily recommendation job: weekend")
+        return
+    try:
+        import asyncio
+        from app.scheduler import DailyRecommendationJob
+        job = DailyRecommendationJob(build_config())
+        loop = asyncio.new_event_loop()
+        try:
+            result = loop.run_until_complete(job.run())
+            logging.info(f"Daily recommendation job result: {result}")
+        finally:
+            loop.close()
+    except Exception as e:
+        logging.error(f"Daily recommendation job failed: {e}")
+        logging.error(traceback.format_exc())
+
+def run_holdings_sell_alert_job():
+    if datetime.now().weekday() >= 5:
+        logging.info("Skipping holdings sell alert job: weekend")
+        return
+    try:
+        from app.scheduler import HoldingsSellAlertJob
+        job = HoldingsSellAlertJob(build_config())
+        result = job.run()
+        logging.info(f"Holdings sell alert job result: {result}")
+    except Exception as e:
+        logging.error(f"Holdings sell alert job failed: {e}")
+        logging.error(traceback.format_exc())
+
 # ====================== 调度配置 ======================
 def setup_scheduler():
     job_time = settings.after_market_scheduler_time
@@ -352,6 +383,28 @@ def setup_scheduler():
         minute=35,
         timezone=timezone,
         id="risk_report_job",
+        misfire_grace_time=3600,
+        coalesce=True
+    )
+
+    scheduler.add_job(
+        run_daily_recommendation_job,
+        "cron",
+        hour=15,
+        minute=40,
+        timezone=timezone,
+        id="daily_recommendation_job",
+        misfire_grace_time=3600,
+        coalesce=True
+    )
+
+    scheduler.add_job(
+        run_holdings_sell_alert_job,
+        "cron",
+        hour=15,
+        minute=50,
+        timezone=timezone,
+        id="holdings_sell_alert_job",
         misfire_grace_time=3600,
         coalesce=True
     )

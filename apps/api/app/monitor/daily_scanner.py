@@ -1,3 +1,4 @@
+import os
 import pandas as pd
 import logging
 from typing import List, Dict, Any, Optional
@@ -8,6 +9,9 @@ from app.monitor.utils.st_filter import is_st_stock, filter_st_tickers
 
 logger = logging.getLogger(__name__)
 
+_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+_DATA_DIR = os.path.normpath(os.path.join(_BASE_DIR, "..", "..", "data"))
+
 
 class DailySignalScanner:
     """
@@ -17,8 +21,8 @@ class DailySignalScanner:
 
     def __init__(self, storage: MongoStorage):
         self.storage = storage
-        self.hs300_path = "apps/api/data/hs300_stocks.csv"
-        self.zz500_path = "apps/api/data/zz500_stocks.csv"
+        self.hs300_path = os.path.join(_DATA_DIR, "hs300_stocks.csv")
+        self.zz500_path = os.path.join(_DATA_DIR, "zz500_stocks.csv")
 
     def _get_index_stocks(self) -> Dict[str, str]:
         """Loads HS300 and ZZ500 stocks from CSV into a code -> name map."""

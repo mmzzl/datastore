@@ -247,7 +247,7 @@ class StockSelectionEngine:
                         task, code, "NO_DATA", "No K-line data found in storage"
                     )
                     continue
-                if len(klines) <<  30:
+                if len(klines) < 30:
                     self._log_filtration(
                         task,
                         code,
