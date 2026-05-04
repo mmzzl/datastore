@@ -21,10 +21,39 @@ def _get_executions_collection():
     return client[settings.mongodb_database]["job_executions"]
 
 
+def _get_notifier():
+    """Get DingTalk notifier if configured."""
+    try:
+        from app.notify.dingtalk import DingTalkNotifier
+
+        webhook = settings.after_market_dingtalk_webhook
+        secret = settings.after_market_dingtalk_secret
+        if webhook:
+            return DingTalkNotifier(webhook_url=webhook, secret=secret)
+    except Exception:
+        pass
+    return None
+
+
+def _send_dingtalk(title: str, content: str):
+    notifier = _get_notifier()
+    if notifier:
+        try:
+            markdown = f"## {title}\n\n{content}"
+            notifier.send(markdown=markdown)
+        except Exception as e:
+            logger.warning(f"Failed to send DingTalk notification: {e}")
+
+
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=300)
 def run_training(self, config: dict):
     task_id = self.request.id
     coll = _get_executions_collection()
+
+    job_name = "Qlib模型训练"
+    model_type = config.get("model_type", "lgbm")
+    instruments = config.get("instruments", "csi300")
+
     try:
         coll.insert_one({
             "task_id": task_id,
@@ -48,16 +77,24 @@ def run_training(self, config: dict):
             }}
         )
 
+    _send_dingtalk(
+        f"\U0001f504 {job_name}开始",
+        f"- 任务类型: Qlib模型训练\n"
+        f"- 开始时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+        f"- 模型类型: {model_type}\n"
+        f"- 股票池: {instruments}",
+    )
+
     trainer = QlibTrainer(
         model_dir=config.get("model_dir", settings.qlib_model_dir),
         min_sharpe_ratio=config.get("min_sharpe_ratio", settings.qlib_min_sharpe_ratio),
     )
 
     training_config = {
-        "instruments": config.get("instruments", "csi300"),
+        "instruments": instruments,
         "start_time": config.get("start_time", "2015-01-01"),
         "end_time": config.get("end_time", datetime.now().strftime("%Y-%m-%d")),
-        "model_type": config.get("model_type", "lgbm"),
+        "model_type": model_type,
         "factor_type": config.get("factor_type", "alpha158"),
     }
 
@@ -91,6 +128,10 @@ def run_training(self, config: dict):
                         {"task_id": task_id},
                         {"$set": {"status": "revoked", "message": "Cancelled by user", "completed_at": datetime.now()}}
                     )
+                    _send_dingtalk(
+                        f"⚠️ {job_name}已取消",
+                        f"- 任务ID: {task_id}\n- 取消时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                    )
                     del trainer
                     return {"status": "revoked", "message": "Cancelled by user"}
             except Exception:
@@ -115,6 +156,16 @@ def run_training(self, config: dict):
                     "completed_at": datetime.now(),
                 }}
             )
+
+            _send_dingtalk(
+                f"✅ {job_name}完成",
+                f"- 任务ID: {task_id}\n"
+                f"- 模型ID: {model_id}\n"
+                f"- Sharpe比率: {metrics.get('sharpe_ratio', 0):.4f}\n"
+                f"- IC: {metrics.get('ic', 0):.4f}\n"
+                f"- 预测数量: {metrics.get('num_predictions', 0)}",
+            )
+
             return result
         else:
             error = status.get("error", "Unknown error")
@@ -126,6 +177,14 @@ def run_training(self, config: dict):
                     "completed_at": datetime.now(),
                 }}
             )
+
+            _send_dingtalk(
+                f"❌ {job_name}失败",
+                f"- 任务ID: {task_id}\n"
+                f"- 错误信息: {error}\n"
+                f"- 完成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            )
+
             raise RuntimeError(error)
 
     except Exception as e:
@@ -133,6 +192,14 @@ def run_training(self, config: dict):
         if is_mongo_error and self.request.retries < self.max_retries:
             logger.warning(f"MongoDB unavailable, will retry ({self.request.retries + 1}/{self.max_retries}): {e}")
             raise self.retry(exc=e)
+
+        _send_dingtalk(
+            f"❌ {job_name}异常",
+            f"- 任务ID: {task_id}\n"
+            f"- 错误信息: {str(e)}\n"
+            f"- 完成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+        )
+
         coll_none = _get_executions_collection()
         try:
             coll_none.update_one(

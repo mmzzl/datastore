@@ -11,7 +11,7 @@ from typing import Dict, List, Optional, Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from ...core.auth import AuthenticatedUser, require_permission, get_storage
+from ...core.auth import AuthenticatedUser, require_permission
 from ...schemas.stock_selection import (
     StockPoolType,
     SelectionStatus,

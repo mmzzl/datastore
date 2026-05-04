@@ -1,6 +1,5 @@
-import asyncio
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import MagicMock, patch
 from datetime import datetime
 
 from app.notify.dingtalk import DingTalkNotifier
@@ -11,40 +10,47 @@ class TestDingTalkTrainingNotification:
     """Test 18.1: Configure DingTalk → Weekly training → Receive notification"""
 
     @pytest.mark.asyncio
-    async def test_training_job_sends_start_notification(self, mock_dingtalk_notifier):
+    async def test_training_job_dispatches_to_celery(self):
         config = {
             "model_type": "lgbm",
-            "dingtalk_webhook": "https://oapi.dingtalk.com/robot/send?access_token=test",
-            "dingtalk_secret": "test_secret",
+            "instruments": "csi300",
         }
 
-        job = QlibTrainJob(config)
-        job._get_notifier = MagicMock(return_value=mock_dingtalk_notifier)
-        job._get_trainer = MagicMock()
+        with patch("app.scheduler.qlib_train_job.celery_app") as mock_celery:
+            mock_task = MagicMock()
+            mock_task.id = "celery_task_001"
+            mock_celery.send_task.return_value = mock_task
 
-        mock_trainer = MagicMock()
-        mock_trainer.start_training = MagicMock(return_value="train_001")
-        mock_trainer.get_status = MagicMock(return_value={
-            "status": "completed",
-            "model_id": "model_001",
-            "metrics": {"sharpe_ratio": 2.0, "ic": 0.05},
-        })
-        job._get_trainer.return_value = mock_trainer
+            job = QlibTrainJob(config)
+            result = await job.run(config)
 
-        with patch('asyncio.to_thread', new_callable=AsyncMock) as mock_to_thread:
-            mock_to_thread.side_effect = lambda fn, *args, **kwargs: fn(*args, **kwargs) if asyncio.iscoroutinefunction(fn) else asyncio.get_event_loop().run_in_executor(None, fn, *args)
-            
-            try:
-                result = await job.run(config)
-            except Exception:
-                pass
+        mock_celery.send_task.assert_called_once_with(
+            "app.qlib.train_task.run_training",
+            kwargs={"config": config},
+        )
+        assert result == {
+            "status": "submitted",
+            "task_id": "celery_task_001",
+            "message": "Qlib training task has been queued",
+        }
 
-        assert mock_dingtalk_notifier.send.called or True
+    @pytest.mark.asyncio
+    async def test_training_job_returns_failed_on_celery_error(self):
+        config = {"model_type": "lgbm"}
+
+        with patch("app.scheduler.qlib_train_job.celery_app") as mock_celery:
+            mock_celery.send_task.side_effect = Exception("Redis unavailable")
+
+            job = QlibTrainJob(config)
+            result = await job.run(config)
+
+        assert result["status"] == "failed"
+        assert "Redis unavailable" in result["error"]
 
     @pytest.mark.asyncio
     async def test_dingtalk_config_round_trip(self, test_db):
         from app.core.encryption import encrypt_value, decrypt_value
-        
+
         webhook = "https://oapi.dingtalk.com/robot/send?access_token=test123"
         secret = "SEC123456"
 
@@ -53,30 +59,6 @@ class TestDingTalkTrainingNotification:
 
         assert decrypt_value(encrypted_webhook) == webhook
         assert decrypt_value(encrypted_secret) == secret
-
-    @pytest.mark.asyncio
-    async def test_training_notification_on_failure(self, mock_dingtalk_notifier):
-        config = {
-            "model_type": "lgbm",
-            "dingtalk_webhook": "https://oapi.dingtalk.com/robot/send?access_token=test",
-        }
-
-        job = QlibTrainJob(config)
-        job._get_notifier = MagicMock(return_value=mock_dingtalk_notifier)
-        job._get_trainer = MagicMock()
-
-        mock_trainer = MagicMock()
-        mock_trainer.start_training = MagicMock(return_value="train_001")
-        mock_trainer.get_status = MagicMock(return_value={
-            "status": "failed",
-            "error": "Training data not found",
-        })
-        job._get_trainer.return_value = mock_trainer
-
-        with pytest.raises(RuntimeError):
-            with patch('asyncio.to_thread', new_callable=AsyncMock) as mock_to_thread:
-                mock_to_thread.side_effect = lambda fn, *args, **kwargs: fn(*args, **kwargs)
-                await job.run(config)
 
     @pytest.mark.asyncio
     async def test_dingtalk_skip_when_no_webhook(self):
