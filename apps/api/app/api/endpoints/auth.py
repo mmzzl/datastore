@@ -7,7 +7,8 @@ from fastapi import APIRouter, HTTPException, status, Depends
 
 from app.core.config import settings
 from app.core.security import security
-from app.core.auth import get_current_user, get_storage, AuthenticatedUser
+from app.core.auth import get_current_user, AuthenticatedUser
+from app.storage import get_async_storage
 from app.schemas.user import (
     TokenRequest,
     TokenResponse,
@@ -15,15 +16,14 @@ from app.schemas.user import (
     RegisterRequest,
 )
 from app.user.password import hash_password, verify_password
-from app.storage import MongoStorage
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/auth", tags=["authentication"])
 
 
-def _create_default_admin_sync(storage: MongoStorage) -> str:
-    """同步创建默认超级管理员"""
+async def _create_default_admin(storage) -> str:
+    """异步创建默认超级管理员"""
     from app.core.permissions import DEFAULT_ROLES
 
     # 确保超级管理员角色存在
@@ -34,11 +34,11 @@ def _create_default_admin_sync(storage: MongoStorage) -> str:
             break
 
     if superuser_role:
-        existing_role = storage.get_role_by_id("role_superuser")
+        existing_role = await storage.get_role_by_id("role_superuser")
         if not existing_role:
             superuser_role["created_at"] = datetime.now()
             superuser_role["updated_at"] = datetime.now()
-            storage.save_role(superuser_role)
+            await storage.save_role(superuser_role)
             logger.info("Created superuser role")
 
     # 创建超级管理员用户
@@ -54,7 +54,7 @@ def _create_default_admin_sync(storage: MongoStorage) -> str:
         "login_count": 0,
     }
 
-    user_id = storage.save_user(admin_user)
+    user_id = await storage.save_user(admin_user)
     logger.info(f"Created default admin user: {settings.admin_username}")
     return user_id
 
@@ -67,8 +67,7 @@ async def login_for_access_token(request: TokenRequest):
     1. 超级管理员：使用配置文件中的 default_admin_username 和 default_admin_password
     2. 普通用户：使用数据库中的用户信息
     """
-    storage = get_storage()
-    storage.connect()
+    storage = await get_async_storage()
     # 优先检查配置文件中的超级管理员
     if request.username == settings.auth_username:
         passwd = f"{request.password}sangfornetwork"
@@ -79,18 +78,18 @@ async def login_for_access_token(request: TokenRequest):
             )
 
         # 超级管理员登录
-        user_data = storage.get_user_by_username(request.username)
+        user_data = await storage.get_user_by_username(request.username)
 
         if user_data is None:
             # 数据库中不存在，自动创建
-            user_id = _create_default_admin_sync(storage)
-            user_data = storage.get_user_by_username(request.username)
+            user_id = await _create_default_admin(storage)
+            user_data = await storage.get_user_by_username(request.username)
         else:
             # 更新登录时间
-            storage.update_user_login(str(user_data["_id"]))
+            await storage.update_user_login(str(user_data["_id"]))
 
         role_id = user_data.get("role_id", "role_superuser")
-        role_data = storage.get_role_by_id(role_id) if role_id else None
+        role_data = await storage.get_role_by_id(role_id) if role_id else None
         permissions: List[str] = role_data.get("permissions", []) if role_data else []
         role_name = role_data.get("name", "") if role_data else ""
 
@@ -122,7 +121,7 @@ async def login_for_access_token(request: TokenRequest):
         )
 
     # 普通用户登录
-    user_data = storage.get_user_by_username(request.username)
+    user_data = await storage.get_user_by_username(request.username)
 
     if user_data is None:
         raise HTTPException(
@@ -145,12 +144,12 @@ async def login_for_access_token(request: TokenRequest):
         )
 
     role_id = user_data.get("role_id")
-    role_data = storage.get_role_by_id(role_id) if role_id else None
+    role_data = await storage.get_role_by_id(role_id) if role_id else None
     permissions: List[str] = role_data.get("permissions", []) if role_data else []
     role_name = role_data.get("name", "") if role_data else ""
     is_superuser = user_data.get("is_superuser", False)
 
-    storage.update_user_login(str(user_data["_id"]))
+    await storage.update_user_login(str(user_data["_id"]))
 
     access_token_expires = timedelta(minutes=settings.jwt_access_token_expire_minutes)
     access_token = security.create_access_token(
@@ -191,11 +190,10 @@ async def register(request: RegisterRequest):
 
     注册的普通用户默认使用 'user' 角色，需要管理员激活后才能登录
     """
-    storage = get_storage()
-    storage.connect()
+    storage = await get_async_storage()
 
     # 检查用户名是否已存在
-    existing = storage.get_user_by_username(request.username)
+    existing = await storage.get_user_by_username(request.username)
     if existing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -210,7 +208,7 @@ async def register(request: RegisterRequest):
         )
 
     # 获取默认用户角色
-    default_role = storage.get_role_by_id("role_user")
+    default_role = await storage.get_role_by_id("role_user")
     if not default_role:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -232,7 +230,7 @@ async def register(request: RegisterRequest):
         "updated_at": now,
     }
 
-    user_id = storage.save_user(new_user)
+    user_id = await storage.save_user(new_user)
     logger.info(f"New user registered: {request.username}")
 
     return {
@@ -248,9 +246,8 @@ async def change_password(
     current_user: AuthenticatedUser = Depends(get_current_user),
 ):
     """修改密码"""
-    storage = get_storage()
-    storage.connect()
-    user_data = storage.get_user_by_username(current_user.username)
+    storage = await get_async_storage()
+    user_data = await storage.get_user_by_username(current_user.username)
 
     if user_data is None:
         raise HTTPException(
@@ -265,7 +262,7 @@ async def change_password(
         )
 
     new_password_hash = hash_password(request.new_password)
-    storage.update_user(str(user_data["_id"]), {"password_hash": new_password_hash})
+    await storage.update_user(str(user_data["_id"]), {"password_hash": new_password_hash})
 
     logger.info(f"User {current_user.username} changed password")
     return {"message": "密码修改成功"}
@@ -274,9 +271,8 @@ async def change_password(
 @router.get("/me", response_model=dict)
 async def get_current_user_info(current_user: AuthenticatedUser = Depends(get_current_user)):
     """获取当前用户信息"""
-    storage = get_storage()
-    storage.connect()
-    user_data = storage.get_user_by_username(current_user.username)
+    storage = await get_async_storage()
+    user_data = await storage.get_user_by_username(current_user.username)
 
     if user_data is None:
         raise HTTPException(
@@ -284,7 +280,7 @@ async def get_current_user_info(current_user: AuthenticatedUser = Depends(get_cu
             detail="用户不存在",
         )
 
-    role_data = storage.get_role_by_id(current_user.role_id) if current_user.role_id else None
+    role_data = await storage.get_role_by_id(current_user.role_id) if current_user.role_id else None
     role_name = role_data.get("name", "") if role_data else ""
 
     return {

@@ -15,8 +15,7 @@ import io
 import csv
 import json
 
-from ...storage import MongoStorage
-from ...storage.mongo_client import get_storage
+from ...storage import get_async_storage
 from ...core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -263,14 +262,13 @@ def parse_pagination_params(
 
 
 @router.get("/kline/{code}")
-def get_stock_kline(
+async def get_stock_kline(
     code: str,
     start_date: Optional[str] = Query(None, description="开始日期 YYYY-MM-DD"),
     end_date: Optional[str] = Query(None, description="结束日期 YYYY-MM-DD"),
     limit: int = Query(
         100, ge=1, le=QueryConfig.MAX_SINGLE_QUERY_RECORDS, description="返回数量"
     ),
-    storage: MongoStorage = Depends(get_storage),
 ):
     """
     获取股票K线数据
@@ -294,8 +292,9 @@ def get_stock_kline(
         # 处理代码，去掉前缀
         pure_code = code.split("SZ")[-1].split("SH")[-1].split("sz")[-1].split("sh")[-1]
 
+        storage = await get_async_storage()
         # 查询数据
-        results = storage.get_kline(pure_code, start_date, end_date, limit)
+        results = await storage.get_kline(pure_code, start_date, end_date, limit)
 
         logger.info(f"获取股票 {code} K线数据: {len(results)} 条记录")
 
@@ -319,12 +318,11 @@ def get_stock_kline(
 
 
 @router.get("/kline/{code}/paginated")
-def get_stock_kline_paginated(
+async def get_stock_kline_paginated(
     code: str,
     start_date: Optional[str] = Query(None, description="开始日期 YYYY-MM-DD"),
     end_date: Optional[str] = Query(None, description="结束日期 YYYY-MM-DD"),
     pagination: PaginationParams = Depends(parse_pagination_params),
-    storage: MongoStorage = Depends(get_storage),
 ):
     """
     获取股票K线数据（分页）
@@ -345,9 +343,10 @@ def get_stock_kline_paginated(
         # 验证日期范围
         DataValidator.validate_date_range(start_date, end_date)
 
+        storage = await get_async_storage()
         # 查询数据（带分页）
-        results = storage.get_kline(
-            code, start_date, end_date, limit=pagination.page_size, skip=pagination.skip
+        results = await storage.get_kline(
+            code, start_date, end_date, limit=pagination.page_size
         )
 
         # 获取总数（可能需要额外查询）
@@ -372,12 +371,11 @@ def get_stock_kline_paginated(
 
 
 @router.get("/kline/all/{date}")
-def get_all_stocks_kline(
+async def get_all_stocks_kline(
     date: str,
     limit: int = Query(
         1000, ge=1, le=QueryConfig.MAX_SINGLE_QUERY_RECORDS, description="返回数量"
     ),
-    storage: MongoStorage = Depends(get_storage),
 ):
     """
     获取指定日期所有股票的K线数据
@@ -393,8 +391,9 @@ def get_all_stocks_kline(
         # 验证limit
         limit = DataValidator.validate_limit(limit)
 
+        storage = await get_async_storage()
         # 查询数据
-        results = storage.get_all_kline_by_date(date, limit)
+        results = await storage.get_all_kline_by_date(date, limit)
 
         logger.info(f"获取 {date} 全部股票K线数据: {len(results)} 条记录")
 
@@ -410,10 +409,9 @@ def get_all_stocks_kline(
 
 
 @router.get("/kline/all/{date}/paginated")
-def get_all_stocks_kline_paginated(
+async def get_all_stocks_kline_paginated(
     date: str,
     pagination: PaginationParams = Depends(parse_pagination_params),
-    storage: MongoStorage = Depends(get_storage),
 ):
     """
     获取指定日期所有股票的K线数据（分页）
@@ -429,9 +427,10 @@ def get_all_stocks_kline_paginated(
         分页的股票K线数据
     """
     try:
+        storage = await get_async_storage()
         # 查询数据（带分页）
-        results = storage.get_all_kline_by_date(
-            date, limit=pagination.page_size, skip=pagination.skip
+        results = await storage.get_all_kline_by_date(
+            date, limit=pagination.page_size
         )
 
         # 获取总数
@@ -453,8 +452,8 @@ def get_all_stocks_kline_paginated(
 
 
 @router.get("/kline/{code}/{date}")
-def get_stock_kline_by_date(
-    code: str, date: str, storage: MongoStorage = Depends(get_storage)
+async def get_stock_kline_by_date(
+    code: str, date: str,
 ):
     """
     获取指定日期的股票K线数据
@@ -467,7 +466,8 @@ def get_stock_kline_by_date(
         指定日期的股票K线数据
     """
     try:
-        result = storage.get_kline_by_date(code, date)
+        storage = await get_async_storage()
+        result = await storage.get_kline_by_date(code, date)
 
         if not result:
             raise HTTPException(status_code=404, detail="数据不存在")
@@ -484,11 +484,10 @@ def get_stock_kline_by_date(
 
 
 @router.get("/klines")
-def get_all_stocks_klines(
+async def get_all_stocks_klines(
     start_date: Optional[str] = Query(None, description="开始日期 YYYY-MM-DD"),
     end_date: Optional[str] = Query(None, description="结束日期 YYYY-MM-DD"),
     limit: Optional[int] = Query(None, ge=1, description="返回数量限制"),
-    storage: MongoStorage = Depends(get_storage),
 ):
     """
     获取所有股票的K线数据（用于计算技术指标）
@@ -510,8 +509,9 @@ def get_all_stocks_klines(
         # 验证limit
         limit = DataValidator.validate_limit(limit)
 
+        storage = await get_async_storage()
         # 查询数据
-        results = storage.get_all_klines(start_date, end_date, limit)
+        results = await storage.get_all_klines(start_date, end_date, limit)
 
         if not results:
             return {"success": False, "message": "没有找到数据", "data": []}
@@ -568,11 +568,10 @@ def get_all_stocks_klines(
 
 
 @router.get("/klines/paginated")
-def get_all_stocks_klines_paginated(
+async def get_all_stocks_klines_paginated(
     start_date: Optional[str] = Query(None, description="开始日期 YYYY-MM-DD"),
     end_date: Optional[str] = Query(None, description="结束日期 YYYY-MM-DD"),
     pagination: PaginationParams = Depends(parse_pagination_params),
-    storage: MongoStorage = Depends(get_storage),
 ):
     """
     获取所有股票的K线数据（分页）
@@ -592,9 +591,10 @@ def get_all_stocks_klines_paginated(
         # 验证日期范围
         DataValidator.validate_date_range(start_date, end_date)
 
+        storage = await get_async_storage()
         # 查询数据（带分页）
-        results = storage.get_all_klines(
-            start_date, end_date, limit=pagination.page_size, skip=pagination.skip
+        results = await storage.get_all_klines(
+            start_date, end_date, limit=pagination.page_size
         )
 
         # 获取总数
@@ -619,11 +619,10 @@ def get_all_stocks_klines_paginated(
 
 
 @router.get("/klines/export")
-def export_all_stocks_klines(
+async def export_all_stocks_klines(
     start_date: Optional[str] = Query(None, description="开始日期 YYYY-MM-DD"),
     end_date: Optional[str] = Query(None, description="结束日期 YYYY-MM-DD"),
     format: ExportFormat = Query(ExportFormat.CSV, description="导出格式"),
-    storage: MongoStorage = Depends(get_storage),
 ):
     """
     导出所有股票的K线数据
@@ -642,8 +641,9 @@ def export_all_stocks_klines(
         # 验证日期范围
         DataValidator.validate_date_range(start_date, end_date)
 
+        storage = await get_async_storage()
         # 查询数据（不限制数量，但需要验证）
-        results = storage.get_all_klines(start_date, end_date, limit=None)
+        results = await storage.get_all_klines(start_date, end_date, limit=None)
 
         if not results:
             raise HTTPException(status_code=404, detail="没有数据可导出")
@@ -669,12 +669,11 @@ def export_all_stocks_klines(
 
 
 @router.get("/kline/{code}/export")
-def export_stock_kline(
+async def export_stock_kline(
     code: str,
     start_date: Optional[str] = Query(None, description="开始日期 YYYY-MM-DD"),
     end_date: Optional[str] = Query(None, description="结束日期 YYYY-MM-DD"),
     format: ExportFormat = Query(ExportFormat.CSV, description="导出格式"),
-    storage: MongoStorage = Depends(get_storage),
 ):
     """
     导出指定股票的K线数据
@@ -692,8 +691,9 @@ def export_stock_kline(
         # 验证日期范围
         DataValidator.validate_date_range(start_date, end_date)
 
+        storage = await get_async_storage()
         # 查询数据
-        results = storage.get_kline(code, start_date, end_date, limit=None)
+        results = await storage.get_kline(code, start_date, end_date, limit=None)
 
         if not results:
             raise HTTPException(status_code=404, detail="没有数据可导出")
@@ -719,7 +719,7 @@ def export_stock_kline(
 
 
 @router.get("/stats")
-def get_data_stats(storage: MongoStorage = Depends(get_storage)):
+async def get_data_stats():
     """
     获取数据库统计信息
 
@@ -727,7 +727,8 @@ def get_data_stats(storage: MongoStorage = Depends(get_storage)):
     数据库统计信息
     """
     try:
-        stats = storage.get_collection_stats()
+        storage = await get_async_storage()
+        stats = await storage.get_collection_stats()
 
         return {
             "success": True,

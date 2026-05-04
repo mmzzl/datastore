@@ -3,7 +3,6 @@
 Provides REST and WebSocket endpoints for backtest management.
 """
 
-import asyncio
 import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -20,7 +19,7 @@ from app.backtest.async_engine import AsyncBacktestEngine
 from app.backtest.strategies.factory import StrategyFactory
 from app.core.config import settings
 from app.core.auth import AuthenticatedUser, require_permission
-from app.storage.mongo_client import get_storage
+from app.storage import get_async_storage
 import os
 import zipfile
 import importlib
@@ -162,19 +161,17 @@ async def get_backtest_results(
     page_size: int = Query(default=20, ge=1, le=100, description="Items per page"),
     current_user: AuthenticatedUser = Depends(require_permission("backtest:view")),
 ):
-    storage = get_storage()
-    storage.connect()
+    storage = await get_async_storage()
     try:
         collection = storage.db["backtest_results"]
         skip = (page - 1) * page_size
 
-        total = await asyncio.to_thread(collection.count_documents, {})
+        total = await collection.count_documents({})
 
-        docs = await asyncio.to_thread(
-            lambda: list(
-                collection.find({}).sort("created_at", -1).skip(skip).limit(page_size)
-            )
-        )
+        docs = []
+        cursor = collection.find({}).sort("created_at", -1).skip(skip).limit(page_size)
+        async for doc in cursor:
+            docs.append(doc)
 
         items = []
         for doc in docs:
@@ -215,8 +212,7 @@ async def get_backtest_results(
 
 
 async def save_backtest_result(result: Dict[str, Any]) -> None:
-    storage = get_storage()
-    storage.connect()
+    storage = await get_async_storage()
     try:
         collection = storage.db["backtest_results"]
         doc = {
@@ -231,7 +227,7 @@ async def save_backtest_result(result: Dict[str, Any]) -> None:
             "trades": result.get("trades", []),
             "created_at": datetime.now(),
         }
-        await asyncio.to_thread(collection.insert_one, doc)
+        await collection.insert_one(doc)
         logger.info(f"Saved backtest result: task_id={doc.get('task_id')}")
 
     except Exception as e:
@@ -368,7 +364,7 @@ async def upload_strategy_plugin(
             metadata = getattr(strategy_class, "PLUGIN_METADATA", {})
 
             # Save to MongoDB
-            storage = get_storage()
+            storage = await get_async_storage()
             plugin_data = {
                 "name": metadata.get("name", module_name),
                 "description": metadata.get("description", ""),
@@ -381,7 +377,7 @@ async def upload_strategy_plugin(
                 "parameters": metadata.get("parameters", {}),
             }
 
-            plugin_id = storage.save_strategy_plugin(plugin_data)
+            plugin_id = await storage.save_strategy_plugin(plugin_data)
 
             return {
                 "id": plugin_id,
@@ -410,8 +406,8 @@ async def get_strategy_plugins():
     """
     Get all strategy plugins.
     """
-    storage = get_storage()
-    plugins = storage.get_all_strategy_plugins()
+    storage = await get_async_storage()
+    plugins = await storage.get_all_strategy_plugins()
 
     items = []
     for plugin in plugins:
@@ -446,9 +442,9 @@ async def delete_strategy_plugin(
     """
     Delete a strategy plugin.
     """
-    storage = get_storage()
+    storage = await get_async_storage()
     # Get plugin info first
-    plugin = storage.get_strategy_plugin(plugin_id)
+    plugin = await storage.get_strategy_plugin(plugin_id)
     if not plugin:
         raise HTTPException(status_code=404, detail="Plugin not found")
 
@@ -462,7 +458,7 @@ async def delete_strategy_plugin(
             shutil.rmtree(plugin_path)
 
     # Delete from MongoDB
-    deleted = storage.delete_strategy_plugin(plugin_id)
+    deleted = await storage.delete_strategy_plugin(plugin_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Failed to delete plugin")
 
@@ -476,8 +472,8 @@ async def get_strategy_plugin(
     """
     Get a strategy plugin by ID.
     """
-    storage = get_storage()
-    plugin = storage.get_strategy_plugin(plugin_id)
+    storage = await get_async_storage()
+    plugin = await storage.get_strategy_plugin(plugin_id)
     if not plugin:
         raise HTTPException(status_code=404, detail="Plugin not found")
 

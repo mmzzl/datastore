@@ -2,8 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from typing import Optional
 import logging
 
-from ...storage import MongoStorage
-from ...storage.mongo_client import get_storage
+from ...storage import get_async_storage
 from ...scheduler import AfterMarketJob
 from ...core.config import settings
 
@@ -13,20 +12,22 @@ router = APIRouter(prefix="/after-market", tags=["盘后信息"])
 
 
 @router.get("")
-def get_after_market_list(limit: int = 50, storage: MongoStorage = Depends(get_storage)):
+async def get_after_market_list(limit: int = 50):
     """获取盘后信息列表"""
     try:
-        return storage.get_all(limit)
+        storage = await get_async_storage()
+        return await storage.get_all(limit)
     except Exception as e:
         logger.error(f"Failed to get list: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/{date}")
-def get_after_market_by_date(date: str, storage: MongoStorage = Depends(get_storage)):
+async def get_after_market_by_date(date: str):
     """根据日期获取盘后信息"""
     try:
-        data = storage.get_by_date(date)
+        storage = await get_async_storage()
+        data = await storage.get_by_date(date)
         if not data:
             raise HTTPException(status_code=404, detail="Not found")
         return data
@@ -38,10 +39,11 @@ def get_after_market_by_date(date: str, storage: MongoStorage = Depends(get_stor
 
 
 @router.delete("/{date}")
-def delete_after_market(date: str, storage: MongoStorage = Depends(get_storage)):
+async def delete_after_market(date: str):
     """删除盘后信息"""
     try:
-        count = storage.delete(date)
+        storage = await get_async_storage()
+        count = await storage.delete(date)
         if count == 0:
             raise HTTPException(status_code=404, detail="Not found")
         return {"deleted": count}

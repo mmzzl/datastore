@@ -27,8 +27,9 @@ from app.backtest.plugin.validator import (
 )
 from app.backtest.plugin.loader import PluginLoader
 from app.backtest.plugin.registry import PluginRegistry
-from app.core.auth import AuthenticatedUser, get_storage, require_permission
+from app.core.auth import AuthenticatedUser, require_permission
 from app.core.config import settings
+from app.storage.mongo_client import get_storage
 from app.storage import MongoStorage
 
 logger = logging.getLogger(__name__)

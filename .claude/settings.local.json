@@ -15,7 +15,13 @@
       "Bash(git commit -m ' *)",
       "Bash(npx vue-tsc *)",
       "Bash(npx vite *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(Remove-Item -ErrorAction SilentlyContinue .graphify_detect.json, .graphify_extract.json, .graphify_ast.json, .graphify_semantic.json, .graphify_analysis.json, .graphify_labels.json, .graphify_cached.json, .graphify_uncached.txt, .graphify_python)",
+      "Bash(Remove-Item -ErrorAction SilentlyContinue graphify-out/.graphify_chunk_*.json)",
+      "Bash(Remove-Item -ErrorAction SilentlyContinue .graphify_chunk_*.txt, .graphify_semantic_extract.py, .graphify_extract_helper.py)",
+      "Bash(rm -f graphify-out/.graphify_chunk_*.json)",
+      "Bash(rm -f .graphify_chunk_*.txt .graphify_semantic_extract.py .graphify_extract_helper.py)",
+      "Bash(graphify update *)"
     ]
   }
 }

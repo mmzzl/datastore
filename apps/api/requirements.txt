@@ -1,6 +1,7 @@
 fastapi
 uvicorn
 pymongo
+motor
 numpy
 python-jose[cryptography]
 pydantic[email]

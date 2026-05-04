@@ -226,26 +226,20 @@ async def list_training_tasks(
     current_user: AuthenticatedUser = Depends(require_permission("qlib:view")),
 ):
     try:
-        from pymongo import MongoClient
-        client = MongoClient(
-            host=settings.mongodb_host,
-            port=settings.mongodb_port,
-            username=settings.mongodb_username,
-            password=settings.mongodb_password,
-        )
-        coll = client[settings.mongodb_database]["job_executions"]
+        from app.storage import get_async_storage
+        storage = await get_async_storage()
+        coll = storage.db["job_executions"]
         query = {"job_id": "qlib_train"}
-        total = coll.count_documents(query)
+        total = await coll.count_documents(query)
         skip = (page - 1) * page_size
-        docs = list(coll.find(query).sort("created_at", -1).skip(skip).limit(page_size))
         items = []
-        for doc in docs:
+        cursor = coll.find(query).sort("created_at", -1).skip(skip).limit(page_size)
+        async for doc in cursor:
             doc["_id"] = str(doc["_id"])
             for f in ("created_at", "updated_at", "completed_at", "started_at"):
                 if isinstance(doc.get(f), datetime):
                     doc[f] = doc[f].isoformat()
             items.append(doc)
-        client.close()
         return {"items": items, "total": total, "page": page, "page_size": page_size}
     except Exception as e:
         logger.error(f"Failed to list training tasks: {e}")
@@ -260,19 +254,13 @@ async def revoke_training_task(
     try:
         from app.celery_app import celery_app
         celery_app.control.revoke(task_id, terminate=True, signal="SIGTERM")
-        from pymongo import MongoClient
-        client = MongoClient(
-            host=settings.mongodb_host,
-            port=settings.mongodb_port,
-            username=settings.mongodb_username,
-            password=settings.mongodb_password,
-        )
-        coll = client[settings.mongodb_database]["job_executions"]
-        coll.update_one(
+        from app.storage import get_async_storage
+        storage = await get_async_storage()
+        coll = storage.db["job_executions"]
+        await coll.update_one(
             {"task_id": task_id},
             {"$set": {"status": "revoked", "message": "Cancelled by user", "completed_at": datetime.now()}}
         )
-        client.close()
         logger.info(f"Training task revoked: {task_id}")
         return {"ok": True, "task_id": task_id}
     except Exception as e:
@@ -286,16 +274,10 @@ async def rerun_training_task(
     current_user: AuthenticatedUser = Depends(require_permission("qlib:manage")),
 ):
     try:
-        from pymongo import MongoClient
-        client = MongoClient(
-            host=settings.mongodb_host,
-            port=settings.mongodb_port,
-            username=settings.mongodb_username,
-            password=settings.mongodb_password,
-        )
-        coll = client[settings.mongodb_database]["job_executions"]
-        doc = coll.find_one({"task_id": task_id})
-        client.close()
+        from app.storage import get_async_storage
+        storage = await get_async_storage()
+        coll = storage.db["job_executions"]
+        doc = await coll.find_one({"task_id": task_id})
         if not doc:
             raise HTTPException(status_code=404, detail="Task not found")
         config = doc.get("config", {})

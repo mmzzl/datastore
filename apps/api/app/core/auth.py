@@ -7,8 +7,7 @@ from app.core.config import settings
 from app.core.security import security
 from app.user.models import User
 from app.user.password import verify_password
-from app.storage import MongoStorage
-from app.storage.mongo_client import get_storage
+from app.storage import get_async_storage
 from app.role.models import Role
 from app.auth import verify_token as verify_custom_token
 
@@ -78,8 +77,8 @@ async def get_current_user(
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
-    storage = get_storage()
-    user_data = storage.get_user_by_username(username)
+    storage = await get_async_storage()
+    user_data = await storage.get_user_by_username(username)
     if user_data is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -94,7 +93,7 @@ async def get_current_user(
         )
 
     role_id = user_data.get("role_id")
-    role_data = storage.get_role_by_id(role_id) if role_id else None
+    role_data = await storage.get_role_by_id(role_id) if role_id else None
     permissions = role_data.get("permissions", []) if role_data else []
     is_superuser = user_data.get("is_superuser", False)
 

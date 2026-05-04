@@ -6,7 +6,6 @@ from fastapi import APIRouter, HTTPException, status, Depends, Query
 
 from app.core.auth import (
     get_current_user,
-    get_storage,
     require_permission,
     AuthenticatedUser,
 )
@@ -20,7 +19,7 @@ from app.schemas.user import (
     UserStatus,
 )
 from app.user.password import hash_password
-from app.storage import MongoStorage
+from app.storage import get_async_storage
 
 logger = logging.getLogger(__name__)
 
@@ -66,12 +65,11 @@ async def list_users(
     current_user: AuthenticatedUser = Depends(require_permission("user:view")),
 ):
     """获取用户列表"""
-    storage = get_storage()
-    storage.connect()
+    storage = await get_async_storage()
 
     skip = (page - 1) * page_size
 
-    all_users = storage.get_all_users(skip=0, limit=10000)
+    all_users = await storage.get_all_users(skip=0, limit=10000)
 
     filtered_users = all_users
     if status:
@@ -93,7 +91,7 @@ async def list_users(
     total = len(filtered_users)
     paginated_users = filtered_users[skip : skip + page_size]
 
-    roles = {r["role_id"]: r["name"] for r in storage.get_all_roles()}
+    roles = {r["role_id"]: r["name"] for r in await storage.get_all_roles()}
 
     items = [
         _user_to_response(u, roles.get(u.get("role_id"))) for u in paginated_users
@@ -113,17 +111,16 @@ async def create_user(
     current_user: AuthenticatedUser = Depends(require_permission("user:manage")),
 ):
     """创建用户"""
-    storage = get_storage()
-    storage.connect()
+    storage = await get_async_storage()
 
-    existing = storage.get_user_by_username(user_data.username)
+    existing = await storage.get_user_by_username(user_data.username)
     if existing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="用户名已存在",
         )
 
-    role = storage.get_role_by_id(user_data.role_id)
+    role = await storage.get_role_by_id(user_data.role_id)
     if not role:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -146,7 +143,7 @@ async def create_user(
         "created_by": current_user.user_id,
     }
 
-    user_id = storage.save_user(new_user)
+    user_id = await storage.save_user(new_user)
     logger.info(f"User {current_user.username} created user {user_data.username}")
 
     return _user_to_response({**new_user, "_id": user_id}, role["name"])
@@ -158,10 +155,9 @@ async def get_user(
     current_user: AuthenticatedUser = Depends(require_permission("user:view")),
 ):
     """获取用户详情"""
-    storage = get_storage()
-    storage.connect()
+    storage = await get_async_storage()
 
-    user_data = storage.get_user_by_id(user_id)
+    user_data = await storage.get_user_by_id(user_id)
     if not user_data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -169,7 +165,7 @@ async def get_user(
         )
 
     role = (
-        storage.get_role_by_id(user_data.get("role_id"))
+        await storage.get_role_by_id(user_data.get("role_id"))
         if user_data.get("role_id")
         else None
     )
@@ -185,10 +181,9 @@ async def update_user(
     current_user: AuthenticatedUser = Depends(require_permission("user:edit")),
 ):
     """更新用户"""
-    storage = get_storage()
-    storage.connect()
+    storage = await get_async_storage()
 
-    existing = storage.get_user_by_id(user_id)
+    existing = await storage.get_user_by_id(user_id)
     if not existing:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -205,7 +200,7 @@ async def update_user(
     if user_data.display_name is not None:
         update_data["display_name"] = user_data.display_name
     if user_data.role_id is not None:
-        role = storage.get_role_by_id(user_data.role_id)
+        role = await storage.get_role_by_id(user_data.role_id)
         if not role:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -220,12 +215,12 @@ async def update_user(
         update_data["status"] = user_data.status.value
 
     if update_data:
-        storage.update_user(user_id, update_data)
+        await storage.update_user(user_id, update_data)
         logger.info(f"User {current_user.username} updated user {user_id}")
 
-    updated_user = storage.get_user_by_id(user_id)
+    updated_user = await storage.get_user_by_id(user_id)
     role = (
-        storage.get_role_by_id(updated_user.get("role_id"))
+        await storage.get_role_by_id(updated_user.get("role_id"))
         if updated_user.get("role_id")
         else None
     )
@@ -240,10 +235,9 @@ async def delete_user(
     current_user: AuthenticatedUser = Depends(require_permission("user:delete")),
 ):
     """删除用户"""
-    storage = get_storage()
-    storage.connect()
+    storage = await get_async_storage()
 
-    existing = storage.get_user_by_id(user_id)
+    existing = await storage.get_user_by_id(user_id)
     if not existing:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -262,7 +256,7 @@ async def delete_user(
             detail="不能删除自己",
         )
 
-    storage.delete_user(user_id)
+    await storage.delete_user(user_id)
     logger.info(f"User {current_user.username} deleted user {existing['username']}")
 
 
@@ -272,10 +266,9 @@ async def reset_user_password(
     current_user: AuthenticatedUser = Depends(require_permission("user:manage")),
 ):
     """重置用户密码"""
-    storage = get_storage()
-    storage.connect()
+    storage = await get_async_storage()
 
-    existing = storage.get_user_by_id(user_id)
+    existing = await storage.get_user_by_id(user_id)
     if not existing:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -290,7 +283,7 @@ async def reset_user_password(
 
     default_password = settings.default_user_password
     new_password_hash = hash_password(default_password)
-    storage.update_user(user_id, {"password_hash": new_password_hash})
+    await storage.update_user(user_id, {"password_hash": new_password_hash})
 
     logger.info(
         f"User {current_user.username} reset password for user {existing['username']}"
@@ -305,10 +298,9 @@ async def unlock_user(
     current_user: AuthenticatedUser = Depends(require_permission("user:edit")),
 ):
     """解锁用户"""
-    storage = get_storage()
-    storage.connect()
+    storage = await get_async_storage()
 
-    existing = storage.get_user_by_id(user_id)
+    existing = await storage.get_user_by_id(user_id)
     if not existing:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -318,7 +310,7 @@ async def unlock_user(
     if existing.get("status") != "locked":
         return {"message": "用户未锁定，无需解锁"}
 
-    storage.update_user(user_id, {"status": "active"})
+    await storage.update_user(user_id, {"status": "active"})
     logger.info(
         f"User {current_user.username} unlocked user {existing['username']}"
     )

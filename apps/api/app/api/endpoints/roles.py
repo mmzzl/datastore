@@ -6,7 +6,6 @@ from fastapi import APIRouter, HTTPException, status, Depends, Query
 
 from app.core.auth import (
     get_current_user,
-    get_storage,
     require_permission,
     AuthenticatedUser,
 )
@@ -18,7 +17,7 @@ from app.schemas.user import (
     RoleListResponse,
     PermissionResponse,
 )
-from app.storage import MongoStorage
+from app.storage import get_async_storage
 
 logger = logging.getLogger(__name__)
 
@@ -55,10 +54,9 @@ async def list_roles(
     current_user: AuthenticatedUser = Depends(require_permission("role:view")),
 ):
     """获取角色列表"""
-    storage = get_storage()
-    storage.connect()
+    storage = await get_async_storage()
 
-    roles = storage.get_all_roles()
+    roles = await storage.get_all_roles()
     skip = (page - 1) * page_size
     total = len(roles)
     paginated_roles = roles[skip : skip + page_size]
@@ -86,10 +84,9 @@ async def create_role(
     current_user: AuthenticatedUser = Depends(require_permission("role:manage")),
 ):
     """创建角色"""
-    storage = get_storage()
-    storage.connect()
+    storage = await get_async_storage()
 
-    existing = storage.get_role_by_id(role_data.role_id)
+    existing = await storage.get_role_by_id(role_data.role_id)
     if existing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -117,7 +114,7 @@ async def create_role(
         "updated_at": now,
     }
 
-    role_id = storage.save_role(new_role)
+    role_id = await storage.save_role(new_role)
     logger.info(f"User {current_user.username} created role {role_data.role_id}")
 
     return _role_to_response({**new_role, "_id": role_id})
@@ -129,10 +126,9 @@ async def get_role(
     current_user: AuthenticatedUser = Depends(require_permission("role:view")),
 ):
     """获取角色详情"""
-    storage = get_storage()
-    storage.connect()
+    storage = await get_async_storage()
 
-    role_data = storage.get_role_by_id(role_id)
+    role_data = await storage.get_role_by_id(role_id)
     if not role_data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -149,10 +145,9 @@ async def update_role(
     current_user: AuthenticatedUser = Depends(require_permission("role:edit")),
 ):
     """更新角色"""
-    storage = get_storage()
-    storage.connect()
+    storage = await get_async_storage()
 
-    existing = storage.get_role_by_id(role_id)
+    existing = await storage.get_role_by_id(role_id)
     if not existing:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -174,10 +169,10 @@ async def update_role(
         update_data["permissions"] = role_data.permissions
 
     if update_data:
-        storage.update_role(role_id, update_data)
+        await storage.update_role(role_id, update_data)
         logger.info(f"User {current_user.username} updated role {role_id}")
 
-    updated_role = storage.get_role_by_id(role_id)
+    updated_role = await storage.get_role_by_id(role_id)
     return _role_to_response(updated_role)
 
 
@@ -187,10 +182,9 @@ async def delete_role(
     current_user: AuthenticatedUser = Depends(require_permission("role:delete")),
 ):
     """删除角色"""
-    storage = get_storage()
-    storage.connect()
+    storage = await get_async_storage()
 
-    existing = storage.get_role_by_id(role_id)
+    existing = await storage.get_role_by_id(role_id)
     if not existing:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -203,7 +197,7 @@ async def delete_role(
             detail="系统内置角色不能删除",
         )
 
-    all_users = storage.get_all_users(limit=10000)
+    all_users = await storage.get_all_users(limit=10000)
     users_with_role = [u for u in all_users if u.get("role_id") == role_id]
     if users_with_role:
         raise HTTPException(
@@ -211,5 +205,5 @@ async def delete_role(
             detail=f"角色正在被 {len(users_with_role)} 个用户使用，无法删除",
         )
 
-    storage.delete_role(role_id)
+    await storage.delete_role(role_id)
     logger.info(f"User {current_user.username} deleted role {role_id}")

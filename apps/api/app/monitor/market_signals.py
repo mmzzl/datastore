@@ -5,7 +5,8 @@ from typing import List, Dict, Any, Optional
 
 from fastapi import APIRouter, Depends, Query
 from app.auth import get_current_user
-from app.core.auth import get_storage
+from app.storage.mongo_client import get_storage
+from app.storage import get_async_storage
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +93,7 @@ def add_signal(signal: Dict[str, Any]):
 
 
 @router.get("/signals/latest")
-def latest_signals(
+async def latest_signals(
     page: int = Query(default=1, ge=1, description="Page number"),
     page_size: int = Query(default=20, ge=1, le=100, description="Items per page"),
     signal_type: Optional[str] = Query(default=None, description="Filter by signal type (buy/sell/hold)"),
@@ -101,10 +102,8 @@ def latest_signals(
     current_user: str = Depends(get_current_user),
 ):
     try:
-        storage = get_storage()
-        collection = storage.market_signals_collection
-        if collection is None:
-            return {"items": [], "total": 0, "page": page, "page_size": page_size}
+        storage = await get_async_storage()
+        collection = storage.db["market_signals"]
         query: Dict[str, Any] = {}
         if signal_type:
             query["signal"] = signal_type
@@ -113,11 +112,11 @@ def latest_signals(
         if days:
             since = datetime.now() - timedelta(days=days)
             query["timestamp"] = {"$gte": since}
-        total = collection.count_documents(query)
+        total = await collection.count_documents(query)
         skip = (page - 1) * page_size
         cursor = collection.find(query).sort("timestamp", -1).skip(skip).limit(page_size)
         items = []
-        for doc in cursor:
+        async for doc in cursor:
             doc["_id"] = str(doc["_id"])
             if isinstance(doc.get("timestamp"), datetime):
                 doc["timestamp"] = doc["timestamp"].isoformat()
@@ -129,10 +128,10 @@ def latest_signals(
 
 
 @router.post("/signals")
-def push_signal(signal: Dict[str, Any], current_user: str = Depends(get_current_user)):
+async def push_signal(signal: Dict[str, Any], current_user: str = Depends(get_current_user)):
     try:
-        storage = get_storage()
-        signal_id = storage.save_market_signal(signal)
+        storage = await get_async_storage()
+        signal_id = await storage.save_market_signal(signal)
         return {"ok": True, "id": signal_id}
     except Exception as e:
         logger.error(f"Failed to push manual signal: {e}")
