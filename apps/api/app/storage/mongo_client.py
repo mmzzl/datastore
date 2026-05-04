@@ -1,5 +1,5 @@
 from pymongo import MongoClient
-from pymongo.errors import PyMongoError
+from pymongo.errors import PyMongoError, AutoReconnect, ConnectionFailure, NetworkTimeout
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
 from urllib.parse import quote_plus
@@ -44,6 +44,7 @@ class MongoStorage:
         self.strategy_plugins_collection = None
         self.users_collection = None
         self.roles_collection = None
+        self._is_shared = False  # 标记是否为共享单例
 
     def connect(self):
         try:
@@ -53,6 +54,9 @@ class MongoStorage:
                 "maxIdleTimeMS": 60000,
                 "connectTimeoutMS": 5000,
                 "serverSelectionTimeoutMS": 5000,
+                "socketTimeoutMS": 30000,
+                "retryWrites": True,
+                "retryReads": True,
             }
             if self.username and self.password:
                 encoded_password = quote_plus(self.password)
@@ -61,18 +65,7 @@ class MongoStorage:
             else:
                 self.client = MongoClient(self.host, self.port, **pool_opts)
             self.db = self.client[self.db_name]
-            self.collection = self.db["after_market"]
-            self.kline_collection = self.db["stock_kline"]
-            self.capital_flow_collection = self.db["capital_flow"]
-            self.news_stocks_collection = self.db["news_stocks"]
-            self.monitor_stocks_collection = self.db["monitor_stocks"]
-            self.holdings_collection = self.db["holdings"]
-            self.settings_collection = self.db["settings"]
-            self.strategy_plugins_collection = self.db["strategy_plugins"]
-            self.users_collection = self.db["users"]
-            self.roles_collection = self.db["roles"]
-            self.watch_list_collection = self.db["watch_list"]
-            self.market_signals_collection = self.db["market_signals"]
+            self._bind_collections()
             self._create_user_indexes()
             self._create_role_indexes()
             self._create_signal_indexes()
@@ -82,9 +75,56 @@ class MongoStorage:
             logger.error(f"MongoDB connection failed: {e}")
             raise
 
+    def _bind_collections(self):
+        """绑定所有 collection 引用"""
+        self.collection = self.db["after_market"]
+        self.kline_collection = self.db["stock_kline"]
+        self.capital_flow_collection = self.db["capital_flow"]
+        self.news_stocks_collection = self.db["news_stocks"]
+        self.monitor_stocks_collection = self.db["monitor_stocks"]
+        self.holdings_collection = self.db["holdings"]
+        self.settings_collection = self.db["settings"]
+        self.strategy_plugins_collection = self.db["strategy_plugins"]
+        self.users_collection = self.db["users"]
+        self.roles_collection = self.db["roles"]
+        self.watch_list_collection = self.db["watch_list"]
+        self.market_signals_collection = self.db["market_signals"]
+
+    def _is_connected(self) -> bool:
+        """检查连接是否仍然可用"""
+        if self.client is None:
+            return False
+        try:
+            self.client.admin.command("ping")
+            return True
+        except PyMongoError:
+            return False
+
+    def ensure_connected(self):
+        """确保连接可用，如果断开则自动重连"""
+        if not self._is_connected():
+            logger.warning("MongoDB connection lost, reconnecting...")
+            try:
+                if self.client:
+                    try:
+                        self.client.close()
+                    except Exception:
+                        pass
+                self.client = None
+                self.connect()
+            except PyMongoError as e:
+                logger.error(f"MongoDB reconnection failed: {e}")
+                raise
+
     def close(self):
+        # 共享单例不允许外部关闭，由 get_storage() 统一管理生命周期
+        if self._is_shared:
+            return
         if self.client:
-            self.client.close()
+            try:
+                self.client.close()
+            except Exception:
+                pass
             self.client = None
             self.db = None
             self.collection = None
@@ -724,6 +764,9 @@ def get_storage() -> MongoStorage:
             username=settings.mongodb_username,
             password=settings.mongodb_password,
         )
+        _shared_storage._is_shared = True
         _shared_storage.connect()
+    else:
+        _shared_storage.ensure_connected()
     return _shared_storage
 
