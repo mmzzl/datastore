@@ -144,13 +144,17 @@ class MongoStorage:
     def save(self, data: Any) -> Optional[str]:
         if self.collection is None:
             self.connect()
-        save_data = {}
-        save_data["created_at"] = datetime.now()
-        save_data["data"] = data
+        now = datetime.now()
+        date_key = now.strftime("%Y-%m-%d")
+        save_data = {
+            "created_at": now,
+            "date": date_key,
+            "data": data,
+        }
 
         try:
             result = self.collection.update_one(
-                {"date": save_data.get("created_at")}, {"$set": save_data}, upsert=True
+                {"date": date_key}, {"$set": save_data}, upsert=True
             )
             if result.upserted_id:
                 return str(result.upserted_id)

@@ -1,178 +1,240 @@
-"""钉钉消息格式化模块"""
+"""钉钉消息格式化模块 — 财经日报格式"""
 
 import logging
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
 
 class DingTalkFormatter:
-    """钉钉消息格式化器"""
+    """钉钉消息格式化器 — 财经日报"""
 
     @staticmethod
     def format(brief: Dict, stock_info: Dict = None, news_analysis: Dict = None) -> str:
-        """格式化简报为钉钉消息"""
+        """格式化简报为财经日报格式"""
         if stock_info is None:
             stock_info = {}
 
+        na = news_analysis or brief.get("news_analysis", {})
         lines = []
-        lines.append(f"## 📊 每日盘前简报 - {brief.get('date', '')}")
+
+        # 标题 + 新闻总数
+        date_str = brief.get("date", "")
+        news_count = na.get("news_count", 0)
+        lines.append(f"## 📊 财经日报 · {date_str}")
+        lines.append("")
+        lines.append(f"📋 新闻总数: {news_count}条")
         lines.append("")
 
-        DingTalkFormatter._add_market_section(lines, brief.get("market_overview", {}))
-        DingTalkFormatter._add_buy_section(
-            lines, brief.get("buy_opportunities", {}), stock_info
-        )
-        DingTalkFormatter.format_news_analysis(
-            lines, news_analysis or brief.get("news_analysis", {})
-        )
+        # 今日市场要点
+        DingTalkFormatter._add_market_summary(lines, na)
+
+        # 热点板块 TOP 5
+        DingTalkFormatter._add_hot_sectors(lines, na)
+
+        # 热点股票
+        DingTalkFormatter._add_hot_stocks(lines, na)
+
+        # 今日热门新闻（按分类）
+        DingTalkFormatter._add_news_by_category(lines, na)
+
+        # 大盘数据
+        DingTalkFormatter._add_market_overview(lines, brief.get("market_overview", {}))
+
+        # AI 市场分析
+        DingTalkFormatter._add_market_analysis(lines, na)
+
+        # 明日策略
+        DingTalkFormatter._add_strategy(lines, na)
+
+        lines.append("> 仅供参考，不构成投资建议")
         return "\n".join(lines)
+
+    @staticmethod
+    def _add_market_summary(lines: List[str], na: Dict) -> None:
+        summary = na.get("summary", "")
+        if summary:
+            lines.append("📈 今日市场要点")
+            lines.append(summary)
+            lines.append("")
+
+    @staticmethod
+    def _add_hot_sectors(lines: List[str], na: Dict) -> None:
+        sectors = na.get("hot_sectors_detail") or []
+        if not sectors:
+            # 兼容旧格式
+            names = na.get("hot_sectors", [])
+            sectors = [{"name": s, "heat": 0} for s in names]
+        if not sectors:
+            return
+
+        lines.append("🔥 热点板块 TOP %d" % min(len(sectors), 5))
+        lines.append("")
+        lines.append("| 排名 | 板块 | 热度 |")
+        lines.append("|------|------|------|")
+        for i, sec in enumerate(sectors[:5], 1):
+            name = sec.get("name", "")
+            heat = sec.get("heat", 0)
+            heat_str = f"{heat}" if heat else "-"
+            lines.append(f"| {i} | {name} | {heat_str} |")
+        lines.append("")
+
+    @staticmethod
+    def _add_hot_stocks(lines: List[str], na: Dict) -> None:
+        stocks = na.get("hot_stocks_detail") or []
+        if not stocks and na.get("hot_stocks"):
+            stocks = [{"name": s, "sector": "", "heat": 0} for s in na["hot_stocks"]]
+        if not stocks:
+            return
+
+        lines.append("📈 热点股票")
+        lines.append("")
+        lines.append("| 股票 | 板块 | 热度 |")
+        lines.append("|------|------|------|")
+        for s in stocks[:10]:
+            name = s.get("name", "")
+            sector = s.get("sector", "") or "-"
+            heat = s.get("heat", 0)
+            heat_str = f"{heat}" if heat else "-"
+            lines.append(f"| {name} | {sector} | {heat_str} |")
+        lines.append("")
+
+    @staticmethod
+    def _add_news_by_category(lines: List[str], na: Dict) -> None:
+        news_cat = na.get("news_by_category") or {}
+        if not news_cat:
+            return
+
+        lines.append("📰 今日热门新闻")
+        lines.append("")
+        for cat, news_items in news_cat.items():
+            if not news_items:
+                continue
+            lines.append(f"**【{cat}】**")
+            for j, item in enumerate(news_items[:8], 1):
+                lines.append(f"{j}. {item}")
+            lines.append("")
+
+    @staticmethod
+    def _add_market_overview(lines: List[str], market: Dict) -> None:
+        if "error" in market or not market:
+            return
+
+        up = market.get("up_count", 0)
+        down = market.get("down_count", 0)
+        avg = market.get("avg_change_pct", 0)
+        limit_up = market.get("limit_up", 0)
+        limit_down = market.get("limit_down", 0)
+        sentiment = market.get("market_sentiment", "")
+
+        lines.append("📊 大盘数据")
+        lines.append(f"- 上涨: **{up}** | 下跌: **{down}** | 平均涨跌幅: **{avg:.2f}%**")
+        lines.append(f"- 涨停: **{limit_up}** | 跌停: **{limit_down}** | 情绪: **{sentiment}**")
+        lines.append("")
+
+    @staticmethod
+    def _add_market_analysis(lines: List[str], na: Dict) -> None:
+        ma = na.get("market_analysis") or {}
+        if not ma:
+            return
+
+        lines.append("🤖 今日市场分析")
+        lines.append("")
+
+        overall = ma.get("overall", "")
+        if overall:
+            lines.append("1. 市场整体态势")
+            lines.append(overall)
+            lines.append("")
+
+        rotation = ma.get("sector_rotation", "")
+        if rotation:
+            lines.append("2. 板块轮动")
+            lines.append(rotation)
+            lines.append("")
+
+        opportunities = ma.get("opportunities", [])
+        risks = ma.get("risks", [])
+
+        if opportunities:
+            lines.append("3. 投资机会")
+            for opp in opportunities:
+                lines.append(f"   ✅ {opp}")
+            lines.append("")
+
+        if risks:
+            lines.append("4. 风险提示")
+            for r in risks:
+                lines.append(f"   ⚠️ {r}")
+            lines.append("")
+
+        outlook = ma.get("outlook", "")
+        if outlook:
+            lines.append("5. 明日展望")
+            lines.append(outlook)
+            lines.append("")
+
+        core_focus = ma.get("core_focus", [])
+        if core_focus:
+            lines.append("💡 今日核心关注：")
+            for item in core_focus:
+                lines.append(f"- {item}")
+            lines.append("")
+
+    @staticmethod
+    def _add_strategy(lines: List[str], na: Dict) -> None:
+        strategy = na.get("tomorrow_strategy") or {}
+        if not strategy:
+            return
+
+        direction = strategy.get("direction", "")
+        attention = strategy.get("attention", "")
+        risk = strategy.get("risk", "")
+
+        if any([direction, attention, risk]):
+            lines.append("📋 策略参考")
+            if direction:
+                emoji = "📈" if "多" in direction else "📉" if "空" in direction else "↔️"
+                lines.append(f"- 方向: {emoji} {direction}")
+            if attention:
+                lines.append(f"- 关注: {attention}")
+            if risk:
+                lines.append(f"- 风控: ⚠️ {risk}")
+            lines.append("")
 
     @staticmethod
     def format_news_analysis(lines: List[str], news_analysis: Dict) -> str:
-        """格式化新闻分析结果为钉钉消息"""
-        lines.append("## 📰 新闻分析简报")
-        lines.append("")
+        """兼容旧接口 — 追加新格式到 lines"""
+        na = news_analysis or {}
 
-        # 今日概要
-        summary = news_analysis.get("summary")
-        if summary is not None:
-            lines.append(f"### 📝 今日概要")
-            lines.append(f"{summary}")
+        cat = na.get("news_by_category") or {}
+        if cat:
+            lines.append("## 📰 财经日报")
+            lines.append("")
+            for category, items in cat.items():
+                if items:
+                    lines.append(f"### {category}")
+                    for item in items[:5]:
+                        lines.append(f"- {item}")
+                    lines.append("")
+
+        ma = na.get("market_analysis") or {}
+        overall = ma.get("overall", "")
+        if overall:
+            lines.append("### 📊 市场分析")
+            lines.append(overall)
             lines.append("")
 
-        # 热门板块
-        hot_sectors = news_analysis.get("hot_sectors", [])
-        if hot_sectors:
-            lines.append("### 🔥 热门板块")
-            for sector in hot_sectors:
-                lines.append(f"- {sector}")
-            lines.append("")
+        opportunities = ma.get("opportunities", [])
+        risks = ma.get("risks", [])
+        if opportunities:
+            lines.append("**机会:** " + "、".join(opportunities))
+        if risks:
+            lines.append("**风险:** " + "、".join(risks))
 
-        # 关注股票
-        hot_stocks = news_analysis.get("hot_stocks", [])
-        if hot_stocks:
-            lines.append("### 📌 关注股票")
-            for stock in hot_stocks:
-                lines.append(f"- {stock}")
-            lines.append("")
-
-        # 市场情绪
-        sentiment = news_analysis.get("sentiment", "")
+        sentiment = na.get("sentiment", "")
         if sentiment:
-            sentiment_emoji = (
-                "🟢" if "利好" in sentiment else "🔴" if "利空" in sentiment else "⚪"
-            )
-            lines.append(f"### 🎯 市场情绪")
-            lines.append(f"{sentiment_emoji} {sentiment}")
-            lines.append("")
-
-        # 明日策略
-        strategy = news_analysis.get("tomorrow_strategy", {})
-        if strategy:
-            lines.append("### 📅 明日策略")
-            direction = strategy.get("direction", "")
-            if direction:
-                direction_emoji = (
-                    "📈" if "多" in direction else "📉" if "空" in direction else "↔️"
-                )
-                lines.append(f"- **方向**: {direction_emoji} {direction}")
-
-            attention = strategy.get("attention", "")
-            if attention:
-                lines.append(f"- **重点关注**: {attention}")
-
-            risk = strategy.get("risk", "")
-            if risk:
-                lines.append(f"- **风险提示**: ⚠️ {risk}")
-            lines.append("")
-
-        # 关键事件
-        key_events = news_analysis.get("key_events", [])
-        if key_events:
-            lines.append("### 📋 关键事件")
-            for i, event in enumerate(key_events, 1):
-                lines.append(f"{i}. {event}")
-            lines.append("")
+            emoji = "🟢" if "利好" in sentiment else "🔴" if "利空" in sentiment else "⚪"
+            lines.append(f"**市场情绪:** {emoji} {sentiment}")
 
         return "\n".join(lines)
-
-    @staticmethod
-    def _add_market_section(lines: List[str], market: Dict) -> None:
-        if "error" in market:
-            return
-
-        lines.append("### 📈 大盘与市场环境")
-        lines.append("")
-
-        sentiment_map = {
-            "普涨": "🚀",
-            "偏涨": "📈",
-            "分化": "⚖️",
-            "偏跌": "📉",
-            "普跌": "🔻",
-        }
-        emoji = sentiment_map.get(market.get("market_sentiment", ""), "📊")
-
-        lines.append(f"- 总股票数: **{market.get('total_stocks', 0)}**")
-        lines.append(
-            f"- 上涨: **{market.get('up_count', 0)}** | 下跌: **{market.get('down_count', 0)}**"
-        )
-
-        avg_change = market.get("avg_change_pct", 0)
-        color = "🔴" if avg_change < 0 else "🟢"
-        lines.append(f"- 平均涨跌幅: {color} **{avg_change:.2f}%**")
-
-        lines.append(
-            f"- 涨停: **{market.get('limit_up', 0)}** | 跌停: **{market.get('limit_down', 0)}**"
-        )
-        lines.append(
-            f"- 市场情绪: **{emoji} {market.get('market_sentiment', '未知')}**"
-        )
-        lines.append("")
-
-    @staticmethod
-    def _add_buy_section(lines: List[str], buy: Dict, stock_info: Dict) -> None:
-        if "error" in buy:
-            lines.append("### 🎯 买入机会")
-            lines.append(f"- {buy['error']}")
-            lines.append("")
-            return
-
-        lines.append("### 🎯 买入机会推荐")
-        lines.append("")
-
-        top_stocks = buy.get("top_stocks", [])
-        if not top_stocks:
-            lines.append("- 暂无推荐")
-            lines.append("")
-            return
-
-        for i, stock in enumerate(top_stocks[:5], 1):
-            symbol = stock.get("symbol", "")
-            name = stock.get("name", symbol)
-            sector = stock.get("sector", "")
-            
-            # 如果 symbol 为空，使用 name 作为标识
-            display_symbol = symbol if symbol else name
-            display_name = name if name else symbol
-            
-            # 构建板块信息
-            sector_text = f" [{sector}]" if sector else ""
-
-            if "reasons" in stock and stock["reasons"]:
-                reasons_text = "、".join(stock["reasons"][:3])
-                lines.append(f"{i}. **{display_name}**({display_symbol}){sector_text} - {reasons_text}")
-            else:
-                close = stock.get("close", 0)
-                change = stock.get("change_pct", 0)
-                score = stock.get("score", 0)
-                lines.append(
-                    f"{i}. **{display_name}**({display_symbol}){sector_text} | 收盘:{close:.2f} | 涨跌:{change:.2f}% | 评分:{score:.1f}"
-                )
-
-        if buy.get("analysis"):
-            lines.append("")
-            lines.append(f"📝 分析: {buy['analysis']}")
-
-        lines.append("")

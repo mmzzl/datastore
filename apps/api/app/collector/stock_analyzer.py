@@ -385,7 +385,7 @@ class StockAnalyzer:
 
         sector_score = 0.0
 
-        if sentiment == "积极":
+        if sentiment == "利好":
             sector_score += 20
         elif sentiment == "中性":
             sector_score += 10

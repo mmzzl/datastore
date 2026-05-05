@@ -90,46 +90,74 @@ class LLMClient:
                 news_text += f"   关联股票: {', '.join(stock_list)}\n"
             if industry_list:
                 news_text += f"   关联行业: {', '.join(industry_list)}\n"
-        # 关键：把 JSON 示例用 HEREDOC/原始字符串包裹，避免 f-string 解析冲突
-        prompt = f"""你是一位专业、严谨、客观的A股市场分析师。请严格遵守以下要求分析新闻：
 
-        ### 核心规则（必须100%遵守）
-        1. 立场客观，不夸大、不造谣，基于新闻事实分析；
-        2. 不推荐具体股票买卖，不预测个股涨跌，只做板块与情绪判断；
-        3. 严格区分利好/利空/中性，不模棱两可；
-        4. 只输出合法合规内容，不提供投资建议，仅做市场解读与风险提示；
-        5. **格式强制要求**：仅返回标准 JSON 字符串，无任何多余文字、注释、换行、解释，JSON 必须可被 Python json.loads() 解析；
-        6. JSON 字段约束：
-        - summary：50字以内，新闻核心总结；
-        - hot_sectors：数组，数据只能从关联行业中取值,不能自己创造新的名字；
-        - hot_concepts：数组（仅列名称，不做推荐）；
-        - hot_stocks：数组（仅列名称，不做推荐）；
-        - sentiment：仅可选「利好」「利空」「中性」；
-        - tomorrow_strategy.direction：仅可选「看多」「看空」「震荡」；
-        - tomorrow_strategy.attention：重点关注方向（50字内）；
-        - tomorrow_strategy.risk：风险提示（50字内）；
-        - key_events：数组，最多3个关键事件。
+        prompt = f"""你是一位专业、严谨的A股市场分析师。分析以下新闻，输出中文JSON。
 
-        ### 待分析新闻
-        {news_text}
+### 核心规则
+1. 立场客观，基于事实分析
+2. 不推荐个股买卖，只做板块与情绪判断
+3. 仅返回JSON，无多余文字
 
-        ### 输出示例（仅参考格式，需替换为真实分析结果）
-        {{
-            "summary": "央行降准0.25个百分点，释放流动性利好基建板块",
-            "hot_sectors": ["基建", "银行"],
-            "hot_concepts": ["大基建", "低估值"],
-            "hot_stocks": ["中国建筑", "工商银行"],
-            "sentiment": "利好",
-            "tomorrow_strategy": {{
-                "direction": "看多",
-                "attention": "关注基建板块龙头股资金流向",
-                "risk": "谨防板块短期冲高回落风险"
-            }},
-            "key_events": ["央行降准", "基建专项债发行提速"]
-        }}
+### 输出JSON字段说明
+- summary: 今日市场要点总结（50字内）
+- news_count: 新闻总数
+- hot_sectors_detail: 热点板块数组，每项包含 name(板块名) 和 heat(热度分0-500，根据新闻提及频率和重要性)
+- hot_stocks_detail: 热点股票数组，每项包含 name(股票名)、sector(所属板块)、heat(热度分0-500)
+- news_by_category: 对象，key为分类名(如"重磅政策""国际动态""科技前沿""财报业绩""市场动态""风险警示")，value为该分类下的新闻标题数组
+- hot_sectors: 数组，仅板块名称（兼容旧版）
+- hot_stocks: 数组，仅股票名称（兼容旧版）
+- sentiment: 仅可选「利好」「利空」「中性」
+- market_analysis: 对象，包含:
+  - overall: 市场整体态势（80字内）
+  - sector_rotation: 板块轮动分析（80字内）
+  - opportunities: 数组，投资机会（每项30字内，最多3条）
+  - risks: 数组，风险提示（每项30字内，最多3条）
+  - outlook: 次日展望（60字内）
+  - core_focus: 数组，今日核心关注事件（每项30字内，最多3条）
+- tomorrow_strategy: 对象，含 direction(看多/看空/震荡)、attention(重点关注)、risk(风险提示)
+- key_events: 数组，最多3个关键事件
+- hot_concepts: 数组，热门概念（兼容旧版）
 
-        ### 最终要求
-        仅返回符合上述规则的 JSON 字符串，无任何其他内容！"""
+### 待分析新闻
+{news_text}
+
+### 输出示例（格式参考，数据替换为真实分析结果）
+{{{{
+    "summary": "昨日A股缩量调整，热点轮动加速。美联储维持利率不变，鲍威尔卸任进入倒计时。",
+    "news_count": 32,
+    "hot_sectors_detail": [
+        {{"name": "人工智能", "heat": 384}},
+        {{"name": "存储芯片", "heat": 311}}
+    ],
+    "hot_stocks_detail": [
+        {{"name": "南方路机", "sector": "人工智能", "heat": 384}},
+        {{"name": "浪潮软件", "sector": "人工智能", "heat": 384}}
+    ],
+    "news_by_category": {{
+        "重磅政策": ["深圳楼市五一前放大招", "中国证监会迎70后副主席"],
+        "国际动态": ["美联储维持利率不变", "霍尔木兹海峡航运受阻"]
+    }},
+    "hot_sectors": ["人工智能", "存储芯片"],
+    "hot_stocks": ["南方路机", "浪潮软件"],
+    "sentiment": "中性",
+    "market_analysis": {{
+        "overall": "AI板块延续强势，但市场分化明显，业绩+景气度才是核心逻辑。",
+        "sector_rotation": "AI算力持续走强；存储受益AI超级周期；房地产政策博弈。",
+        "opportunities": ["AI算力龙头", "存储周期机会", "政策放松地产链"],
+        "risks": ["业绩变脸股风险", "ST股扩散风险", "节前避险情绪"],
+        "outlook": "五一小长假前避险情绪升温，关注美股科技巨头财报影响。",
+        "core_focus": ["源杰科技登顶新股王", "芯原股份AI算力订单爆发", "深圳楼市新政"]
+    }},
+    "tomorrow_strategy": {{
+        "direction": "震荡",
+        "attention": "关注AI算力和存储板块持续性",
+        "risk": "控制仓位，规避ST风险股"
+    }},
+    "key_events": ["美联储换帅倒计时", "AI存儲超级周期", "深圳楼市新政"],
+    "hot_concepts": ["AI算力", "存储芯片"]
+}}}}
+
+仅返回JSON，无任何其他内容。"""
         return prompt
 
     def _call_api(self, prompt: str) -> str:
@@ -174,15 +202,15 @@ class LLMClient:
         """简单的关键词分析作为后备"""
         keywords_利好 = ['涨停', '突破', '大涨', '增长', '业绩', '订单', '合作', '获批', '增长', '扭亏', '回购']
         keywords_利空 = ['跌停', '大跌', '亏损', '减持', '风险', '调查', '处罚', '下修', '预警']
-        
+
         hot_sectors = set()
         hot_stocks = set()
         sentiment_score = 0
-        
+
         for news in news_list:
             title = news.get('title', '')
             stock_list = news.get('stock_list', [])
-            
+
             # 情绪分析
             for kw in keywords_利好:
                 if kw in title:
@@ -192,27 +220,43 @@ class LLMClient:
                 if kw in title:
                     sentiment_score -= 1
                     break
-            
+
             # 提取热门股票
             for stock in stock_list[:3]:
                 hot_stocks.add(stock)
-        
+
         if sentiment_score > 3:
             sentiment = "利好"
         elif sentiment_score < -3:
             sentiment = "利空"
         else:
             sentiment = "中性"
-        
+
+        hot_sectors_list = list(hot_sectors)[:10]
+        hot_stocks_list = list(hot_stocks)[:10]
+
         return {
             "summary": f"今日共{len(news_list)}条新闻，市场{sentiment}",
-            "hot_sectors": list(hot_sectors)[:10],
-            "hot_stocks": list(hot_stocks)[:10],
+            "news_count": len(news_list),
+            "hot_sectors_detail": [{"name": s, "heat": 100} for s in hot_sectors_list],
+            "hot_stocks_detail": [{"name": s, "sector": "", "heat": 100} for s in hot_stocks_list],
+            "news_by_category": {"市场动态": [n.get("title", "") for n in news_list if n.get("title")]},
+            "hot_sectors": hot_sectors_list,
+            "hot_stocks": hot_stocks_list,
             "sentiment": sentiment,
+            "market_analysis": {
+                "overall": f"市场{sentiment}，共{len(news_list)}条新闻",
+                "sector_rotation": "关注热点板块轮动",
+                "opportunities": [] if sentiment == "利空" else ["关注热点板块"],
+                "risks": ["控制仓位"] if sentiment == "利空" else [],
+                "outlook": "关注市场成交量和板块轮动",
+                "core_focus": []
+            },
             "tomorrow_strategy": {
                 "direction": "震荡",
                 "attention": "关注市场成交量和板块轮动",
                 "risk": "控制仓位"
             },
-            "key_events": []
+            "key_events": [],
+            "hot_concepts": []
         }
