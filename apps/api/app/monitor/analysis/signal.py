@@ -156,6 +156,51 @@ class SignalGenerator:
             "suggestion": "建议卖出" if sell_signal else "建议持有"
         }
     
+    def generate_add_position_signal(self, technical_data: Dict[str, Any], stock_config: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        生成加仓信号 — 持仓股票出现买入信号时建议加仓
+
+        参数:
+            technical_data: 技术分析数据
+            stock_config: 股票配置
+
+        返回:
+            加仓信号信息
+        """
+        buy_result = self.generate_buy_signal(technical_data, stock_config)
+
+        # 加仓要求比新买入更高的信号强度 (>= 6/8)
+        if buy_result["strength"] < 6:
+            return {
+                "signal": "hold",
+                "strength": buy_result["strength"],
+                "strength_percentage": buy_result["strength_percentage"],
+                "reasons": buy_result["reasons"],
+                "suggestion": "信号强度不足，不建议加仓"
+            }
+
+        # 检查盈利水平 — 涨幅过大时提示谨慎
+        current_price = stock_config.get("current_price", 0.0)
+        cost_price = stock_config.get("cost_price", 0.0)
+        if cost_price > 0 and current_price > 0:
+            profit_pct = (current_price - cost_price) / cost_price
+            if profit_pct > 0.20:
+                return {
+                    "signal": "hold",
+                    "strength": buy_result["strength"],
+                    "strength_percentage": buy_result["strength_percentage"],
+                    "reasons": buy_result["reasons"] + [f"持仓已盈利{profit_pct*100:.1f}%，追高谨慎"],
+                    "suggestion": "涨幅较大，建议持有观望"
+                }
+
+        return {
+            "signal": "add_position",
+            "strength": buy_result["strength"],
+            "strength_percentage": buy_result["strength_percentage"],
+            "reasons": buy_result["reasons"],
+            "suggestion": "建议加仓"
+        }
+
     def generate_signal(self, technical_data: Dict[str, Any], stock_config: Dict[str, Any]) -> Dict[str, Any]:
         """
         生成最终信号
@@ -168,10 +213,19 @@ class SignalGenerator:
             最终信号信息
         """
         is_holding = stock_config.get("hold", False)
-        
+
         if is_holding:
-            # 如果持有，生成卖出信号
-            return self.generate_sell_signal(technical_data, stock_config)
+            # 先检查卖出信号
+            sell_result = self.generate_sell_signal(technical_data, stock_config)
+            if sell_result["signal"] == "sell":
+                return sell_result
+
+            # 无明确卖出信号时检查加仓机会
+            add_result = self.generate_add_position_signal(technical_data, stock_config)
+            if add_result["signal"] == "add_position":
+                return add_result
+
+            return sell_result
         else:
             # 如果未持有，生成买入信号
             return self.generate_buy_signal(technical_data, stock_config)

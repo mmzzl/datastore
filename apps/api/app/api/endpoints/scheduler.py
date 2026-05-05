@@ -6,7 +6,10 @@ from app.core.config import settings
 from app.core.auth import AuthenticatedUser, require_permission
 from app.scheduler.job_store import JobStore
 from app.scheduler.job_manager import JobManager, CronValidator, JOB_TYPES
-from app.scheduler import qlib_train_handler, risk_report_handler
+from app.scheduler import (
+    qlib_train_handler, risk_report_handler,
+    holdings_sell_alert_handler, daily_recommendation_handler,
+)
 from app.schemas.scheduler import (
     JobCreate, JobUpdate, JobResponse, JobListResponse,
     ExecutionResponse, ExecutionListResponse,
@@ -45,7 +48,9 @@ def _register_handlers(job_manager: JobManager):
     """Register job type handlers."""
     job_manager.register_handler("qlib_train", qlib_train_handler)
     job_manager.register_handler("risk_report", risk_report_handler)
-    logger.info("Registered qlib_train and risk_report handlers")
+    job_manager.register_handler("holdings_sell_alert", holdings_sell_alert_handler)
+    job_manager.register_handler("daily_recommendation", daily_recommendation_handler)
+    logger.info("Registered handlers: qlib_train, risk_report, holdings_sell_alert, daily_recommendation")
 
 
 @router.get("/jobs", response_model=JobListResponse)
@@ -304,6 +309,23 @@ async def register_default_jobs(job_manager: JobManager):
             "job_type": "risk_report",
             "cron_expression": "30 15 * * 1-5",
             "config": {},
+            "enabled": True,
+        },
+        {
+            "name": "持仓卖出提醒",
+            "job_type": "holdings_sell_alert",
+            "cron_expression": "0 15 * * 1-5",
+            "config": {},
+            "enabled": True,
+        },
+        {
+            "name": "每日选股推荐",
+            "job_type": "daily_recommendation",
+            "cron_expression": "30 15 * * 1-5",
+            "config": {
+                "recommendation_strategy": "macd_cross",
+                "recommendation_pool": "all",
+            },
             "enabled": True,
         },
     ]

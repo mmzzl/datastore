@@ -98,7 +98,7 @@ class DailyRecommendationJob:
             raise
 
 
-def daily_recommendation_handler(config: dict):
+async def daily_recommendation_handler(config: dict):
     """Async handler for JobManager."""
     job = DailyRecommendationJob(config)
-    return job.run()
+    return await job.run()

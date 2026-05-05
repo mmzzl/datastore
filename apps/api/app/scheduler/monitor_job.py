@@ -73,12 +73,13 @@ class MonitorJob:
             # 统计结果
             buy_signals = sum(1 for r in results if r.signal.signal == "buy")
             sell_signals = sum(1 for r in results if r.signal.signal == "sell")
+            add_position_signals = sum(1 for r in results if r.signal.signal == "add_position")
             hold_signals = sum(1 for r in results if r.signal.signal == "hold")
-            
+
             logger.info(f"Monitor job completed for {date_str}")
-            logger.info(f"Signals: buy={buy_signals}, sell={sell_signals}, hold={hold_signals}")
-            
-            return f"盯盘任务完成: {date_str} (买入信号: {buy_signals}, 卖出信号: {sell_signals}, 持有信号: {hold_signals})"
+            logger.info(f"Signals: buy={buy_signals}, sell={sell_signals}, add_position={add_position_signals}, hold={hold_signals}")
+
+            return f"盯盘任务完成: {date_str} (买入信号: {buy_signals}, 卖出信号: {sell_signals}, 加仓信号: {add_position_signals}, 持有信号: {hold_signals})"
             
         except Exception as e:
             logger.error(f"Monitor job failed for {date_str}: {e}")

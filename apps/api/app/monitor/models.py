@@ -78,7 +78,7 @@ class TechnicalData(BaseModel):
 
 class Signal(BaseModel):
     """信号模型"""
-    signal: str = Field(..., description="信号类型：buy, sell, hold")
+    signal: str = Field(..., description="信号类型：buy, sell, hold, add_position")
     strength: int = Field(..., description="信号强度")
     strength_percentage: float = Field(..., description="信号强度百分比")
     reasons: List[str] = Field(default_factory=list, description="信号原因")
@@ -107,7 +107,7 @@ class MonitorResult(BaseModel):
 
 class MonitorNotification(BaseModel):
     """监控通知模型"""
-    type: str = Field(..., description="通知类型：buy, sell")
+    type: str = Field(..., description="通知类型：buy, sell, add_position")
     stock: StockData = Field(..., description="股票数据")
     signal: Signal = Field(..., description="信号")
     message: str = Field(..., description="通知消息")

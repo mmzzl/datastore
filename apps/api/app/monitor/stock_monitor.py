@@ -371,11 +371,34 @@ class StockMonitor:
             通知
         """
         signal = monitor_result.signal.signal
-        if signal not in ["buy", "sell"]:
+        if signal not in ["buy", "sell", "add_position"]:
             return None
-        
-        # 构建通知消息
-        if signal == "buy":
+
+        if signal == "add_position":
+            stock_config = self.monitor_config.get_stock_config(monitor_result.stock.code)
+            cost_price = stock_config.get("cost_price", 0.0)
+            current_price = monitor_result.stock.current_price
+            profit_loss = 0.0
+            if cost_price > 0:
+                profit_loss = (current_price - cost_price) / cost_price * 100
+
+            message = f"【加仓信号】\n"
+            message += f"股票：{monitor_result.stock.name} ({monitor_result.stock.code})\n"
+            message += f"当前价格：{monitor_result.stock.current_price:.2f}\n"
+            if cost_price > 0:
+                message += f"持仓成本：{cost_price:.2f}\n"
+                message += f"持仓盈亏：{profit_loss:.2f}%\n"
+            message += f"分析结果：{monitor_result.signal.suggestion}\n"
+            message += f"加仓理由：\n"
+            for reason in monitor_result.signal.reasons:
+                message += f"- {reason}\n"
+            message += f"技术指标：\n"
+            message += f"- RSI: {monitor_result.technical_data.rsi.value:.2f}\n"
+            message += f"- MACD: {monitor_result.technical_data.macd.macd:.4f}\n"
+            message += f"- KDJ: K={monitor_result.technical_data.kdj.k:.2f}, D={monitor_result.technical_data.kdj.d:.2f}, J={monitor_result.technical_data.kdj.j:.2f}\n"
+            message += f"建议操作：考虑适当加仓"
+
+        elif signal == "buy":
             message = f"【买入信号】\n"
             message += f"股票：{monitor_result.stock.name} ({monitor_result.stock.code})\n"
             message += f"当前价格：{monitor_result.stock.current_price:.2f}\n"
